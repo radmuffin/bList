@@ -1,8 +1,29 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct List {
+    pub id: i64,
+    pub name: String,
+    pub icon: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateListRequest {
+    pub name: String,
+    pub icon: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateListRequest {
+    pub name: Option<String>,
+    pub icon: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pin {
     pub id: i64,
+    pub list_id: i64,
     pub title: String,
     pub description: Option<String>,
     pub latitude: f64,
@@ -16,8 +37,9 @@ pub struct Pin {
     pub created_at: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePinRequest {
+    pub list_id: Option<i64>,
     pub title: String,
     pub description: Option<String>,
     pub latitude: f64,
@@ -30,8 +52,9 @@ pub struct CreatePinRequest {
     pub visited: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePinRequest {
+    pub list_id: Option<i64>,
     pub title: Option<String>,
     pub description: Option<String>,
     pub latitude: Option<f64>,
@@ -44,9 +67,10 @@ pub struct UpdatePinRequest {
     pub visited: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IngestRequest {
     pub url: String,
+    pub list_id: Option<i64>,
     pub category: Option<String>,
     pub notes: Option<String>,
 }
@@ -70,14 +94,15 @@ pub struct GeoLocation {
     pub display_name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListPinsQuery {
+    pub list_id: Option<i64>,
     pub category: Option<String>,
     pub visited: Option<bool>,
     pub search: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ApiResponse<T> {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]

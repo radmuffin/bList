@@ -44,6 +44,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // API Routes
     let api_router = Router::new()
+        .route("/lists", get(routes::list_lists).post(routes::create_list))
+        .route(
+            "/lists/:id",
+            get(routes::get_list)
+                .put(routes::update_list)
+                .delete(routes::delete_list),
+        )
         .route("/pins", get(routes::list_pins).post(routes::create_pin))
         .route(
             "/pins/:id",
@@ -52,6 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .delete(routes::delete_pin),
         )
         .route("/pins/:id/visited", patch(routes::toggle_visited))
+        .route("/pins/save", post(routes::ingest_link))
         .route("/pins/ingest", post(routes::ingest_link))
         .route("/scrape/preview", post(routes::preview_scrape))
         .route("/categories", get(routes::get_categories))

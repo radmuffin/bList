@@ -82,7 +82,7 @@ impl Scraper {
         let mut final_url = response.url().to_string();
         let mut html_text = response.text().await.unwrap_or_default();
 
-        // Check for client-side / meta-refresh redirect (common in some Google share links)
+        // Check for client-side meta refresh or JS redirect
         if html_text.contains("http-equiv=\"refresh\"") || html_text.contains("http-equiv='refresh'") {
             let re_refresh = Regex::new(r#"(?i)content=["'][0-9]+;\s*url=([^"']+)["']"#).unwrap();
             if let Some(caps) = re_refresh.captures(&html_text) {
@@ -101,137 +101,168 @@ impl Scraper {
         let mut title: Option<String> = None;
         let mut address: Option<String> = None;
         let mut image_url: Option<String> = None;
+        let mut place_query_candidate: Option<String> = None;
 
-        // 1. Check coordinates in URL variants
-        let re_at = Regex::new(r"@(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
-        if let Some(caps) = re_at.captures(&final_url) {
-            lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
-            lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
-        }
-
-        if lat.is_none() {
-            let re_3d4d = Regex::new(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)").unwrap();
-            if let Some(caps) = re_3d4d.captures(&final_url) {
-                lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
-                lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
-            }
-        }
-
-        if lat.is_none() {
-            let re_q = Regex::new(r"[?&](?:q|ll|center|query)=(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
-            if let Some(caps) = re_q.captures(&final_url) {
-                lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
-                lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
-            }
-        }
-
-        // 2. Extract Place Name from URL (/place/Place+Name/...)
-        let re_place = Regex::new(r"/place/([^/@?]+)").unwrap();
+        // 1. Extract place name / search query from URL paths and query parameters
+        let re_place = Regex::new(r"/maps/place/([^/@?]+)").unwrap();
         if let Some(caps) = re_place.captures(&final_url) {
             if let Some(m) = caps.get(1) {
                 let unencoded = urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
-                let clean_name = unencoded.replace('+', " ");
-                if !clean_name.is_empty() && clean_name != "data=" {
+                let clean_name = unencoded.replace('+', " ").trim().to_string();
+                if !clean_name.is_empty() && !clean_name.starts_with("data=") {
+                    place_query_candidate = Some(clean_name.clone());
                     title = Some(clean_name);
                 }
             }
         }
 
-        if title.is_none() {
-            let re_query_text = Regex::new(r"[?&](?:q|query)=([^&]+)").unwrap();
-            if let Some(caps) = re_query_text.captures(&final_url).or_else(|| re_query_text.captures(url)) {
+        if place_query_candidate.is_none() {
+            let re_search = Regex::new(r"/maps/search/([^/@?]+)").unwrap();
+            if let Some(caps) = re_search.captures(&final_url).or_else(|| re_search.captures(url)) {
                 if let Some(m) = caps.get(1) {
                     let unencoded = urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
-                    let clean = unencoded.replace('+', " ");
-                    // If not just raw coords
-                    if !clean.contains(',') || clean.chars().any(|c| c.is_alphabetic()) {
-                        title = Some(clean);
+                    let clean_name = unencoded.replace('+', " ").trim().to_string();
+                    if !clean_name.is_empty() && !clean_name.starts_with("data=") {
+                        place_query_candidate = Some(clean_name.clone());
+                        title = Some(clean_name);
                     }
                 }
             }
         }
 
-        // 3. Extract HTML Metadata
+        if place_query_candidate.is_none() {
+            let re_q = Regex::new(r"[?&](?:q|query|destination|daddr)=([^&]+)").unwrap();
+            if let Some(caps) = re_q.captures(&final_url).or_else(|| re_q.captures(url)) {
+                if let Some(m) = caps.get(1) {
+                    let unencoded = urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
+                    let clean_name = unencoded.replace('+', " ").trim().to_string();
+                    // Ensure it's not purely coordinate numbers
+                    if !clean_name.is_empty() && clean_name.chars().any(|c| c.is_alphabetic()) {
+                        place_query_candidate = Some(clean_name.clone());
+                        title = Some(clean_name);
+                    }
+                }
+            }
+        }
+
+        // 2. Parse HTML Metadata (og:title, <title>, og:description, og:image, schema.org)
         if !html_text.is_empty() {
-            let (og_title, og_img, og_desc, og_url, schema_geo) = {
-                let document = Html::parse_document(&html_text);
-                let t = extract_meta_content(&document, "meta[property='og:title']")
-                    .or_else(|| extract_tag_text(&document, "title"))
-                    .map(|s| clean_google_maps_title(&s));
-                let img = extract_meta_content(&document, "meta[property='og:image']");
-                let desc = extract_meta_content(&document, "meta[property='og:description']")
-                    .or_else(|| extract_meta_content(&document, "meta[name='description']"));
-                let u = extract_meta_content(&document, "meta[property='og:url']");
+            let document = Html::parse_document(&html_text);
 
-                let mut s_geo = None;
-                if let (Some(la_str), Some(lo_str)) = (
-                    extract_meta_content(&document, "meta[itemprop='latitude']"),
-                    extract_meta_content(&document, "meta[itemprop='longitude']"),
-                ) {
-                    if let (Ok(la), Ok(lo)) = (la_str.parse::<f64>(), lo_str.parse::<f64>()) {
-                        s_geo = Some((la, lo));
+            let raw_meta_title = extract_meta_content(&document, "meta[property='og:title']")
+                .or_else(|| extract_tag_text(&document, "title"));
+
+            if let Some(raw_t) = raw_meta_title {
+                let (cleaned_t, extracted_addr) = parse_google_maps_title_and_address(&raw_t);
+                if let Some(t) = cleaned_t {
+                    if title.is_none() || title.as_deref() == Some("Google Maps") {
+                        title = Some(t.clone());
+                    }
+                    if place_query_candidate.is_none() {
+                        if let Some(ref a) = extracted_addr {
+                            place_query_candidate = Some(format!("{}, {}", t, a));
+                        } else {
+                            place_query_candidate = Some(t);
+                        }
                     }
                 }
-
-                (t, img, desc, u, s_geo)
-            };
-
-            if title.is_none() || title.as_deref() == Some("Google Maps") {
-                if let Some(t) = og_title {
-                    if t != "Google Maps" {
-                        title = Some(t);
-                    }
+                if address.is_none() {
+                    address = extracted_addr;
                 }
             }
 
-            if image_url.is_none() {
-                image_url = og_img.clone();
-            }
+            let og_desc = extract_meta_content(&document, "meta[property='og:description']")
+                .or_else(|| extract_meta_content(&document, "meta[name='description']"));
             if address.is_none() {
-                address = og_desc;
+                if let Some(ref d) = og_desc {
+                    if !d.eq_ignore_ascii_case("Google Maps") && !d.is_empty() {
+                        address = Some(d.clone());
+                        if place_query_candidate.is_none() {
+                            place_query_candidate = Some(d.clone());
+                        }
+                    }
+                }
             }
 
-            if lat.is_none() {
-                if let Some((la, lo)) = schema_geo {
+            let og_img = extract_meta_content(&document, "meta[property='og:image']");
+            if image_url.is_none() {
+                // Avoid using staticmap as image if it's the generic Google logo
+                if let Some(ref img) = og_img {
+                    if !img.contains("maps_logo") {
+                        image_url = Some(img.clone());
+                    }
+                }
+            }
+
+            // Check schema.org geo coordinates if present in HTML
+            if let (Some(la_str), Some(lo_str)) = (
+                extract_meta_content(&document, "meta[itemprop='latitude']"),
+                extract_meta_content(&document, "meta[itemprop='longitude']"),
+            ) {
+                if let (Ok(la), Ok(lo)) = (la_str.parse::<f64>(), lo_str.parse::<f64>()) {
                     lat = Some(la);
                     lon = Some(lo);
                 }
             }
+        }
 
-            if lat.is_none() {
-                if let Some(ref img) = og_img {
-                    let re_staticmap = Regex::new(r"(?:center|markers|ll)=(-?\d+\.\d+)(?:%2C|,)(-?\d+\.\d+)").unwrap();
-                    if let Some(caps) = re_staticmap.captures(img) {
-                        lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
-                        lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
-                    }
-                }
+        // 3. Extract exact pin coordinates from URL (!3d... !4d...)
+        let re_3d4d = Regex::new(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)").unwrap();
+        if let Some(caps) = re_3d4d.captures(&final_url).or_else(|| re_3d4d.captures(url)) {
+            lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
+            lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
+        }
+
+        // 4. Extract query coordinates if present in URL (q=lat,lon)
+        if lat.is_none() {
+            let re_q_coords = Regex::new(r"[?&](?:q|ll|query)=(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
+            if let Some(caps) = re_q_coords.captures(&final_url).or_else(|| re_q_coords.captures(url)) {
+                lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
+                lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
             }
+        }
 
-            if lat.is_none() {
-                if let Some(ref u) = og_url {
-                    if let Some(caps) = re_at.captures(u) {
-                        lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
-                        lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
+        // 5. Use OpenStreetMap Nominatim geocoder to resolve accurate place query details
+        if let Some(ref query) = place_query_candidate {
+            if query != "Google Maps" && !query.is_empty() {
+                if let Ok(Some(geo)) = self.geocoder.geocode(query).await {
+                    lat = Some(geo.latitude);
+                    lon = Some(geo.longitude);
+                    address = Some(geo.display_name.clone());
+                    if title.is_none() || title.as_deref() == Some("Google Maps") {
+                        let short_title = geo.display_name.split(',').next().unwrap_or(query).trim().to_string();
+                        title = Some(short_title);
                     }
-                }
-            }
-
-            if lat.is_none() {
-                let re_html_coords = Regex::new(r"\[null,null,(-?\d+\.\d+),(-?\d+\.\d+)\]").unwrap();
-                if let Some(caps) = re_html_coords.captures(&html_text) {
-                    lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
-                    lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
                 }
             }
         }
 
-        // 4. Fallback to OpenStreetMap Geocoder if coords or address still missing
+        // 6. If coordinates still missing, check camera viewport coords (@lat,lon)
         if lat.is_none() || lon.is_none() {
-            let search_term = title.as_deref().or(address.as_deref());
-            if let Some(query) = search_term {
-                if query != "Google Maps" {
-                    if let Ok(Some(geo)) = self.geocoder.geocode(query).await {
+            let re_at = Regex::new(r"@(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
+            if let Some(caps) = re_at.captures(&final_url).or_else(|| re_at.captures(url)) {
+                lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
+                lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
+            }
+        }
+
+        // 7. If coordinates are found but address is missing, reverse geocode
+        if let (Some(la), Some(lo)) = (lat, lon) {
+            if address.is_none() || address.as_deref() == Some("Google Maps") {
+                if let Ok(Some(addr)) = self.geocoder.reverse_geocode(la, lo).await {
+                    if title.is_none() || title.as_deref() == Some("Google Maps") {
+                        let short_title = addr.split(',').next().unwrap_or("Saved Place").trim().to_string();
+                        title = Some(short_title);
+                    }
+                    address = Some(addr);
+                }
+            }
+        } else {
+            // Fallback geocoding if coordinates are still missing
+            let fallback_search = title.as_deref().or(address.as_deref());
+            if let Some(term) = fallback_search {
+                if term != "Google Maps" && !term.is_empty() {
+                    if let Ok(Some(geo)) = self.geocoder.geocode(term).await {
                         lat = Some(geo.latitude);
                         lon = Some(geo.longitude);
                         if address.is_none() {
@@ -240,18 +271,14 @@ impl Scraper {
                     }
                 }
             }
-        } else if address.is_none() || address.as_deref() == Some("Google Maps") {
-            if let (Some(la), Some(lo)) = (lat, lon) {
-                if let Ok(Some(addr)) = self.geocoder.reverse_geocode(la, lo).await {
-                    address = Some(addr);
-                }
-            }
         }
 
         let mut resolved_title = title.unwrap_or_else(|| "Saved Place".to_string());
-        if resolved_title == "Google Maps" {
+        if resolved_title == "Google Maps" || resolved_title.is_empty() {
             if let Some(ref a) = address {
                 resolved_title = a.split(',').next().unwrap_or("Saved Place").trim().to_string();
+            } else {
+                resolved_title = "Saved Place".to_string();
             }
         }
 
@@ -273,7 +300,7 @@ impl Scraper {
         let mut title: Option<String> = None;
         let mut address: Option<String> = None;
 
-        let re_ll = Regex::new(r"[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
+        let re_ll = Regex::new(r"[?&](?:ll|coordinate)=(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
         if let Some(caps) = re_ll.captures(url) {
             lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
             lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
@@ -283,7 +310,7 @@ impl Scraper {
         if let Some(caps) = re_q.captures(url) {
             if let Some(m) = caps.get(1) {
                 let unencoded = urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
-                let clean = unencoded.replace('+', " ");
+                let clean = unencoded.replace('+', " ").trim().to_string();
                 if !clean.is_empty() {
                     title = Some(clean.clone());
                     address = Some(clean);
@@ -295,7 +322,7 @@ impl Scraper {
         if let Some(caps) = re_address.captures(url) {
             if let Some(m) = caps.get(1) {
                 let unencoded = urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
-                let clean = unencoded.replace('+', " ");
+                let clean = unencoded.replace('+', " ").trim().to_string();
                 if !clean.is_empty() {
                     address = Some(clean);
                 }
@@ -309,7 +336,7 @@ impl Scraper {
                     lat = Some(geo.latitude);
                     lon = Some(geo.longitude);
                     if title.is_none() {
-                        title = Some(geo.display_name.clone());
+                        title = Some(geo.display_name.split(',').next().unwrap_or("Apple Maps Place").trim().to_string());
                     }
                     address = Some(geo.display_name);
                 }
@@ -362,10 +389,12 @@ impl Scraper {
         let mut lon: Option<f64> = None;
         let mut address: Option<String> = None;
 
-        if let Ok(Some(geo)) = self.geocoder.geocode(&clean_title).await {
-            lat = Some(geo.latitude);
-            lon = Some(geo.longitude);
-            address = Some(geo.display_name);
+        if clean_title != "Instagram Post" && !clean_title.is_empty() {
+            if let Ok(Some(geo)) = self.geocoder.geocode(&clean_title).await {
+                lat = Some(geo.latitude);
+                lon = Some(geo.longitude);
+                address = Some(geo.display_name);
+            }
         }
 
         Ok(ScrapedMetadata {
@@ -490,24 +519,50 @@ fn extract_tag_text(document: &Html, tag_name: &str) -> Option<String> {
     None
 }
 
-fn clean_google_maps_title(title: &str) -> String {
-    let mut cleaned = title.trim().to_string();
-    if let Some(pos) = cleaned.rfind(" - Google Maps") {
-        cleaned = cleaned[..pos].trim().to_string();
-    } else if let Some(pos) = cleaned.rfind(" · Google Maps") {
-        cleaned = cleaned[..pos].trim().to_string();
-    }
-    if let Some(pos) = cleaned.find(" · ") {
-        let first_part = cleaned[..pos].trim();
-        if first_part.len() > 2 {
-            cleaned = first_part.to_string();
+fn parse_google_maps_title_and_address(raw_title: &str) -> (Option<String>, Option<String>) {
+    let mut text = raw_title.trim();
+    for suffix in &[" - Google Maps", " · Google Maps", " - Google Search", " - Google"] {
+        if let Some(pos) = text.rfind(suffix) {
+            text = text[..pos].trim();
         }
     }
-    cleaned
+    if text.is_empty() || text.eq_ignore_ascii_case("Google Maps") {
+        return (None, None);
+    }
+
+    if let Some(pos) = text.find(" · ") {
+        let title_part = text[..pos].trim();
+        let address_part = text[pos + " · ".len()..].trim();
+        let title = if !title_part.is_empty() {
+            Some(title_part.to_string())
+        } else {
+            None
+        };
+        let addr = if !address_part.is_empty() {
+            Some(address_part.to_string())
+        } else {
+            None
+        };
+        return (title, addr);
+    }
+
+    (Some(text.to_string()), None)
 }
 
 fn clean_page_title(title: &str) -> String {
     let mut cleaned = title.trim().to_string();
+    let suffixes = [
+        " • Instagram photos and videos",
+        " | Instagram",
+        " on Instagram",
+        " - Wikipedia",
+    ];
+    for suffix in suffixes {
+        if let Some(pos) = cleaned.rfind(suffix) {
+            cleaned = cleaned[..pos].trim().to_string();
+        }
+    }
+
     let separators = [" | ", " - ", " – ", " — ", " • "];
     for sep in separators {
         if let Some(pos) = cleaned.rfind(sep) {
@@ -518,4 +573,36 @@ fn clean_page_title(title: &str) -> String {
         }
     }
     cleaned
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_google_maps_title_and_address() {
+        let (title, addr) = parse_google_maps_title_and_address("Chicken Boy · 5558 N Figueroa St, Los Angeles, CA 90042 · Google Maps");
+        assert_eq!(title, Some("Chicken Boy".to_string()));
+        assert_eq!(addr, Some("5558 N Figueroa St, Los Angeles, CA 90042".to_string()));
+
+        let (title2, addr2) = parse_google_maps_title_and_address("Space Needle - Google Maps");
+        assert_eq!(title2, Some("Space Needle".to_string()));
+        assert_eq!(addr2, None);
+
+        let (title3, addr3) = parse_google_maps_title_and_address("Google Maps");
+        assert_eq!(title3, None);
+        assert_eq!(addr3, None);
+    }
+
+    #[test]
+    fn test_clean_page_title() {
+        assert_eq!(
+            clean_page_title("The Best Coffee in Tokyo | Travel Blog"),
+            "The Best Coffee in Tokyo"
+        );
+        assert_eq!(
+            clean_page_title("Delicious Ramen on Instagram"),
+            "Delicious Ramen"
+        );
+    }
 }

@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>bList - Map Bucket List</title>
+  <title>bList - Visual Map Bucket List</title>
   
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  <!-- Google Fonts -->
+  <!-- Google Fonts: Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -21,82 +21,217 @@
     <!-- Top Header -->
     <header class="app-header">
       <div class="header-left">
-        <button id="toggle-sidebar-btn" class="btn-icon-header" onclick="toggleSidebar()" title="Toggle Sidebar">
+        <button id="toggle-sidebar-btn" class="btn-icon-header" onclick="toggleSidebar()" title="Toggle Sidebar" aria-label="Toggle Sidebar">
           <i data-lucide="panel-left"></i>
         </button>
-        <div class="brand" onclick="resetView()">
+        <div class="brand" onclick="resetView()" role="button" tabindex="0" title="Reset Map View">
           <span class="logo-icon">🗺️</span>
-          <h1 class="brand-title">bList</h1>
+          <div class="brand-text">
+            <h1 class="brand-title">bList</h1>
+          </div>
         </div>
       </div>
 
-      <!-- Omni Link Ingest Form -->
-      <form id="ingest-form" class="ingest-bar" onsubmit="handleIngestSubmit(event)">
+      <!-- Quick Save Omni Link Form -->
+      <form id="save-link-form" class="save-link-bar" onsubmit="handleSaveLinkSubmit(event)">
         <div class="input-wrapper">
-          <i data-lucide="link" class="input-icon"></i>
+          <i data-lucide="link-2" class="input-icon"></i>
           <input 
             type="url" 
-            id="ingest-url-input" 
+            id="save-url-input" 
             placeholder="Paste Google Maps, Instagram, Apple Maps, or article link..." 
             required
             autocomplete="off"
+            spellcheck="false"
           />
         </div>
-        <button type="submit" id="ingest-btn" class="btn btn-primary">
+        <button type="submit" id="save-btn" class="btn btn-primary">
           <i data-lucide="sparkles" class="btn-icon"></i>
-          <span class="btn-text">Ingest</span>
+          <span class="btn-text">Save Place</span>
         </button>
       </form>
 
+      <!-- Header Action Buttons -->
       <div class="header-actions">
-        <button id="add-manual-btn" class="btn btn-secondary" onclick="openManualPinModal()">
-          <i data-lucide="plus" class="btn-icon"></i>
-          <span class="btn-text">Add Pin</span>
+        <button id="surprise-btn-header" class="btn btn-surprise" onclick="handleSurpriseMe()" title="Surprise Me (Random Place)">
+          <i data-lucide="dice-5" class="btn-icon"></i>
+          <span class="btn-text">Surprise Me</span>
         </button>
-        <button id="export-btn" class="btn btn-ghost" onclick="exportData('geojson')" title="Export GeoJSON">
+        <button id="add-manual-btn" class="btn btn-secondary" onclick="openManualPinModal()" title="Add Place Manually">
+          <i data-lucide="plus" class="btn-icon"></i>
+          <span class="btn-text">Add Place</span>
+        </button>
+        <button id="export-btn" class="btn btn-ghost" onclick="exportData('geojson')" title="Export GeoJSON / Backup">
           <i data-lucide="download" class="btn-icon"></i>
           <span class="btn-text">Export</span>
         </button>
       </div>
     </header>
 
-    <!-- Main Container: Sidebar + Map -->
+    <!-- Main Workspace Container -->
     <div class="main-content">
       <!-- Sidebar Drawer -->
       <aside class="sidebar" id="sidebar">
-        <!-- Search & Filter Controls -->
+        <!-- Mobile Drawer Drag Handle -->
+        <div class="drawer-handle-bar" onclick="toggleSidebar()">
+          <div class="drawer-handle"></div>
+        </div>
+
+        <!-- Sidebar Header: List Selector & Search & Filters -->
         <div class="sidebar-header">
-          <div class="search-box">
-            <i data-lucide="search" class="search-icon"></i>
-            <input type="text" id="search-input" placeholder="Search saved places, notes..." oninput="handleSearch(event)">
+          <!-- Multi-List / Trip Selector Bar -->
+          <div class="list-selector-wrapper">
+            <div class="custom-select-container">
+              <label class="section-micro-label" for="list-select">TRIP / LIST</label>
+              <div class="list-dropdown-trigger" id="list-dropdown-btn" onclick="toggleListDropdown()">
+                <span class="list-active-icon" id="active-list-icon">🗺️</span>
+                <span class="list-active-name" id="active-list-name">All Places</span>
+                <span class="list-active-count" id="active-list-count">0</span>
+                <i data-lucide="chevron-down" class="dropdown-chevron"></i>
+              </div>
+              
+              <!-- Dropdown Menu -->
+              <div class="list-dropdown-menu hidden" id="list-dropdown-menu">
+                <div class="list-dropdown-section-title">Standard Views</div>
+                <div class="list-dropdown-item active" data-list-id="all" onclick="selectList('all')">
+                  <span class="item-icon">🗺️</span>
+                  <span class="item-title">All Places</span>
+                  <span class="item-badge" id="list-badge-all">0</span>
+                </div>
+                <div class="list-dropdown-item" data-list-id="bucket" onclick="selectList('bucket')">
+                  <span class="item-icon">🎯</span>
+                  <span class="item-title">Bucket List (Unvisited)</span>
+                  <span class="item-badge" id="list-badge-bucket">0</span>
+                </div>
+                <div class="list-dropdown-item" data-list-id="visited" onclick="selectList('visited')">
+                  <span class="item-icon">✅</span>
+                  <span class="item-title">Visited Places</span>
+                  <span class="item-badge" id="list-badge-visited">0</span>
+                </div>
+                
+                <div class="list-dropdown-divider"></div>
+                <div class="list-dropdown-section-title">My Custom Trips & Lists</div>
+                <div id="custom-lists-container" class="custom-lists-group">
+                  <!-- Injected via JavaScript -->
+                </div>
+                
+                <div class="list-dropdown-divider"></div>
+                <button class="list-create-action-btn" onclick="openCreateListModal()">
+                  <i data-lucide="plus-circle"></i>
+                  <span>+ Create New Trip / List</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <!-- Status Filters -->
+          <!-- Search & Sorting Toolbar -->
+          <div class="search-sort-row">
+            <div class="search-box">
+              <i data-lucide="search" class="search-icon"></i>
+              <input 
+                type="text" 
+                id="search-input" 
+                placeholder="Search places, addresses, notes..." 
+                oninput="handleSearch(event)"
+                autocomplete="off"
+              >
+              <button id="clear-search-btn" class="clear-search-btn hidden" onclick="clearSearch()" title="Clear Search">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+            
+            <div class="sort-wrapper">
+              <select id="sort-select" class="sort-select" onchange="handleSortChange(event)" title="Sort places">
+                <option value="newest">✨ Newest First</option>
+                <option value="nearest">📍 Nearest to Me</option>
+                <option value="az">🔤 Alphabetical (A-Z)</option>
+                <option value="category">🏷️ By Category</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Status Quick Filter Tabs -->
           <div class="filter-tabs">
-            <button class="filter-tab active" data-status="all" onclick="setStatusFilter('all')">All (<span id="count-all">0</span>)</button>
-            <button class="filter-tab" data-status="bucket" onclick="setStatusFilter('bucket')">🎯 Bucket List (<span id="count-bucket">0</span>)</button>
-            <button class="filter-tab" data-status="visited" onclick="setStatusFilter('visited')">✅ Visited (<span id="count-visited">0</span>)</button>
+            <button class="filter-tab active" data-status="all" onclick="setStatusFilter('all')">
+              All (<span id="count-all">0</span>)
+            </button>
+            <button class="filter-tab" data-status="bucket" onclick="setStatusFilter('bucket')">
+              🎯 Want to Go (<span id="count-bucket">0</span>)
+            </button>
+            <button class="filter-tab" data-status="visited" onclick="setStatusFilter('visited')">
+              ✅ Visited (<span id="count-visited">0</span>)
+            </button>
           </div>
 
-          <!-- Category Tags -->
+          <!-- Horizontal Scrolling Category Chips -->
           <div class="categories-bar" id="categories-bar"></div>
         </div>
 
-        <!-- Pin Cards List -->
+        <!-- Pin Cards Scrollable List -->
         <div class="pin-list" id="pin-list">
           <div class="empty-state" id="empty-state">
             <div class="empty-icon">📍</div>
-            <h3>No pins saved yet</h3>
-            <p>Paste a Google Maps, Instagram, or article link above to add your first destination!</p>
+            <h3>No places saved yet</h3>
+            <p>Paste a Google Maps, Instagram, Apple Maps, or article link above to add your first destination!</p>
           </div>
         </div>
       </aside>
 
-      <!-- Interactive Map -->
+      <!-- Interactive Map Area -->
       <main class="map-container">
         <div id="map"></div>
-        
-        <!-- Mobile Bottom Floating Switcher -->
+
+        <!-- Floating Map Action Controls -->
+        <div class="floating-map-controls">
+          <!-- Layer Switcher Button & Menu -->
+          <div class="map-control-item" id="layer-control-wrapper">
+            <button class="map-float-btn" id="btn-layer-switch" onclick="toggleLayerSwitcher()" title="Change Map Style" aria-label="Change Map Style">
+              <i data-lucide="layers"></i>
+            </button>
+            <div class="layer-switcher-card hidden" id="layer-switcher-card">
+              <div class="layer-switcher-header">Map Layers</div>
+              <button class="layer-opt-btn active" data-layer="light" onclick="switchMapLayer('light')">
+                <span class="layer-swatch swatch-light"></span>
+                <span>☀️ Clean Light</span>
+              </button>
+              <button class="layer-opt-btn" data-layer="osm" onclick="switchMapLayer('osm')">
+                <span class="layer-swatch swatch-osm"></span>
+                <span>🗺️ Streets (OSM)</span>
+              </button>
+              <button class="layer-opt-btn" data-layer="dark" onclick="switchMapLayer('dark')">
+                <span class="layer-swatch swatch-dark"></span>
+                <span>🌙 Dark Mode</span>
+              </button>
+              <button class="layer-opt-btn" data-layer="satellite" onclick="switchMapLayer('satellite')">
+                <span class="layer-swatch swatch-sat"></span>
+                <span>🛰️ Satellite</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Locate Me GPS Button -->
+          <div class="map-control-item">
+            <button class="map-float-btn" id="btn-locate-me" onclick="handleLocateMe()" title="Locate Me (GPS)" aria-label="Locate Me">
+              <i data-lucide="crosshair" id="locate-icon"></i>
+            </button>
+          </div>
+
+          <!-- Surprise Me Floating Button -->
+          <div class="map-control-item">
+            <button class="map-float-btn surprise-glow" id="btn-surprise-map" onclick="handleSurpriseMe()" title="Surprise Me (Random Place)" aria-label="Surprise Me">
+              <i data-lucide="dice-5"></i>
+            </button>
+          </div>
+
+          <!-- Reset Zoom Bounds Button -->
+          <div class="map-control-item">
+            <button class="map-float-btn" id="btn-reset-zoom" onclick="resetView()" title="Fit All Pins" aria-label="Fit All Pins">
+              <i data-lucide="maximize-2"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mobile Bottom Floating View Switcher Pill -->
         <div class="mobile-view-toggle">
           <button class="toggle-pill active" id="btn-show-map" onclick="showMobileView('map')">
             <i data-lucide="map"></i>
@@ -108,35 +243,38 @@
           </button>
         </div>
 
+        <!-- Desktop Click Tip -->
         <div class="map-overlay-tip">
           <i data-lucide="mouse-pointer-click"></i>
-          <span>Click on map to drop a pin</span>
+          <span>Click anywhere on map to add a place</span>
         </div>
       </main>
     </div>
   </div>
 
-  <!-- Ingest Loading Overlay -->
+  <!-- Loading State Overlay -->
   <div id="loading-overlay" class="modal-overlay hidden">
     <div class="loading-card">
-      <div class="spinner"></div>
-      <h3 id="loading-title">Ingesting place...</h3>
-      <p id="loading-desc">Extracting metadata and resolving GPS coordinates</p>
+      <div class="spinner-radar">
+        <div class="radar-circle"></div>
+      </div>
+      <h3 id="loading-title">Saving place...</h3>
+      <p id="loading-desc">Extracting metadata, photos & resolving GPS coordinates</p>
     </div>
   </div>
 
-  <!-- Manual / Edit Pin Modal -->
-  <div id="pin-modal" class="modal-overlay hidden">
-    <div class="modal-card">
+  <!-- Add / Edit Place Modal -->
+  <div id="pin-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'pin-modal')">
+    <div class="modal-card" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <h2 id="modal-title">Add New Pin</h2>
-        <button class="btn-close" onclick="closePinModal()">&times;</button>
+        <h2 id="modal-title">Add Place</h2>
+        <button class="btn-close" onclick="closePinModal()" aria-label="Close">&times;</button>
       </div>
       <form id="pin-form" onsubmit="handlePinFormSubmit(event)">
         <input type="hidden" id="pin-id">
         <div class="form-group">
           <label for="form-title">Place / Destination Title *</label>
-          <input type="text" id="form-title" required placeholder="e.g. Joe's Pizza, Eiffel Tower">
+          <input type="text" id="form-title" required placeholder="e.g. Joe's Pizza, Shibuya Sky, Louvre...">
         </div>
 
         <div class="form-row">
@@ -160,7 +298,8 @@
               <option value="Nature & Outdoors">🏞️ Nature & Outdoors</option>
               <option value="Hotel & Stay">🏨 Hotel & Stay</option>
               <option value="Shopping">🛍️ Shopping</option>
-              <option value="General" selected>📌 General</option>
+              <option value="Social">📸 Instagram / TikTok</option>
+              <option value="General" selected>📌 General Place</option>
             </select>
           </div>
           <div class="form-group flex-1">
@@ -172,33 +311,90 @@
           </div>
         </div>
 
+        <!-- Custom List Assignment -->
         <div class="form-group">
-          <label for="form-address">Address / Location Name</label>
+          <label for="form-custom-list">Assign to Trip / List</label>
+          <select id="form-custom-list">
+            <option value="">(None / General)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="form-address">Address / Location</label>
           <input type="text" id="form-address" placeholder="e.g. 7 Carmine St, New York, NY">
         </div>
 
         <div class="form-group">
-          <label for="form-image">Image URL</label>
-          <input type="url" id="form-image" placeholder="https://example.com/photo.jpg">
+          <label for="form-image">Photo URL</label>
+          <input type="url" id="form-image" placeholder="https://images.unsplash.com/... or post image">
         </div>
 
         <div class="form-group">
           <label for="form-source">Source Link</label>
-          <input type="url" id="form-source" placeholder="https://maps.google.com/... or instagram.com/...">
+          <input type="url" id="form-source" placeholder="https://maps.google.com/... or article link">
         </div>
 
         <div class="form-group">
-          <label for="form-notes">Personal Notes / Recommendations</label>
-          <textarea id="form-notes" rows="3" placeholder="Recommended dishes, best time to visit..."></textarea>
+          <label for="form-notes">Personal Notes / Tips</label>
+          <textarea id="form-notes" rows="3" placeholder="Recommended dishes, best time of day, entry tips..."></textarea>
         </div>
 
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closePinModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Pin</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-pin">Save Place</button>
         </div>
       </form>
     </div>
   </div>
+
+  <!-- Create New Custom List Modal -->
+  <div id="create-list-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'create-list-modal')">
+    <div class="modal-card modal-card-sm" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Create New Trip or List</h2>
+        <button class="btn-close" onclick="closeCreateListModal()" aria-label="Close">&times;</button>
+      </div>
+      <form id="create-list-form" onsubmit="handleCreateListSubmit(event)">
+        <div class="form-group">
+          <label for="list-name-input">List / Trip Name *</label>
+          <input type="text" id="list-name-input" required placeholder="e.g. Tokyo 2026, Summer Roadtrip, Best Tacos">
+        </div>
+
+        <div class="form-group">
+          <label>Pick an Emoji Icon</label>
+          <div class="emoji-picker-grid" id="emoji-picker-grid">
+            <!-- Injected or rendered -->
+            <button type="button" class="emoji-opt active" onclick="selectEmoji('✈️')">✈️</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🎒')">🎒</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🍜')">🍜</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('☕')">☕</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🏔️')">🏔️</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🏖️')">🏖️</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🏨')">🏨</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🚗')">🚗</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🌟')">🌟</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🍕')">🍕</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🗽')">🗽</button>
+            <button type="button" class="emoji-opt" onclick="selectEmoji('🗺️')">🗺️</button>
+          </div>
+          <input type="hidden" id="selected-list-emoji" value="✈️">
+        </div>
+
+        <div class="form-group">
+          <label for="list-desc-input">Description (Optional)</label>
+          <input type="text" id="list-desc-input" placeholder="e.g. Places to explore during our autumn vacation">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeCreateListModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create List</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
