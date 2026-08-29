@@ -1,0 +1,46 @@
+{
+  "name": "blist-map-bucket-list",
+  "version": "1.0.0",
+  "description": "bList - Visual Map Bucket List & Trip Planner Native Mobile App & PWA",
+  "main": "static/app.js",
+  "scripts": {
+    "build": "cargo build --release",
+    "start": "cargo run",
+    "icons": "python3 static/icons/generate_icons.py",
+    "cap:add:ios": "npx cap add ios",
+    "cap:add:android": "npx cap add android",
+    "cap:sync": "npx cap sync",
+    "cap:update": "npx cap update",
+    "cap:copy": "npx cap copy",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android",
+    "cap:build:ios": "npx cap sync ios && npx cap open ios",
+    "cap:build:android": "npx cap sync android && npx cap open android"
+  },
+  "keywords": [
+    "map",
+    "travel",
+    "bucket-list",
+    "pwa",
+    "capacitor",
+    "mobile",
+    "ios",
+    "android",
+    "rust"
+  ],
+  "author": "bList Team",
+  "license": "MIT",
+  "dependencies": {
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/haptics": "^6.0.0",
+    "@capacitor/keyboard": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
+  }
+}

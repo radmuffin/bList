@@ -1,0 +1,58 @@
+# bList Caddy Production Configuration
+# 100% Automated Let's Encrypt / ZeroSSL SSL/TLS Certificates
+
+{$DOMAIN:localhost} {
+  # TLS Configuration with admin email for expiration alerts
+  tls {$ACME_EMAIL:internal}
+
+  # High-performance Compression
+  encode zstd gzip
+
+  # Security & Privacy Headers
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "geolocation=(self), camera=(), microphone=()"
+    -Server
+  }
+
+  # Service Worker caching rules: always revalidate sw.js
+  @sw path /sw.js
+  header @sw {
+    Cache-Control "no-cache, no-store, must-revalidate"
+  }
+
+  # Manifest caching
+  @manifest path /manifest.webmanifest
+  header @manifest {
+    Cache-Control "public, max-age=86400"
+  }
+
+  # Static assets & icons immutable caching
+  @static path /icons/* *.png *.svg *.ico *.css *.js
+  header @static {
+    Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
+  }
+
+  # Reverse Proxy to bList Rust Backend
+  reverse_proxy app:3000 {
+    header_up Host {host}
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto {scheme}
+    
+    # Fast health check buffer
+    transport http {
+      keepalive 60s
+      compression off
+    }
+  }
+
+  # Structured Logging
+  log {
+    output stdout
+    format json
+  }
+}

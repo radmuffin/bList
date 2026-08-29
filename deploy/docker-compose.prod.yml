@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: blist-app:latest
+    container_name: blist_backend
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - DATABASE_PATH=/data/pins.db
+      - RUST_LOG=map_bucket_list=info,tower_http=info
+    volumes:
+      - blist_data:/data
+    networks:
+      - blist_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/categories || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: blist_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3 QUIC
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - blist_net
+
+volumes:
+  blist_data:
+    name: blist_sqlite_data
+  caddy_data:
+    name: blist_caddy_data
+  caddy_config:
+    name: blist_caddy_config
+
+networks:
+  blist_net:
+    driver: bridge

@@ -5,6 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>bList - Visual Map Bucket List</title>
   
+  <!-- Anti-theme-flash script: immediately sets data-theme to prevent flash of wrong theme -->
+  <script>
+    (function() {
+      try {
+        const savedTheme = localStorage.getItem('blist_theme') || 'auto';
+        const isDark = savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.documentElement.setAttribute('data-resolved-theme', isDark ? 'dark' : 'light');
+      } catch (_) {}
+    })();
+  </script>
+
+  <!-- PWA & Mobile Web App Meta -->
+  <meta name="theme-color" content="#2563eb">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="bList">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <!-- Google Fonts -->
@@ -50,7 +74,28 @@
         </form>
 
         <div class="header-actions">
-          <button class="btn btn-surprise" onclick="surpriseMe()" title="Pick a random unvisited place">
+          <!-- Theme Switcher Dropdown -->
+          <div class="theme-switcher-wrapper" id="theme-switcher-wrapper">
+            <button class="btn-icon-header" id="theme-toggle-btn" onclick="toggleThemeMenu()" title="Theme: Auto (System)">
+              <i data-lucide="monitor" id="theme-btn-icon"></i>
+            </button>
+            <div class="theme-menu hidden" id="theme-menu">
+              <button class="theme-opt" data-theme-val="light" onclick="setTheme('light')">
+                <i data-lucide="sun"></i>
+                <span>☀️ Light</span>
+              </button>
+              <button class="theme-opt" data-theme-val="dark" onclick="setTheme('dark')">
+                <i data-lucide="moon"></i>
+                <span>🌙 Dark</span>
+              </button>
+              <button class="theme-opt active" data-theme-val="auto" onclick="setTheme('auto')">
+                <i data-lucide="monitor"></i>
+                <span>💻 Auto (System)</span>
+              </button>
+            </div>
+          </div>
+
+          <button class="btn btn-surprise" id="surprise-btn-header" onclick="surpriseMe()" title="Pick a random unvisited place">
             <i data-lucide="sparkles" class="btn-icon"></i>
             <span class="btn-text">Surprise Me</span>
           </button>
@@ -152,7 +197,7 @@
         <!-- Map Floating Action Buttons (Right Side) -->
         <div class="map-floating-controls">
           <!-- Layer Switcher -->
-          <div class="layer-control-wrapper">
+          <div class="layer-control-wrapper" id="layer-control-wrapper">
             <button class="map-fab" id="layer-fab" onclick="toggleLayerMenu()" title="Map Style">
               <i data-lucide="layers"></i>
             </button>
@@ -170,7 +215,7 @@
           </button>
 
           <!-- Surprise Pick Button on Map -->
-          <button class="map-fab fab-highlight" onclick="surpriseMe()" title="Surprise Me (Random Place)">
+          <button class="map-fab fab-highlight" id="btn-surprise-map" onclick="surpriseMe()" title="Surprise Me (Random Place)">
             <i data-lucide="dice-5"></i>
           </button>
 
@@ -201,7 +246,7 @@
   </div>
 
   <!-- Ingest Loading Overlay -->
-  <div id="loading-overlay" class="modal-overlay hidden">
+  <div id="loading-overlay" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'loading-overlay')">
     <div class="loading-card">
       <div class="spinner"></div>
       <h3 id="loading-title">Saving place...</h3>
@@ -210,7 +255,7 @@
   </div>
 
   <!-- Manual / Edit Pin Modal -->
-  <div id="pin-modal" class="modal-overlay hidden">
+  <div id="pin-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'pin-modal')">
     <div class="modal-card">
       <div class="modal-header">
         <h2 id="modal-title">Add Place</h2>
@@ -293,7 +338,7 @@
   </div>
 
   <!-- Create New List Modal -->
-  <div id="new-list-modal" class="modal-overlay hidden">
+  <div id="new-list-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'new-list-modal')">
     <div class="modal-card modal-sm">
       <div class="modal-header">
         <h2>Create New Trip / List</h2>

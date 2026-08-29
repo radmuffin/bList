@@ -1,12 +1,15 @@
+// ============================================================================
 // bList - Visual Map Bucket List & Trip Planner
+// Frontend Engine & Theme Specialist Implementation
+// ============================================================================
 
 let map;
 let currentTileLayer;
 let currentLayerName = 'osm';
 let markers = {};
 let allPins = [];
-let lists = []; // [{ id, name, icon, created_at }]
-let currentListFilter = 'all'; // 'all', 'bucket', 'visited', or numeric list_id as string (e.g. '1', '2')
+let lists = [];
+let currentListFilter = 'all'; // 'all', 'bucket', 'visited', or numeric list_id as string
 let selectedCategory = 'All';
 let selectedStatus = 'all'; // 'all', 'bucket', 'visited'
 let searchQuery = '';
@@ -37,11 +40,10 @@ const MAP_LAYERS = {
   },
   dark: {
     name: 'Dark Mode',
-    url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
     options: {
-      maxZoom: 19,
-      subdomains: 'abcd',
-      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      maxZoom: 16,
+      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
     }
   },
   satellite: {
@@ -93,9 +95,10 @@ const WEATHER_CODE_MAP = {
 };
 
 // ============================================================================
-// App Lifecycle
+// App Lifecycle & Initialization
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
+  initTheme();
   initMap();
   await fetchLists();
   await fetchPins();
@@ -103,39 +106,130 @@ document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
 });
 
-function setupGlobalClickHandlers() {
-  document.addEventListener('click', (e) => {
-    const listWrapper = document.querySelector('.custom-select-container');
-    const layerWrapper = document.getElementById('layer-control-wrapper');
-    const listMenu = document.getElementById('list-dropdown-menu');
-    const layerCard = document.getElementById('layer-switcher-card');
+// ============================================================================
+// Theme Management Engine
+// ============================================================================
+function initTheme() {
+  const savedTheme = localStorage.getItem('blist_theme') || 'auto';
+  applyTheme(savedTheme, false);
 
-    if (listWrapper && !listWrapper.contains(e.target) && listMenu) {
-      listMenu.classList.add('hidden');
-      const chevron = document.querySelector('.dropdown-chevron');
-      if (chevron) chevron.style.transform = 'rotate(0deg)';
+  // Real-time system theme change listener
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  const handleSystemThemeChange = (e) => {
+    const currentPref = localStorage.getItem('blist_theme') || 'auto';
+    if (currentPref === 'auto') {
+      applyTheme('auto', false);
     }
+  };
 
-    if (layerWrapper && !layerWrapper.contains(e.target) && layerCard) {
-      layerCard.classList.add('hidden');
-    }
+  if (mediaQuery.addEventListener) {
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+  } else if (mediaQuery.addListener) {
+    mediaQuery.addListener(handleSystemThemeChange);
+  }
+}
+
+function getEffectiveTheme(themeSetting) {
+  if (themeSetting === 'dark' || themeSetting === 'light') {
+    return themeSetting;
+  }
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+}
+
+function applyTheme(theme, isUserAction = false) {
+  const validThemes = ['light', 'dark', 'auto'];
+  if (!validThemes.includes(theme)) theme = 'auto';
+
+  const effectiveTheme = getEffectiveTheme(theme);
+
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-resolved-theme', effectiveTheme);
+
+  // Update theme dropdown active state
+  document.querySelectorAll('.theme-opt').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.themeVal === theme);
   });
+
+  // Update header theme button icon and tooltip
+  const themeBtn = document.getElementById('theme-toggle-btn');
+  const themeIcon = document.getElementById('theme-btn-icon');
+  if (themeBtn) {
+    if (theme === 'auto') {
+      themeBtn.title = `Theme: Auto (${effectiveTheme === 'dark' ? 'Dark' : 'Light'})`;
+      if (themeIcon) themeIcon.setAttribute('data-lucide', 'monitor');
+    } else if (theme === 'dark') {
+      themeBtn.title = 'Theme: Dark';
+      if (themeIcon) themeIcon.setAttribute('data-lucide', 'moon');
+    } else {
+      themeBtn.title = 'Theme: Light';
+      if (themeIcon) themeIcon.setAttribute('data-lucide', 'sun');
+    }
+  }
+
+  // Synchronize map layer if user hasn't explicitly locked a custom tile layer
+  syncMapTheme(effectiveTheme, isUserAction);
+
+  lucide.createIcons();
+}
+
+function setTheme(theme) {
+  localStorage.setItem('blist_theme', theme);
+  applyTheme(theme, true);
+  
+  const menu = document.getElementById('theme-menu');
+  if (menu) menu.classList.add('hidden');
+
+  const toastMsg = theme === 'auto'
+    ? '💻 Auto theme (matches system)'
+    : theme === 'dark'
+      ? '🌙 Dark Mode enabled'
+      : '☀️ Light Mode enabled';
+  showToast(toastMsg);
+}
+
+function toggleThemeMenu() {
+  const menu = document.getElementById('theme-menu');
+  if (menu) menu.classList.toggle('hidden');
+}
+
+function syncMapTheme(effectiveTheme, isUserAction = false) {
+  if (!map) return;
+  const isLayerLocked = localStorage.getItem('blist_layer_locked') === 'true';
+
+  // Automatically adapt map style if not manually locked by user
+  if (!isLayerLocked) {
+    if (effectiveTheme === 'dark' && (currentLayerName === 'osm' || currentLayerName === 'light')) {
+      applyMapLayer('dark', false);
+    } else if (effectiveTheme === 'light' && currentLayerName === 'dark') {
+      applyMapLayer('osm', false);
+    }
+  }
 }
 
 // ============================================================================
 // Leaflet Map & Layer Switcher
 // ============================================================================
 function initMap() {
-  currentLayerName = localStorage.getItem('blist_map_layer') || 'osm';
+  const isLayerLocked = localStorage.getItem('blist_layer_locked') === 'true';
+  const savedLayer = localStorage.getItem('blist_map_layer');
+  const effectiveTheme = getEffectiveTheme(localStorage.getItem('blist_theme') || 'auto');
+
+  if (isLayerLocked && savedLayer && MAP_LAYERS[savedLayer]) {
+    currentLayerName = savedLayer;
+  } else {
+    currentLayerName = effectiveTheme === 'dark' ? 'dark' : 'osm';
+  }
 
   map = L.map('map', {
     zoomControl: true,
     tap: true
   }).setView([20.0, 0.0], 2);
 
-  applyMapLayer(currentLayerName);
+  applyMapLayer(currentLayerName, false);
 
-  // Click on map to add manual pin
+  // Click on map to add place manually with reverse-geocoding
   map.on('click', async (e) => {
     const lat = e.latlng.lat.toFixed(6);
     const lon = e.latlng.lng.toFixed(6);
@@ -143,34 +237,59 @@ function initMap() {
   });
 }
 
-function applyMapLayer(layerKey) {
+function applyMapLayer(layerKey, persistManualChoice = true) {
   const layerConf = MAP_LAYERS[layerKey] || MAP_LAYERS.osm;
-  
+
   if (currentTileLayer) {
     map.removeLayer(currentTileLayer);
   }
 
   currentTileLayer = L.tileLayer(layerConf.url, layerConf.options).addTo(map);
   currentLayerName = layerKey;
-  localStorage.setItem('blist_map_layer', layerKey);
 
-  // Update UI active buttons in switcher
-  document.querySelectorAll('.layer-opt-btn').forEach(btn => {
+  if (persistManualChoice) {
+    localStorage.setItem('blist_layer_locked', 'true');
+    localStorage.setItem('blist_map_layer', layerKey);
+  }
+
+  // Update active state in layer switcher menu
+  document.querySelectorAll('.layer-opt').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.layer === layerKey);
   });
 }
 
-function toggleLayerSwitcher() {
-  const card = document.getElementById('layer-switcher-card');
-  if (card) {
-    card.classList.toggle('hidden');
-  }
+function toggleLayerMenu() {
+  const menu = document.getElementById('layer-menu');
+  if (menu) menu.classList.toggle('hidden');
 }
 
+const toggleLayerSwitcher = toggleLayerMenu;
+
 function switchMapLayer(layerKey) {
-  applyMapLayer(layerKey);
-  const card = document.getElementById('layer-switcher-card');
-  if (card) card.classList.add('hidden');
+  applyMapLayer(layerKey, true);
+  const menu = document.getElementById('layer-menu');
+  if (menu) menu.classList.add('hidden');
+}
+
+// ============================================================================
+// Global Event Handlers
+// ============================================================================
+function setupGlobalClickHandlers() {
+  document.addEventListener('click', (e) => {
+    // Close Theme menu if clicking outside
+    const themeWrapper = document.getElementById('theme-switcher-wrapper');
+    const themeMenu = document.getElementById('theme-menu');
+    if (themeWrapper && !themeWrapper.contains(e.target) && themeMenu) {
+      themeMenu.classList.add('hidden');
+    }
+
+    // Close Layer menu if clicking outside
+    const layerWrapper = document.getElementById('layer-control-wrapper');
+    const layerMenu = document.getElementById('layer-menu');
+    if (layerWrapper && !layerWrapper.contains(e.target) && layerMenu) {
+      layerMenu.classList.add('hidden');
+    }
+  });
 }
 
 // ============================================================================
@@ -180,7 +299,7 @@ async function fetchLists() {
   try {
     const res = await fetch('/api/lists');
     const json = await res.json();
-    if (json.success && json.data) {
+    if (json.success && json.data && json.data.length > 0) {
       lists = json.data;
     } else {
       lists = [{ id: 1, name: 'My Bucket List', icon: '📍', created_at: '' }];
@@ -215,141 +334,83 @@ function renderAll() {
   lucide.createIcons();
 }
 
-function toggleListDropdown() {
-  const menu = document.getElementById('list-dropdown-menu');
-  const chevron = document.querySelector('.dropdown-chevron');
-  if (!menu) return;
+function renderListsUI() {
+  const listSelect = document.getElementById('list-select');
+  const formListSelect = document.getElementById('form-list-id');
 
-  const isHidden = menu.classList.toggle('hidden');
-  if (chevron) {
-    chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
+  if (listSelect) {
+    const currentVal = currentListFilter;
+    let optionsHtml = `
+      <option value="all" ${currentVal === 'all' ? 'selected' : ''}>📁 All Places (${allPins.length})</option>
+    `;
+
+    lists.forEach(l => {
+      const count = allPins.filter(p => p.list_id === l.id).length;
+      optionsHtml += `
+        <option value="${l.id}" ${currentVal === String(l.id) ? 'selected' : ''}>
+          ${l.icon || '📍'} ${escapeHtml(l.name)} (${count})
+        </option>
+      `;
+    });
+
+    listSelect.innerHTML = optionsHtml;
   }
+
+  if (formListSelect) {
+    const currentVal = formListSelect.value;
+    formListSelect.innerHTML = lists.map(l => `
+      <option value="${l.id}">${l.icon || '📍'} ${escapeHtml(l.name)}</option>
+    `).join('');
+
+    if (currentVal && lists.some(l => String(l.id) === currentVal)) {
+      formListSelect.value = currentVal;
+    }
+  }
+}
+
+function handleListChange(e) {
+  selectList(e.target.value);
 }
 
 function selectList(listId) {
   currentListFilter = String(listId);
-  const menu = document.getElementById('list-dropdown-menu');
-  if (menu) menu.classList.add('hidden');
-  const chevron = document.querySelector('.dropdown-chevron');
-  if (chevron) chevron.style.transform = 'rotate(0deg)';
-
-  // Sync quick status tabs if standard view
-  if (listId === 'bucket') {
-    selectedStatus = 'bucket';
-  } else if (listId === 'visited') {
-    selectedStatus = 'visited';
-  } else {
-    selectedStatus = 'all';
-  }
-
-  document.querySelectorAll('.filter-tab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.status === selectedStatus);
-  });
-
   renderAll();
-  resetView();
+  resetMapView();
 }
 
-function renderListsUI() {
-  const container = document.getElementById('custom-lists-container');
-  const formSelect = document.getElementById('form-custom-list');
-
-  const activeIcon = document.getElementById('active-list-icon');
-  const activeName = document.getElementById('active-list-name');
-  const activeCount = document.getElementById('active-list-count');
-
-  let activeTitle = 'All Places';
-  let activeEmoji = '🗺️';
-  let activeTotal = allPins.length;
-
-  if (currentListFilter === 'bucket') {
-    activeTitle = 'Bucket List';
-    activeEmoji = '🎯';
-    activeTotal = allPins.filter(p => !p.visited).length;
-  } else if (currentListFilter === 'visited') {
-    activeTitle = 'Visited Places';
-    activeEmoji = '✅';
-    activeTotal = allPins.filter(p => p.visited).length;
-  } else if (currentListFilter !== 'all') {
-    const listIdNum = parseInt(currentListFilter, 10);
-    const list = lists.find(l => l.id === listIdNum);
-    if (list) {
-      activeTitle = list.name;
-      activeEmoji = list.icon || '📁';
-      activeTotal = allPins.filter(p => p.list_id === list.id).length;
-    }
-  }
-
-  if (activeIcon) activeIcon.innerText = activeEmoji;
-  if (activeName) activeName.innerText = activeTitle;
-  if (activeCount) activeCount.innerText = activeTotal;
-
-  // Render items in dropdown menu
-  if (container) {
-    container.innerHTML = lists.map(list => {
-      const pinCount = allPins.filter(p => p.list_id === list.id).length;
-      const isActive = currentListFilter === String(list.id);
-      const isDefault = list.id === 1;
-
-      return `
-        <div class="list-dropdown-item ${isActive ? 'active' : ''}" onclick="selectList('${list.id}')">
-          <span class="item-icon">${list.icon || '📁'}</span>
-          <span class="item-title">${escapeHtml(list.name)}</span>
-          <span class="item-badge">${pinCount}</span>
-          ${!isDefault ? `
-            <button class="btn-icon-sm" style="padding: 3px 5px; margin-left: 4px;" onclick="event.stopPropagation(); deleteList(${list.id})" title="Delete Trip/List">
-              <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
-            </button>
-          ` : ''}
-        </div>
-      `;
-    }).join('');
-  }
-
-  // Populate Add / Edit Modal custom list select
-  if (formSelect) {
-    const currentVal = formSelect.value;
-    formSelect.innerHTML = lists.map(l => `
-      <option value="${l.id}">${l.icon || '📁'} ${escapeHtml(l.name)}</option>
-    `).join('');
-    if (currentVal && lists.some(l => String(l.id) === currentVal)) {
-      formSelect.value = currentVal;
-    }
-  }
-
-  // Update Standard Badges
-  const bAll = document.getElementById('list-badge-all');
-  const bBucket = document.getElementById('list-badge-bucket');
-  const bVisited = document.getElementById('list-badge-visited');
-  if (bAll) bAll.innerText = allPins.length;
-  if (bBucket) bBucket.innerText = allPins.filter(p => !p.visited).length;
-  if (bVisited) bVisited.innerText = allPins.filter(p => p.visited).length;
+function openNewListModal() {
+  const modal = document.getElementById('new-list-modal');
+  const nameInput = document.getElementById('new-list-name');
+  if (nameInput) nameInput.value = '';
+  selectListIcon('📍');
+  if (modal) modal.classList.remove('hidden');
 }
 
-function openCreateListModal() {
-  const dropdown = document.getElementById('list-dropdown-menu');
-  if (dropdown) dropdown.classList.add('hidden');
-  document.getElementById('list-name-input').value = '';
-  document.getElementById('list-desc-input').value = '';
-  selectEmoji('✈️');
-  document.getElementById('create-list-modal').classList.remove('hidden');
+const openCreateListModal = openNewListModal;
+
+function closeNewListModal() {
+  const modal = document.getElementById('new-list-modal');
+  if (modal) modal.classList.add('hidden');
 }
 
-function closeCreateListModal() {
-  document.getElementById('create-list-modal').classList.add('hidden');
-}
+const closeCreateListModal = closeNewListModal;
 
-function selectEmoji(emoji) {
-  document.getElementById('selected-list-emoji').value = emoji;
-  document.querySelectorAll('.emoji-opt').forEach(btn => {
+function selectListIcon(emoji) {
+  const input = document.getElementById('new-list-icon');
+  if (input) input.value = emoji;
+  document.querySelectorAll('#emoji-picker .emoji-opt').forEach(btn => {
     btn.classList.toggle('active', btn.innerText.trim() === emoji);
   });
 }
 
+const selectEmoji = selectListIcon;
+
 async function handleCreateListSubmit(e) {
   e.preventDefault();
-  const name = document.getElementById('list-name-input').value.trim();
-  const icon = document.getElementById('selected-list-emoji').value || '✈️';
+  const nameInput = document.getElementById('new-list-name');
+  const iconInput = document.getElementById('new-list-icon');
+  const name = nameInput ? nameInput.value.trim() : '';
+  const icon = iconInput ? iconInput.value || '📍' : '📍';
 
   if (!name) return;
 
@@ -363,7 +424,7 @@ async function handleCreateListSubmit(e) {
     const json = await res.json();
     if (json.success && json.data) {
       lists.push(json.data);
-      closeCreateListModal();
+      closeNewListModal();
       selectList(json.data.id);
       showToast(`Created trip "${icon} ${name}"!`, 'success');
     } else {
@@ -371,28 +432,6 @@ async function handleCreateListSubmit(e) {
     }
   } catch (err) {
     showToast('Failed to connect to server', 'error');
-  }
-}
-
-async function deleteList(id) {
-  const list = lists.find(l => l.id === id);
-  if (!list) return;
-  if (!confirm(`Delete list "${list.name}"? Pins in this list will be reassigned or deleted.`)) return;
-
-  try {
-    const res = await fetch(`/api/lists/${id}`, { method: 'DELETE' });
-    const json = await res.json();
-    if (json.success) {
-      lists = lists.filter(l => l.id !== id);
-      if (currentListFilter === String(id)) {
-        selectList('all');
-      } else {
-        await fetchPins();
-      }
-      showToast('List deleted');
-    }
-  } catch (err) {
-    showToast('Failed to delete list', 'error');
   }
 }
 
@@ -408,18 +447,18 @@ function getListNameForPin(pin) {
 // ============================================================================
 // GPS Location & Distance Calculation
 // ============================================================================
-function handleLocateMe() {
+function locateUser() {
   if (!navigator.geolocation) {
     showToast('⚠️ Geolocation is not supported by your browser', 'error');
     return;
   }
 
-  const btn = document.getElementById('btn-locate-me');
-  if (btn) btn.classList.add('active-locating');
+  const fab = document.getElementById('locate-fab');
+  if (fab) fab.classList.add('fab-highlight');
 
   navigator.geolocation.getCurrentPosition(
     (position) => {
-      if (btn) btn.classList.remove('active-locating');
+      if (fab) fab.classList.remove('fab-highlight');
       currentUserLocation = {
         lat: position.coords.latitude,
         lng: position.coords.longitude
@@ -427,12 +466,12 @@ function handleLocateMe() {
 
       updateUserLocationMarker();
       map.flyTo([currentUserLocation.lat, currentUserLocation.lng], 14, { duration: 1.2 });
-      showToast('📍 Current location found!');
+      showToast('📍 Location found!');
       renderPinList();
       lucide.createIcons();
     },
     (error) => {
-      if (btn) btn.classList.remove('active-locating');
+      if (fab) fab.classList.remove('fab-highlight');
       let msg = 'Could not access GPS coordinates';
       if (error.code === 1) msg = 'Location permission denied';
       else if (error.code === 2) msg = 'Position unavailable';
@@ -443,6 +482,8 @@ function handleLocateMe() {
   );
 }
 
+const handleLocateMe = locateUser;
+
 function updateUserLocationMarker() {
   if (!currentUserLocation) return;
 
@@ -452,12 +493,9 @@ function updateUserLocationMarker() {
 
   const userIcon = L.divIcon({
     className: 'user-location-marker-container',
-    html: `
-      <div class="user-location-pulse"></div>
-      <div class="user-location-dot"></div>
-    `,
-    iconSize: [38, 38],
-    iconAnchor: [19, 19]
+    html: `<div class="user-location-pulse"></div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
   });
 
   userLocationMarker = L.marker([currentUserLocation.lat, currentUserLocation.lng], {
@@ -489,7 +527,7 @@ function formatDistance(dKm) {
 }
 
 // ============================================================================
-// Live Weather Integration (Open-Meteo)
+// Live Weather Integration
 // ============================================================================
 async function fetchWeather(lat, lon) {
   const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
@@ -505,7 +543,7 @@ async function fetchWeather(lat, lon) {
       const codeInfo = WEATHER_CODE_MAP[cw.weathercode] || { icon: '🌤️', text: 'Weather' };
       const tempC = Math.round(cw.temperature);
       const tempF = Math.round(cw.temperature * 9 / 5 + 32);
-      
+
       const weatherInfo = {
         icon: codeInfo.icon,
         text: codeInfo.text,
@@ -513,13 +551,11 @@ async function fetchWeather(lat, lon) {
         tempF: tempF,
         display: `${codeInfo.icon} ${tempF}°F / ${tempC}°C`
       };
-      
+
       weatherCache[key] = weatherInfo;
       return weatherInfo;
     }
-  } catch (err) {
-    // Non-critical, fail gracefully
-  }
+  } catch (_) {}
   return null;
 }
 
@@ -574,7 +610,6 @@ function getFilteredPins() {
 
     return true;
   }).sort((a, b) => {
-    // Sort
     if (currentSort === 'nearest' && currentUserLocation) {
       const distA = calculateDistance(currentUserLocation.lat, currentUserLocation.lng, a.latitude, a.longitude);
       const distB = calculateDistance(currentUserLocation.lat, currentUserLocation.lng, b.latitude, b.longitude);
@@ -584,7 +619,6 @@ function getFilteredPins() {
     } else if (currentSort === 'category') {
       return (a.category || '').localeCompare(b.category || '');
     } else {
-      // 'newest' default
       return (b.id || 0) - (a.id || 0);
     }
   });
@@ -595,7 +629,7 @@ function renderCategories() {
   if (!container) return;
 
   const categories = ['All', ...new Set(allPins.map(p => p.category).filter(Boolean))];
-  
+
   container.innerHTML = categories.map(cat => `
     <button class="cat-chip ${selectedCategory === cat ? 'active' : ''}" onclick="setCategoryFilter('${escapeHtml(cat)}')">
       ${escapeHtml(cat)}
@@ -608,6 +642,8 @@ function renderCategories() {
 // ============================================================================
 function renderPinList() {
   const container = document.getElementById('pin-list');
+  if (!container) return;
+
   const filtered = getFilteredPins();
 
   if (filtered.length === 0) {
@@ -821,7 +857,7 @@ function flyToPin(id) {
   }
 }
 
-function resetView() {
+function resetMapView() {
   if (allPins.length > 0) {
     const validMarkers = Object.values(markers);
     if (validMarkers.length > 0) {
@@ -833,7 +869,7 @@ function resetView() {
   map.setView([20.0, 0.0], 2);
 }
 
-const resetMapView = resetView;
+const resetView = resetMapView;
 
 function updateCounts() {
   const total = allPins.length;
@@ -851,9 +887,11 @@ function updateCounts() {
   if (elMobile) elMobile.innerText = getFilteredPins().length;
 }
 
-// Sidebar Drawer & Mobile View
+// Sidebar Drawer & Mobile Views
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+
   if (window.innerWidth <= 768) {
     if (sidebar.classList.contains('mobile-open')) {
       showMobileView('map');
@@ -873,14 +911,14 @@ function showMobileView(view) {
   const btnList = document.getElementById('btn-show-list');
 
   if (view === 'list') {
-    sidebar.classList.add('mobile-open');
+    if (sidebar) sidebar.classList.add('mobile-open');
     if (btnMap) btnMap.classList.remove('active');
     if (btnList) btnList.classList.add('active');
   } else {
-    sidebar.classList.remove('mobile-open');
+    if (sidebar) sidebar.classList.remove('mobile-open');
     if (btnMap) btnMap.classList.add('active');
     if (btnList) btnList.classList.remove('active');
-    setTimeout(() => map.invalidateSize(), 150);
+    setTimeout(() => map && map.invalidateSize(), 150);
   }
 }
 
@@ -907,22 +945,6 @@ function setCategoryFilter(cat) {
 
 function handleSearch(e) {
   searchQuery = e.target.value;
-  const clearBtn = document.getElementById('clear-search-btn');
-  if (clearBtn) {
-    clearBtn.classList.toggle('hidden', !searchQuery);
-  }
-  renderPinList();
-  renderMarkers();
-  updateCounts();
-  lucide.createIcons();
-}
-
-function clearSearch() {
-  searchQuery = '';
-  const searchInput = document.getElementById('search-input');
-  if (searchInput) searchInput.value = '';
-  const clearBtn = document.getElementById('clear-search-btn');
-  if (clearBtn) clearBtn.classList.add('hidden');
   renderPinList();
   renderMarkers();
   updateCounts();
@@ -932,7 +954,7 @@ function clearSearch() {
 function handleSortChange(e) {
   currentSort = e.target.value;
   if (currentSort === 'nearest' && !currentUserLocation) {
-    handleLocateMe();
+    locateUser();
   }
   renderPinList();
   lucide.createIcons();
@@ -941,7 +963,7 @@ function handleSortChange(e) {
 // ============================================================================
 // "Surprise Me" Random Pick Feature
 // ============================================================================
-function handleSurpriseMe() {
+function surpriseMe() {
   const pool = allPins.filter(p => !p.visited);
   const candidates = pool.length > 0 ? pool : allPins;
 
@@ -950,7 +972,7 @@ function handleSurpriseMe() {
     return;
   }
 
-  // Visual button bounce
+  // Button micro-interaction
   const headerBtn = document.getElementById('surprise-btn-header');
   const mapBtn = document.getElementById('btn-surprise-map');
   if (headerBtn) headerBtn.style.transform = 'scale(0.92)';
@@ -971,7 +993,7 @@ function handleSurpriseMe() {
   setTimeout(() => {
     if (markers[picked.id]) {
       loadAndRenderPopup(markers[picked.id], picked);
-      
+
       const elem = document.getElementById(`marker-elem-${picked.id}`);
       if (elem) {
         elem.classList.add('surprise-pin');
@@ -982,13 +1004,15 @@ function handleSurpriseMe() {
     const card = document.getElementById(`card-pin-${picked.id}`);
     if (card) {
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      card.classList.add('highlight-card');
-      setTimeout(() => card.classList.remove('highlight-card'), 3000);
+      card.classList.add('highlight-surprise');
+      setTimeout(() => card.classList.remove('highlight-surprise'), 3000);
     }
 
     showToast(`🎲 Surprise Pick: "${picked.title}"!`);
   }, 800);
 }
+
+const handleSurpriseMe = surpriseMe;
 
 // ============================================================================
 // Native Sharing & Clipboard
@@ -1035,7 +1059,7 @@ async function handleSaveLinkSubmit(e, inputId = 'save-url-input') {
   if (!url) return;
 
   const overlay = document.getElementById('loading-overlay');
-  overlay.classList.remove('hidden');
+  if (overlay) overlay.classList.remove('hidden');
 
   let targetListId = 1;
   if (currentListFilter !== 'all' && currentListFilter !== 'bucket' && currentListFilter !== 'visited') {
@@ -1050,7 +1074,7 @@ async function handleSaveLinkSubmit(e, inputId = 'save-url-input') {
     });
 
     const json = await res.json();
-    overlay.classList.add('hidden');
+    if (overlay) overlay.classList.add('hidden');
 
     if (json.success && json.data) {
       input.value = '';
@@ -1064,10 +1088,10 @@ async function handleSaveLinkSubmit(e, inputId = 'save-url-input') {
       }
       flyToPin(json.data.id);
     } else {
-      showToast(json.error || 'Failed to extract place details. You can add it manually with "+ Add Place"!', 'error');
+      showToast(json.error || 'Failed to extract place details. Try adding manually with "+ Add Place"!', 'error');
     }
   } catch (err) {
-    overlay.classList.add('hidden');
+    if (overlay) overlay.classList.add('hidden');
     showToast('Error connecting to server. Please check your network.', 'error');
   }
 }
@@ -1114,18 +1138,18 @@ async function deletePin(id) {
 // ============================================================================
 async function openManualPinModal(lat = '', lon = '') {
   document.getElementById('modal-title').innerText = 'Add Place';
-  document.getElementById('pin-id').value = '';
+  document.getElementById('form-pin-id').value = '';
   document.getElementById('form-title').value = '';
   document.getElementById('form-lat').value = lat;
   document.getElementById('form-lon').value = lon;
-  document.getElementById('form-category').value = 'General';
+  document.getElementById('form-category').value = 'Place';
   document.getElementById('form-visited').value = 'false';
   document.getElementById('form-address').value = '';
   document.getElementById('form-image').value = '';
   document.getElementById('form-source').value = '';
   document.getElementById('form-notes').value = '';
 
-  const formList = document.getElementById('form-custom-list');
+  const formList = document.getElementById('form-list-id');
   if (formList) {
     if (currentListFilter !== 'all' && currentListFilter !== 'bucket' && currentListFilter !== 'visited') {
       formList.value = currentListFilter;
@@ -1156,18 +1180,18 @@ function openEditPinModal(id) {
   if (!pin) return;
 
   document.getElementById('modal-title').innerText = 'Edit Place';
-  document.getElementById('pin-id').value = pin.id;
+  document.getElementById('form-pin-id').value = pin.id;
   document.getElementById('form-title').value = pin.title;
   document.getElementById('form-lat').value = pin.latitude;
   document.getElementById('form-lon').value = pin.longitude;
-  document.getElementById('form-category').value = pin.category || 'General';
+  document.getElementById('form-category').value = pin.category || 'Place';
   document.getElementById('form-visited').value = pin.visited ? 'true' : 'false';
   document.getElementById('form-address').value = pin.address || '';
   document.getElementById('form-image').value = pin.image_url || '';
   document.getElementById('form-source').value = pin.source_url || '';
   document.getElementById('form-notes').value = pin.notes || '';
 
-  const formList = document.getElementById('form-custom-list');
+  const formList = document.getElementById('form-list-id');
   if (formList) {
     formList.value = pin.list_id || (lists[0] ? lists[0].id : 1);
   }
@@ -1181,8 +1205,8 @@ function closePinModal() {
 
 async function handlePinFormSubmit(e) {
   e.preventDefault();
-  const id = document.getElementById('pin-id').value;
-  const selectedListId = parseInt(document.getElementById('form-custom-list').value, 10) || 1;
+  const id = document.getElementById('form-pin-id').value;
+  const selectedListId = parseInt(document.getElementById('form-list-id').value, 10) || 1;
 
   const payload = {
     list_id: selectedListId,
@@ -1242,7 +1266,8 @@ async function handlePinFormSubmit(e) {
 
 function handleModalBackdropClick(e, modalId) {
   if (e.target.id === modalId) {
-    document.getElementById(modalId).classList.add('hidden');
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('hidden');
   }
 }
 
