@@ -2,7 +2,7 @@
 
 let map;
 let currentTileLayer;
-let currentLayerName = 'light';
+let currentLayerName = 'osm';
 let markers = {};
 let allPins = [];
 let lists = []; // [{ id, name, icon, created_at }]
@@ -18,27 +18,29 @@ let weatherCache = {};
 
 // Tile Layer Configuration
 const MAP_LAYERS = {
-  light: {
-    name: 'Clean Light',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    options: {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-    }
-  },
   osm: {
     name: 'Streets (OSM)',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     options: {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
+      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }
+  },
+  light: {
+    name: 'Clean Light',
+    url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
+    options: {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
     }
   },
   dark: {
     name: 'Dark Mode',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
     options: {
       maxZoom: 19,
+      subdomains: 'abcd',
       attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
     }
   },
@@ -124,7 +126,7 @@ function setupGlobalClickHandlers() {
 // Leaflet Map & Layer Switcher
 // ============================================================================
 function initMap() {
-  currentLayerName = localStorage.getItem('blist_map_layer') || 'light';
+  currentLayerName = localStorage.getItem('blist_map_layer') || 'osm';
 
   map = L.map('map', {
     zoomControl: true,
@@ -142,7 +144,7 @@ function initMap() {
 }
 
 function applyMapLayer(layerKey) {
-  const layerConf = MAP_LAYERS[layerKey] || MAP_LAYERS.light;
+  const layerConf = MAP_LAYERS[layerKey] || MAP_LAYERS.osm;
   
   if (currentTileLayer) {
     map.removeLayer(currentTileLayer);
@@ -820,14 +822,18 @@ function flyToPin(id) {
 }
 
 function resetView() {
-  const filtered = getFilteredPins();
-  if (filtered.length > 0) {
-    const latLngs = filtered.map(p => [p.latitude, p.longitude]);
-    map.fitBounds(L.latLngBounds(latLngs).pad(0.18), { maxZoom: 15 });
-  } else {
-    map.setView([20.0, 0.0], 2);
+  if (allPins.length > 0) {
+    const validMarkers = Object.values(markers);
+    if (validMarkers.length > 0) {
+      const group = new L.featureGroup(validMarkers);
+      map.fitBounds(group.getBounds().pad(0.15));
+      return;
+    }
   }
+  map.setView([20.0, 0.0], 2);
 }
+
+const resetMapView = resetView;
 
 function updateCounts() {
   const total = allPins.length;
@@ -1021,9 +1027,10 @@ async function sharePin(id) {
 // ============================================================================
 // Link Saving (Omni Bar) & CRUD
 // ============================================================================
-async function handleSaveLinkSubmit(e) {
+async function handleSaveLinkSubmit(e, inputId = 'save-url-input') {
   e.preventDefault();
-  const input = document.getElementById('save-url-input');
+  const input = document.getElementById(inputId) || document.getElementById('save-url-input');
+  if (!input) return;
   const url = input.value.trim();
   if (!url) return;
 
