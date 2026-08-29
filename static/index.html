@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>bList - Map Bucket List</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <button id="toggle-sidebar-btn" class="btn-icon-header" onclick="toggleSidebar()" title="Toggle Sidebar">
+          <i data-lucide="panel-left"></i>
+        </button>
+        <div class="brand" onclick="resetView()">
+          <span class="logo-icon">🗺️</span>
+          <h1 class="brand-title">bList</h1>
+        </div>
+      </div>
+
+      <!-- Omni Link Ingest Form -->
+      <form id="ingest-form" class="ingest-bar" onsubmit="handleIngestSubmit(event)">
+        <div class="input-wrapper">
+          <i data-lucide="link" class="input-icon"></i>
+          <input 
+            type="url" 
+            id="ingest-url-input" 
+            placeholder="Paste Google Maps, Instagram, Apple Maps, or article link..." 
+            required
+            autocomplete="off"
+          />
+        </div>
+        <button type="submit" id="ingest-btn" class="btn btn-primary">
+          <i data-lucide="sparkles" class="btn-icon"></i>
+          <span class="btn-text">Ingest</span>
+        </button>
+      </form>
+
+      <div class="header-actions">
+        <button id="add-manual-btn" class="btn btn-secondary" onclick="openManualPinModal()">
+          <i data-lucide="plus" class="btn-icon"></i>
+          <span class="btn-text">Add Pin</span>
+        </button>
+        <button id="export-btn" class="btn btn-ghost" onclick="exportData('geojson')" title="Export GeoJSON">
+          <i data-lucide="download" class="btn-icon"></i>
+          <span class="btn-text">Export</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Container: Sidebar + Map -->
+    <div class="main-content">
+      <!-- Sidebar Drawer -->
+      <aside class="sidebar" id="sidebar">
+        <!-- Search & Filter Controls -->
+        <div class="sidebar-header">
+          <div class="search-box">
+            <i data-lucide="search" class="search-icon"></i>
+            <input type="text" id="search-input" placeholder="Search saved places, notes..." oninput="handleSearch(event)">
+          </div>
+
+          <!-- Status Filters -->
+          <div class="filter-tabs">
+            <button class="filter-tab active" data-status="all" onclick="setStatusFilter('all')">All (<span id="count-all">0</span>)</button>
+            <button class="filter-tab" data-status="bucket" onclick="setStatusFilter('bucket')">🎯 Bucket List (<span id="count-bucket">0</span>)</button>
+            <button class="filter-tab" data-status="visited" onclick="setStatusFilter('visited')">✅ Visited (<span id="count-visited">0</span>)</button>
+          </div>
+
+          <!-- Category Tags -->
+          <div class="categories-bar" id="categories-bar"></div>
+        </div>
+
+        <!-- Pin Cards List -->
+        <div class="pin-list" id="pin-list">
+          <div class="empty-state" id="empty-state">
+            <div class="empty-icon">📍</div>
+            <h3>No pins saved yet</h3>
+            <p>Paste a Google Maps, Instagram, or article link above to add your first destination!</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Interactive Map -->
+      <main class="map-container">
+        <div id="map"></div>
+        
+        <!-- Mobile Bottom Floating Switcher -->
+        <div class="mobile-view-toggle">
+          <button class="toggle-pill active" id="btn-show-map" onclick="showMobileView('map')">
+            <i data-lucide="map"></i>
+            <span>Map</span>
+          </button>
+          <button class="toggle-pill" id="btn-show-list" onclick="showMobileView('list')">
+            <i data-lucide="list"></i>
+            <span>List (<span id="mobile-count">0</span>)</span>
+          </button>
+        </div>
+
+        <div class="map-overlay-tip">
+          <i data-lucide="mouse-pointer-click"></i>
+          <span>Click on map to drop a pin</span>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Ingest Loading Overlay -->
+  <div id="loading-overlay" class="modal-overlay hidden">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <h3 id="loading-title">Ingesting place...</h3>
+      <p id="loading-desc">Extracting metadata and resolving GPS coordinates</p>
+    </div>
+  </div>
+
+  <!-- Manual / Edit Pin Modal -->
+  <div id="pin-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-title">Add New Pin</h2>
+        <button class="btn-close" onclick="closePinModal()">&times;</button>
+      </div>
+      <form id="pin-form" onsubmit="handlePinFormSubmit(event)">
+        <input type="hidden" id="pin-id">
+        <div class="form-group">
+          <label for="form-title">Place / Destination Title *</label>
+          <input type="text" id="form-title" required placeholder="e.g. Joe's Pizza, Eiffel Tower">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="form-lat">Latitude *</label>
+            <input type="number" step="any" id="form-lat" required placeholder="40.7306">
+          </div>
+          <div class="form-group flex-1">
+            <label for="form-lon">Longitude *</label>
+            <input type="number" step="any" id="form-lon" required placeholder="-73.9352">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="form-category">Category</label>
+            <select id="form-category">
+              <option value="Food & Drink">🍔 Food & Drink</option>
+              <option value="Cafe">☕ Cafe</option>
+              <option value="Sightseeing">🏛️ Sightseeing</option>
+              <option value="Nature & Outdoors">🏞️ Nature & Outdoors</option>
+              <option value="Hotel & Stay">🏨 Hotel & Stay</option>
+              <option value="Shopping">🛍️ Shopping</option>
+              <option value="General" selected>📌 General</option>
+            </select>
+          </div>
+          <div class="form-group flex-1">
+            <label for="form-visited">Status</label>
+            <select id="form-visited">
+              <option value="false">🎯 In Bucket List</option>
+              <option value="true">✅ Visited</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="form-address">Address / Location Name</label>
+          <input type="text" id="form-address" placeholder="e.g. 7 Carmine St, New York, NY">
+        </div>
+
+        <div class="form-group">
+          <label for="form-image">Image URL</label>
+          <input type="url" id="form-image" placeholder="https://example.com/photo.jpg">
+        </div>
+
+        <div class="form-group">
+          <label for="form-source">Source Link</label>
+          <input type="url" id="form-source" placeholder="https://maps.google.com/... or instagram.com/...">
+        </div>
+
+        <div class="form-group">
+          <label for="form-notes">Personal Notes / Recommendations</label>
+          <textarea id="form-notes" rows="3" placeholder="Recommended dishes, best time to visit..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closePinModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Pin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
