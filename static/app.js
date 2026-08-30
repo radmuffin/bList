@@ -147,6 +147,49 @@
       if (!pin || !pin.list_id) return null;
       const found = State.lists.find((l) => l.id === pin.list_id);
       return found && found.id !== 1 ? found : null;
+    },
+
+    isValidHttpUrl(url) {
+      if (window.bListHelpers && typeof window.bListHelpers.isValidHttpUrl === 'function') {
+        return window.bListHelpers.isValidHttpUrl(url);
+      }
+      if (!url || typeof url !== 'string') return false;
+      try {
+        const parsed = new URL(url.trim());
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      } catch (_) {
+        return false;
+      }
+    },
+
+    sanitizeUrl(url) {
+      if (window.bListHelpers && typeof window.bListHelpers.sanitizeUrl === 'function') {
+        return window.bListHelpers.sanitizeUrl(url);
+      }
+      if (!url || typeof url !== 'string') return '';
+      const trimmed = url.trim();
+      if (!trimmed) return '';
+      const lower = trimmed.toLowerCase().replace(/[\s - ]/g, '');
+      if (
+        lower.startsWith('javascript:') ||
+        lower.startsWith('data:') ||
+        lower.startsWith('vbscript:') ||
+        lower.startsWith('file:')
+      ) {
+        return '';
+      }
+      try {
+        const parsed = new URL(trimmed);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          return parsed.toString();
+        }
+        return '';
+      } catch (_) {
+        if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+          return trimmed;
+        }
+        return '';
+      }
     }
   };
 
@@ -794,11 +837,12 @@
     },
 
     renderPopupHtml(pin, { distanceStr, weather, assignedList }) {
+      const safeImg = pin.image_url ? Utils.sanitizeUrl(pin.image_url) : '';
       return `
         <div class="pin-popup">
           ${
-            pin.image_url
-              ? `<img src="${Utils.escapeHtml(pin.image_url)}" class="popup-img" alt="${Utils.escapeHtml(
+            safeImg
+              ? `<img src="${Utils.escapeHtml(safeImg)}" class="popup-img" alt="${Utils.escapeHtml(
                   pin.title
                 )}" onerror="this.style.display='none'">`
               : ''
@@ -871,14 +915,24 @@
       container.innerHTML = categories
         .map(
           (cat) => `
-        <button class="cat-chip ${State.selectedCategory === cat ? 'active' : ''}" onclick="setCategoryFilter('${Utils.escapeHtml(
+        <button class="cat-chip ${State.selectedCategory === cat ? 'active' : ''}" data-category="${Utils.escapeHtml(
             cat
-          )}')">
+          )}">
           ${Utils.escapeHtml(cat)}
         </button>
       `
         )
         .join('');
+
+      if (!container._hasCategoryListener) {
+        container.addEventListener('click', (e) => {
+          const btn = e.target.closest('.cat-chip');
+          if (btn && btn.dataset.category) {
+            FilterManager.setCategory(btn.dataset.category);
+          }
+        });
+        container._hasCategoryListener = true;
+      }
     },
 
     renderPinList() {
@@ -914,6 +968,7 @@
           const assignedList = Utils.getListNameForPin(pin);
           const weatherCached =
             State.weatherCache[`${pin.latitude.toFixed(2)},${pin.longitude.toFixed(2)}`];
+          const safeThumb = pin.image_url ? Utils.sanitizeUrl(pin.image_url) : '';
 
           return `
             <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
@@ -925,8 +980,8 @@
               </div>
 
               ${
-                pin.image_url
-                  ? `<img src="${Utils.escapeHtml(pin.image_url)}" class="pin-card-thumb" alt="${Utils.escapeHtml(
+                safeThumb
+                  ? `<img src="${Utils.escapeHtml(safeThumb)}" class="pin-card-thumb" alt="${Utils.escapeHtml(
                       pin.title
                     )}" onerror="this.style.display='none'">`
                   : ''

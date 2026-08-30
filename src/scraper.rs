@@ -1,5 +1,6 @@
 use crate::geocoder::Geocoder;
 use crate::models::ScrapedMetadata;
+use crate::security::{build_safe_http_client, validate_url_for_ssrf};
 use regex::Regex;
 use scraper::{Html, Selector};
 use std::time::Duration;
@@ -11,30 +12,7 @@ pub struct Scraper {
 
 impl Scraper {
     pub fn new() -> Self {
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert(
-            reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            ),
-        );
-        headers.insert(
-            reqwest::header::ACCEPT_LANGUAGE,
-            reqwest::header::HeaderValue::from_static("en-US,en;q=0.9"),
-        );
-        headers.insert(
-            reqwest::header::ACCEPT,
-            reqwest::header::HeaderValue::from_static(
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-            ),
-        );
-
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(15))
-            .redirect(reqwest::redirect::Policy::limited(12))
-            .default_headers(headers)
-            .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
+        let client = build_safe_http_client(Duration::from_secs(15));
 
         Self {
             client,
@@ -43,16 +21,8 @@ impl Scraper {
     }
 
     pub async fn scrape_url(&self, raw_url: &str) -> Result<ScrapedMetadata, String> {
-        let clean_url = raw_url.trim();
-        if clean_url.is_empty() {
-            return Err("URL cannot be empty".to_string());
-        }
-
-        let full_url = if !clean_url.starts_with("http://") && !clean_url.starts_with("https://") {
-            format!("https://{}", clean_url)
-        } else {
-            clean_url.to_string()
-        };
+        let parsed_url = validate_url_for_ssrf(raw_url)?;
+        let full_url = parsed_url.to_string();
 
         if full_url.contains("maps.google.")
             || full_url.contains("goo.gl/maps")
@@ -88,9 +58,11 @@ impl Scraper {
             if let Some(caps) = re_refresh.captures(&html_text) {
                 if let Some(m) = caps.get(1) {
                     let next_url = m.as_str().replace("&amp;", "&");
-                    if let Ok(next_res) = self.client.get(&next_url).send().await {
-                        final_url = next_res.url().to_string();
-                        html_text = next_res.text().await.unwrap_or_default();
+                    if let Ok(safe_next) = validate_url_for_ssrf(&next_url) {
+                        if let Ok(next_res) = self.client.get(safe_next.as_str()).send().await {
+                            final_url = next_res.url().to_string();
+                            html_text = next_res.text().await.unwrap_or_default();
+                        }
                     }
                 }
             }
@@ -604,5 +576,38 @@ mod tests {
             clean_page_title("Delicious Ramen on Instagram"),
             "Delicious Ramen"
         );
+    }
+
+    #[tokio::test]
+    async fn test_scraper_ssrf_protection() {
+        let scraper = Scraper::new();
+
+        let blocked_urls = [
+            "http://127.0.0.1:8080/secret",
+            "http://localhost:3000",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://metadata.google.internal/computeMetadata/v1/",
+            "http://10.0.0.1/",
+            "http://192.168.1.1/",
+            "http://172.16.0.1/",
+            "http://0.0.0.0:8000",
+            "http://[::1]:8080",
+            "http://[fe80::1]",
+            "http://[fc00::1]",
+            "file:///etc/passwd",
+            "ftp://example.com/file",
+            "javascript:alert(1)",
+            "gopher://127.0.0.1:70/",
+        ];
+
+        for u in blocked_urls {
+            let res = scraper.scrape_url(u).await;
+            assert!(
+                res.is_err(),
+                "Expected scraping '{}' to fail SSRF check, got: {:?}",
+                u,
+                res
+            );
+        }
     }
 }

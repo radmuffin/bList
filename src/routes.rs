@@ -244,6 +244,17 @@ pub async fn create_pin(
         );
     }
 
+    if !req.latitude.is_finite()
+        || !req.longitude.is_finite()
+        || !(-90.0..=90.0).contains(&req.latitude)
+        || !(-180.0..=180.0).contains(&req.longitude)
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::err("Invalid latitude or longitude coordinates")),
+        );
+    }
+
     let conn = match state.db.lock() {
         Ok(c) => c,
         Err(e) => {
@@ -269,6 +280,23 @@ pub async fn update_pin(
     Path(id): Path<i64>,
     Json(req): Json<UpdatePinRequest>,
 ) -> (StatusCode, Json<ApiResponse<Pin>>) {
+    if let Some(lat) = req.latitude {
+        if !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::err("Invalid latitude coordinate")),
+            );
+        }
+    }
+    if let Some(lon) = req.longitude {
+        if !lon.is_finite() || !(-180.0..=180.0).contains(&lon) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::err("Invalid longitude coordinate")),
+            );
+        }
+    }
+
     let conn = match state.db.lock() {
         Ok(c) => c,
         Err(e) => {
@@ -1058,5 +1086,80 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(res.error.unwrap(), "Location not found");
+    }
+
+    #[tokio::test]
+    async fn test_routes_ssrf_protection_in_ingest_and_preview() {
+        let db_name = "test_routes_ssrf.db";
+        let state = setup_test_state(db_name);
+
+        let ssrf_targets = [
+            "http://127.0.0.1:8080/admin",
+            "http://localhost:3000",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://10.0.0.1/private",
+            "http://192.168.1.1/",
+            "http://172.16.0.1/",
+            "file:///etc/passwd",
+            "ftp://example.com/file",
+            "javascript:alert(1)",
+        ];
+
+        for target in ssrf_targets {
+            let req = IngestRequest {
+                url: target.to_string(),
+                list_id: Some(1),
+                category: None,
+                notes: None,
+            };
+
+            // Test ingest_link
+            let (status, Json(res)) = ingest_link(State(state.clone()), Json(req.clone())).await;
+            assert_eq!(
+                status,
+                StatusCode::BAD_REQUEST,
+                "ingest_link should reject SSRF target {}",
+                target
+            );
+            assert!(!res.success);
+
+            // Test preview_scrape
+            let (status_prev, Json(res_prev)) = preview_scrape(State(state.clone()), Json(req)).await;
+            assert_eq!(
+                status_prev,
+                StatusCode::BAD_REQUEST,
+                "preview_scrape should reject SSRF target {}",
+                target
+            );
+            assert!(!res_prev.success);
+        }
+
+        let _ = std::fs::remove_file(db_name);
+    }
+
+    #[tokio::test]
+    async fn test_routes_invalid_coordinates_rejected() {
+        let db_name = "test_routes_coords.db";
+        let state = setup_test_state(db_name);
+
+        let invalid_pin_req = CreatePinRequest {
+            list_id: Some(1),
+            title: "Invalid Coords".to_string(),
+            description: None,
+            latitude: 100.0, // Invalid > 90
+            longitude: 50.0,
+            category: None,
+            source_url: None,
+            image_url: None,
+            address: None,
+            notes: None,
+            visited: Some(false),
+        };
+
+        let (status, Json(res)) = create_pin(State(state.clone()), Json(invalid_pin_req)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(!res.success);
+
+        let _ = std::fs::remove_file(db_name);
     }
 }
