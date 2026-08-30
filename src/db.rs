@@ -123,6 +123,13 @@ impl From<&str> for StorageError {
 }
 
 // ---------------------------------------------------------------------------
+// Quota & Storage Limits
+// ---------------------------------------------------------------------------
+pub const MAX_LISTS_PER_USER: usize = 50;
+pub const MAX_PINS_PER_LIST: usize = 500;
+pub const MAX_PINS_PER_USER: usize = 2500;
+
+// ---------------------------------------------------------------------------
 // Repository Traits
 // ---------------------------------------------------------------------------
 
@@ -136,6 +143,7 @@ pub trait ListRepository: Send + Sync {
     fn check_permission(&self, user_token: &str, list_id: i64) -> Result<bool, StorageError>;
     fn join_list(&self, share_token: &str, user_token: &str) -> Result<Option<List>, StorageError>;
     fn auto_associate_device(&self, user_token: &str) -> Result<(), StorageError>;
+    fn count_user_lists(&self, user_token: &str) -> Result<usize, StorageError>;
 }
 
 /// Clean interface for map pin CRUD, querying, and category operations.
@@ -147,6 +155,8 @@ pub trait PinRepository: Send + Sync {
     fn toggle_visited(&self, id: i64) -> Result<Option<Pin>, StorageError>;
     fn delete_pin(&self, id: i64) -> Result<bool, StorageError>;
     fn get_categories(&self, list_id: Option<i64>, user_token: &str) -> Result<Vec<String>, StorageError>;
+    fn count_list_pins(&self, list_id: i64) -> Result<usize, StorageError>;
+    fn count_user_pins(&self, user_token: &str) -> Result<usize, StorageError>;
 }
 
 /// Unified storage engine interface combining list and pin repositories.
@@ -289,6 +299,20 @@ impl ListRepository for SqliteRepository {
         }
         Ok(())
     }
+
+    fn count_user_lists(&self, user_token: &str) -> Result<usize, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Lock(e.to_string()))?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM device_lists WHERE user_token = ?",
+            params![user_token],
+            |r| r.get(0),
+        )?;
+        Ok(count as usize)
+    }
 }
 
 impl PinRepository for SqliteRepository {
@@ -348,6 +372,33 @@ impl PinRepository for SqliteRepository {
             .lock()
             .map_err(|e| StorageError::Lock(e.to_string()))?;
         get_categories(&conn, list_id, Some(user_token)).map_err(Into::into)
+    }
+
+    fn count_list_pins(&self, list_id: i64) -> Result<usize, StorageError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Lock(e.to_string()))?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pins WHERE list_id = ?",
+            params![list_id],
+            |r| r.get(0),
+        )?;
+        Ok(count as usize)
+    }
+
+    fn count_user_pins(&self, user_token: &str) -> Result<usize, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Lock(e.to_string()))?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pins WHERE list_id IN (SELECT list_id FROM device_lists WHERE user_token = ?)",
+            params![user_token],
+            |r| r.get(0),
+        )?;
+        Ok(count as usize)
     }
 }
 
@@ -496,6 +547,13 @@ impl ListRepository for InMemoryStorage {
             }
         }
         Ok(())
+    }
+
+    fn count_user_lists(&self, user_token: &str) -> Result<usize, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let device_lists = self.device_lists.read().unwrap();
+        let count = device_lists.iter().filter(|(tok, _)| tok == user_token).count();
+        Ok(count)
     }
 }
 
@@ -662,6 +720,24 @@ impl PinRepository for InMemoryStorage {
             }
         }
         Ok(set.into_iter().collect())
+    }
+
+    fn count_list_pins(&self, list_id: i64) -> Result<usize, StorageError> {
+        let pins = self.pins.read().unwrap();
+        let count = pins.values().filter(|p| p.list_id == list_id).count();
+        Ok(count)
+    }
+
+    fn count_user_pins(&self, user_token: &str) -> Result<usize, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let device_lists = self.device_lists.read().unwrap();
+        let allowed_lists: std::collections::HashSet<i64> = device_lists.iter()
+            .filter(|(tok, _)| tok == user_token)
+            .map(|(_, lid)| *lid)
+            .collect();
+        let pins = self.pins.read().unwrap();
+        let count = pins.values().filter(|p| allowed_lists.contains(&p.list_id)).count();
+        Ok(count)
     }
 }
 

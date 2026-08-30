@@ -1332,6 +1332,60 @@
       ToastManager.show('📋 Link copied to clipboard!', 'success');
     },
 
+    openSyncModal() {
+      const modal = document.getElementById('sync-modal');
+      const syncInput = document.getElementById('sync-link-input');
+      const qrImg = document.getElementById('sync-qr-img');
+      const userToken = ApiClient.getUserToken();
+
+      const syncUrl = `${window.location.origin}/?sync_token=${encodeURIComponent(userToken)}`;
+      if (syncInput) {
+        syncInput.value = syncUrl;
+      }
+      if (qrImg) {
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(syncUrl)}`;
+      }
+
+      if (modal) modal.classList.remove('hidden');
+    },
+
+    closeSyncModal() {
+      const modal = document.getElementById('sync-modal');
+      if (modal) modal.classList.add('hidden');
+    },
+
+    async copySyncLink() {
+      const syncInput = document.getElementById('sync-link-input');
+      if (!syncInput || !syncInput.value) return;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(syncInput.value);
+          ToastManager.show('📱 Sync link copied to clipboard!', 'success');
+          return;
+        } catch (_) {}
+      }
+
+      syncInput.select();
+      document.execCommand('copy');
+      ToastManager.show('📱 Sync link copied to clipboard!', 'success');
+    },
+
+    async handleRestoreKeySubmit() {
+      const input = document.getElementById('restore-key-input');
+      const token = input ? input.value.trim() : '';
+      if (!token) {
+        ToastManager.show('Please enter a valid Sync Key.', 'error');
+        return;
+      }
+      localStorage.setItem('blist_user_token', token);
+      ToastManager.show('🔄 Restoring your account session...', 'success');
+      this.closeSyncModal();
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    },
+
     handleBackdropClick(e, modalId) {
       if (e.target.id === modalId) {
         const modal = document.getElementById(modalId);
@@ -1623,6 +1677,20 @@
     window.history.replaceState({}, document.title, newUrl);
   }
 
+  async function handleIncomingSyncLink() {
+    const params = new URLSearchParams(window.location.search);
+    const syncToken = params.get('sync_token');
+    if (!syncToken || !syncToken.trim()) return;
+
+    localStorage.setItem('blist_user_token', syncToken.trim());
+    ToastManager.show('📱 Linked and synced with your device session!', 'success');
+
+    params.delete('sync_token');
+    const newSearch = params.toString();
+    const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+    window.history.replaceState({}, document.title, newUrl);
+  }
+
   // ==========================================================================
   // 13. Application Lifecycle Initialization
   // ==========================================================================
@@ -1630,6 +1698,7 @@
     ThemeManager.init();
     MapController.init();
 
+    await handleIncomingSyncLink();
     await handleIncomingJoinLink();
 
     try {
@@ -1690,6 +1759,12 @@
   window.exportData = (format) => FeatureActions.exportData(format);
   window.showToast = (msg, type) => ToastManager.show(msg, type);
   window.escapeHtml = (str) => Utils.escapeHtml(str);
+
+  // Sync & Multi-Device
+  window.openSyncModal = () => ModalManager.openSyncModal();
+  window.closeSyncModal = () => ModalManager.closeSyncModal();
+  window.copySyncLink = () => ModalManager.copySyncLink();
+  window.handleRestoreKeySubmit = () => ModalManager.handleRestoreKeySubmit();
 
   // Lists & Trips
   window.handleListChange = (e) => FilterManager.selectList(e.target.value);

@@ -95,6 +95,10 @@
             </div>
           </div>
 
+          <button class="btn btn-ghost" id="sync-btn-header" onclick="openSyncModal()" title="Link phone or another device">
+            <i data-lucide="smartphone" class="btn-icon"></i>
+            <span class="btn-text">Sync</span>
+          </button>
           <button class="btn btn-surprise" id="surprise-btn-header" onclick="surpriseMe()" title="Pick a random unvisited place">
             <i data-lucide="sparkles" class="btn-icon"></i>
             <span class="btn-text">Surprise Me</span>
@@ -399,6 +403,48 @@
       </div>
       <div class="modal-actions" style="margin-top: 1rem;">
         <button type="button" class="btn btn-secondary" onclick="closeShareListModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Device Sync Modal -->
+  <div id="sync-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'sync-modal')">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <h2>📱 Link & Sync Devices</h2>
+        <button class="btn-close" onclick="closeSyncModal()">&times;</button>
+      </div>
+      <div class="sync-modal-body" style="padding: 1rem 0;">
+        <div style="text-align: center; margin-bottom: 1.25rem;">
+          <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            Scan with your phone camera to link your session and sync all trips:
+          </p>
+          <div id="sync-qr-container" style="display: inline-block; padding: 10px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <img id="sync-qr-img" src="" alt="Sync QR Code" style="width: 170px; height: 170px; display: block; border-radius: 6px;">
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1.25rem;">
+          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">One-Click Sync Link</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="sync-link-input" readonly style="flex: 1; padding: 0.6rem 0.75rem; font-size: 0.85rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);">
+            <button type="button" class="btn btn-primary" onclick="copySyncLink()" style="white-space: nowrap;">
+              <i data-lucide="copy" class="btn-icon"></i>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+
+        <details style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+          <summary style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); cursor: pointer;">Already have a Sync Key? Restore session</summary>
+          <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+            <input type="text" id="restore-key-input" placeholder="Paste your usr_... key here" style="flex: 1; padding: 0.5rem 0.75rem; font-size: 0.85rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);">
+            <button type="button" class="btn btn-secondary" onclick="handleRestoreKeySubmit()">Restore</button>
+          </div>
+        </details>
+      </div>
+      <div class="modal-actions" style="margin-top: 1rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeSyncModal()">Close</button>
       </div>
     </div>
   </div>

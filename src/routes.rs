@@ -176,6 +176,25 @@ pub async fn create_list(
         );
     }
 
+    match state.storage.count_user_lists(&user_token.0) {
+        Ok(count) if count >= crate::db::MAX_LISTS_PER_USER => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::err(format!(
+                    "Quota exceeded: Maximum {} lists allowed per account.",
+                    crate::db::MAX_LISTS_PER_USER
+                ))),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(format!("Database error: {}", e))),
+            );
+        }
+        _ => {}
+    }
+
     match state.storage.create_list(&req, &user_token.0) {
         Ok(list) => (StatusCode::CREATED, Json(ApiResponse::ok(list))),
         Err(e) => (
@@ -331,6 +350,44 @@ pub async fn create_pin(
         return err;
     }
 
+    match state.storage.count_list_pins(list_id) {
+        Ok(count) if count >= crate::db::MAX_PINS_PER_LIST => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::err(format!(
+                    "Quota exceeded: Maximum {} pins allowed per list.",
+                    crate::db::MAX_PINS_PER_LIST
+                ))),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(format!("Database error: {}", e))),
+            );
+        }
+        _ => {}
+    }
+
+    match state.storage.count_user_pins(&user_token.0) {
+        Ok(count) if count >= crate::db::MAX_PINS_PER_USER => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::err(format!(
+                    "Quota exceeded: Maximum {} total pins allowed per account.",
+                    crate::db::MAX_PINS_PER_USER
+                ))),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(format!("Database error: {}", e))),
+            );
+        }
+        _ => {}
+    }
+
     match state.storage.create_pin(&req) {
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
@@ -456,6 +513,44 @@ pub async fn ingest_link(
     let list_id = req.list_id.unwrap_or(1);
     if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, list_id) {
         return err;
+    }
+
+    match state.storage.count_list_pins(list_id) {
+        Ok(count) if count >= crate::db::MAX_PINS_PER_LIST => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::err(format!(
+                    "Quota exceeded: Maximum {} pins allowed per list.",
+                    crate::db::MAX_PINS_PER_LIST
+                ))),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(format!("Database error: {}", e))),
+            );
+        }
+        _ => {}
+    }
+
+    match state.storage.count_user_pins(&user_token.0) {
+        Ok(count) if count >= crate::db::MAX_PINS_PER_USER => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::err(format!(
+                    "Quota exceeded: Maximum {} total pins allowed per account.",
+                    crate::db::MAX_PINS_PER_USER
+                ))),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(format!("Database error: {}", e))),
+            );
+        }
+        _ => {}
     }
 
     let meta = match state.scraper.scrape_url(raw_url).await {
@@ -1142,5 +1237,72 @@ mod tests {
         let (status, Json(res)) = toggle_visited(State(state.clone()), UserToken("test-token".to_string()), Path(pin.id)).await;
         assert_eq!(status, StatusCode::OK);
         assert!(res.data.unwrap().visited);
+    }
+
+    #[tokio::test]
+    async fn test_routes_multi_device_join_and_collaboration() {
+        let state = setup_test_in_memory_state();
+
+        // Device A creates a trip
+        let (status, Json(res)) = create_list(
+            State(state.clone()),
+            UserToken("device-a".to_string()),
+            Json(CreateListRequest {
+                name: "Summer Roadtrip".to_string(),
+                icon: Some("🚗".to_string()),
+            }),
+        ).await;
+        assert_eq!(status, StatusCode::CREATED);
+        let list_a = res.data.unwrap();
+
+        // Device B joins the trip using the share token
+        let (status, Json(res)) = join_list(
+            State(state.clone()),
+            UserToken("device-b".to_string()),
+            Json(JoinListRequest {
+                share_token: list_a.share_token.clone(),
+            }),
+        ).await;
+        assert_eq!(status, StatusCode::OK);
+        let joined_list = res.data.unwrap();
+        assert_eq!(joined_list.name, "Summer Roadtrip");
+
+        // Device B adds a pin to the shared list
+        let (status, Json(res)) = create_pin(
+            State(state.clone()),
+            UserToken("device-b".to_string()),
+            Json(CreatePinRequest {
+                list_id: Some(list_a.id),
+                title: "Grand Canyon".to_string(),
+                description: None,
+                latitude: 36.1069,
+                longitude: -112.1129,
+                category: Some("Sightseeing".to_string()),
+                source_url: None,
+                image_url: None,
+                address: None,
+                notes: None,
+                visited: Some(false),
+            }),
+        ).await;
+        assert_eq!(status, StatusCode::CREATED);
+        let pin = res.data.unwrap();
+
+        // Device A can read and update the pin
+        let (status, Json(res)) = get_pin(
+            State(state.clone()),
+            UserToken("device-a".to_string()),
+            Path(pin.id),
+        ).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(res.data.unwrap().title, "Grand Canyon");
+
+        // Unauthorized Device C cannot access the pin
+        let (status, _) = get_pin(
+            State(state.clone()),
+            UserToken("device-c".to_string()),
+            Path(pin.id),
+        ).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
     }
 }
