@@ -73,7 +73,11 @@ pub fn map_status_code(err: &rusqlite::Error) -> StatusCode {
 }
 
 pub fn init_db(db_path: &str) -> Result<Connection> {
-    let conn = Connection::open(db_path)?;
+    let conn = if db_path == ":memory:" {
+        Connection::open_in_memory()?
+    } else {
+        Connection::open(db_path)?
+    };
 
     // Apply robust concurrency pragmas
     configure_pragmas(&conn)?;
@@ -517,7 +521,9 @@ impl Drop for TestDbGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{CreateListRequest, CreatePinRequest, ListPinsQuery, UpdateListRequest};
+    use crate::models::{
+        CreateListRequest, CreatePinRequest, ListPinsQuery, UpdateListRequest, UpdatePinRequest,
+    };
 
     #[test]
     fn test_pragmas_configured() {
@@ -559,8 +565,7 @@ mod tests {
 
     #[test]
     fn test_init_and_seed_default_list() {
-        let guard = TestDbGuard::new("seed");
-        let conn = init_db(&guard.path).expect("init db");
+        let conn = init_db(":memory:").expect("init in-memory db");
         let lists = list_lists(&conn).expect("list lists");
         assert_eq!(lists.len(), 1);
         assert_eq!(lists[0].id, 1);
@@ -569,10 +574,10 @@ mod tests {
     }
 
     #[test]
-    fn test_list_crud_and_pin_filtering() {
-        let guard = TestDbGuard::new("crud");
-        let conn = init_db(&guard.path).expect("init db");
+    fn test_list_crud_operations() {
+        let conn = init_db(":memory:").expect("init db");
 
+        // Create list
         let req = CreateListRequest {
             name: "Japan 2026".to_string(),
             icon: Some("🗾".to_string()),
@@ -581,9 +586,12 @@ mod tests {
         assert_eq!(created.name, "Japan 2026");
         assert_eq!(created.icon, "🗾");
 
-        let fetched = get_list(&conn, created.id).expect("get list").expect("some list");
+        // Get list
+        let fetched = get_list(&conn, created.id).expect("get list").expect("found list");
+        assert_eq!(fetched.id, created.id);
         assert_eq!(fetched.name, "Japan 2026");
 
+        // Update list
         let update_req = UpdateListRequest {
             name: Some("Tokyo 2026".to_string()),
             icon: Some("🗼".to_string()),
@@ -592,40 +600,73 @@ mod tests {
         assert_eq!(updated.name, "Tokyo 2026");
         assert_eq!(updated.icon, "🗼");
 
+        // Update list with partial fields (no icon change)
+        let update_req2 = UpdateListRequest {
+            name: Some("Tokyo & Kyoto 2026".to_string()),
+            icon: None,
+        };
+        let updated2 = update_list(&conn, created.id, &update_req2).expect("update list").expect("updated");
+        assert_eq!(updated2.name, "Tokyo & Kyoto 2026");
+        assert_eq!(updated2.icon, "🗼");
+
+        // Delete list
+        let deleted = delete_list(&conn, created.id).expect("delete list");
+        assert!(deleted);
+        assert!(get_list(&conn, created.id).expect("get deleted list").is_none());
+    }
+
+    #[test]
+    fn test_list_deletion_cascades_pins() {
+        let conn = init_db(":memory:").expect("init db");
+
+        let list = create_list(
+            &conn,
+            &CreateListRequest {
+                name: "Road Trip".to_string(),
+                icon: Some("🚗".to_string()),
+            },
+        )
+        .expect("create list");
+
         let pin_req = CreatePinRequest {
-            list_id: Some(created.id),
-            title: "Tokyo Tower".to_string(),
+            list_id: Some(list.id),
+            title: "Route 66 Motel".to_string(),
             description: None,
-            latitude: 35.6586,
-            longitude: 139.7454,
-            category: Some("Sightseeing".to_string()),
+            latitude: 35.0,
+            longitude: -100.0,
+            category: Some("Hotel & Stay".to_string()),
             source_url: None,
             image_url: None,
-            address: Some("Minato City, Tokyo".to_string()),
+            address: None,
             notes: None,
             visited: Some(false),
         };
-        let pin = create_pin(&conn, &pin_req).expect("create pin");
-        assert_eq!(pin.list_id, created.id);
+        create_pin(&conn, &pin_req).expect("create pin");
 
-        let pins_in_list = list_pins(&conn, &ListPinsQuery {
-            list_id: Some(created.id),
-            category: None,
-            visited: None,
-            search: None,
-        }).expect("list pins");
-        assert_eq!(pins_in_list.len(), 1);
-        assert_eq!(pins_in_list[0].title, "Tokyo Tower");
+        let pins_before = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: Some(list.id),
+                category: None,
+                visited: None,
+                search: None,
+            },
+        )
+        .expect("list pins");
+        assert_eq!(pins_before.len(), 1);
 
-        let deleted = delete_list(&conn, created.id).expect("delete list");
-        assert!(deleted);
+        delete_list(&conn, list.id).expect("delete list");
 
-        let pins_after = list_pins(&conn, &ListPinsQuery {
-            list_id: Some(created.id),
-            category: None,
-            visited: None,
-            search: None,
-        }).expect("list pins");
+        let pins_after = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: Some(list.id),
+                category: None,
+                visited: None,
+                search: None,
+            },
+        )
+        .expect("list pins");
         assert_eq!(pins_after.len(), 0);
     }
 
@@ -675,5 +716,325 @@ mod tests {
         }).expect("list pins");
 
         assert_eq!(pins.len(), num_threads * 10);
+    }
+
+    #[test]
+    fn test_pin_crud_and_toggle_visited() {
+        let conn = init_db(":memory:").expect("init db");
+
+        // Create pin
+        let pin_req = CreatePinRequest {
+            list_id: Some(1),
+            title: "Ramen Street".to_string(),
+            description: Some("Tasty noodles".to_string()),
+            latitude: 35.6812,
+            longitude: 139.7671,
+            category: Some("Food & Drink".to_string()),
+            source_url: Some("https://example.com/ramen".to_string()),
+            image_url: Some("https://example.com/ramen.jpg".to_string()),
+            address: Some("Tokyo Station".to_string()),
+            notes: Some("Try the tsukemen".to_string()),
+            visited: Some(false),
+        };
+        let created_pin = create_pin(&conn, &pin_req).expect("create pin");
+        assert_eq!(created_pin.title, "Ramen Street");
+        assert_eq!(created_pin.visited, false);
+        assert_eq!(created_pin.category, "Food & Drink");
+
+        // Get pin
+        let fetched = get_pin(&conn, created_pin.id).expect("get pin").expect("found pin");
+        assert_eq!(fetched.id, created_pin.id);
+        assert_eq!(fetched.title, "Ramen Street");
+        assert_eq!(fetched.address, Some("Tokyo Station".to_string()));
+
+        // Update pin
+        let update_req = UpdatePinRequest {
+            list_id: None,
+            title: Some("Tokyo Ramen Street (Updated)".to_string()),
+            description: None,
+            latitude: None,
+            longitude: None,
+            category: Some("Food & Drink".to_string()),
+            source_url: None,
+            image_url: None,
+            address: None,
+            notes: Some("Special miso ramen".to_string()),
+            visited: None,
+        };
+        let updated = update_pin(&conn, created_pin.id, &update_req)
+            .expect("update pin")
+            .expect("updated pin");
+        assert_eq!(updated.title, "Tokyo Ramen Street (Updated)");
+        assert_eq!(updated.notes, Some("Special miso ramen".to_string()));
+        assert_eq!(updated.description, Some("Tasty noodles".to_string()));
+
+        // Toggle visited
+        let toggled1 = toggle_visited(&conn, created_pin.id).expect("toggle").expect("toggled pin");
+        assert_eq!(toggled1.visited, true);
+        let toggled2 = toggle_visited(&conn, created_pin.id).expect("toggle").expect("toggled pin");
+        assert_eq!(toggled2.visited, false);
+
+        // Delete pin
+        let deleted = delete_pin(&conn, created_pin.id).expect("delete pin");
+        assert!(deleted);
+        assert!(get_pin(&conn, created_pin.id).expect("get deleted pin").is_none());
+    }
+
+    #[test]
+    fn test_pin_filtering_and_search() {
+        let conn = init_db(":memory:").expect("init db");
+
+        // Insert multiple pins
+        let pins_data = vec![
+            ("Eiffel Tower", "Sightseeing", 48.8584, 2.2945, false, "Champ de Mars, Paris", "Iconic tower"),
+            ("Louvre Museum", "Sightseeing", 48.8606, 2.3376, true, "Rue de Rivoli, Paris", "Mona Lisa"),
+            ("Le Comptoir", "Food & Drink", 48.8519, 2.3387, false, "Carrefour de l'Odeon, Paris", "French bistro"),
+            ("Cafe de Flore", "Cafe", 48.8540, 2.3325, true, "Boulevard Saint-Germain, Paris", "Historic cafe"),
+        ];
+
+        for (title, cat, lat, lon, visited, address, notes) in pins_data {
+            create_pin(
+                &conn,
+                &CreatePinRequest {
+                    list_id: Some(1),
+                    title: title.to_string(),
+                    description: Some(format!("Desc for {}", title)),
+                    latitude: lat,
+                    longitude: lon,
+                    category: Some(cat.to_string()),
+                    source_url: None,
+                    image_url: None,
+                    address: Some(address.to_string()),
+                    notes: Some(notes.to_string()),
+                    visited: Some(visited),
+                },
+            )
+            .expect("create pin");
+        }
+
+        // Test category filter
+        let sightseeing = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: None,
+                category: Some("Sightseeing".to_string()),
+                visited: None,
+                search: None,
+            },
+        )
+        .expect("list pins");
+        assert_eq!(sightseeing.len(), 2);
+
+        // Test category 'All' returns all 4
+        let all_cat = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: None,
+                category: Some("All".to_string()),
+                visited: None,
+                search: None,
+            },
+        )
+        .expect("list pins");
+        assert_eq!(all_cat.len(), 4);
+
+        // Test visited filter
+        let visited_pins = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: Some(true),
+                search: None,
+            },
+        )
+        .expect("list pins");
+        assert_eq!(visited_pins.len(), 2);
+
+        let unvisited_pins = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: Some(false),
+                search: None,
+            },
+        )
+        .expect("list pins");
+        assert_eq!(unvisited_pins.len(), 2);
+
+        // Test search query (title match)
+        let search_eiffel = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: Some("Eiffel".to_string()),
+            },
+        )
+        .expect("list pins");
+        assert_eq!(search_eiffel.len(), 1);
+        assert_eq!(search_eiffel[0].title, "Eiffel Tower");
+
+        // Test search query (address match)
+        let search_odeon = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: Some("Odeon".to_string()),
+            },
+        )
+        .expect("list pins");
+        assert_eq!(search_odeon.len(), 1);
+        assert_eq!(search_odeon[0].title, "Le Comptoir");
+
+        // Test search query (notes match)
+        let search_mona = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: Some("Mona Lisa".to_string()),
+            },
+        )
+        .expect("list pins");
+        assert_eq!(search_mona.len(), 1);
+        assert_eq!(search_mona[0].title, "Louvre Museum");
+
+        // Test search query (no match)
+        let search_none = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: Some("NonExistentKeywordXYZ".to_string()),
+            },
+        )
+        .expect("list pins");
+        assert_eq!(search_none.len(), 0);
+
+        // Test combined filter: category Cafe + visited true
+        let combined = list_pins(
+            &conn,
+            &ListPinsQuery {
+                list_id: None,
+                category: Some("Cafe".to_string()),
+                visited: Some(true),
+                search: None,
+            },
+        )
+        .expect("list pins");
+        assert_eq!(combined.len(), 1);
+        assert_eq!(combined[0].title, "Cafe de Flore");
+    }
+
+    #[test]
+    fn test_get_categories() {
+        let conn = init_db(":memory:").expect("init db");
+
+        // Initial empty categories
+        let cats = get_categories(&conn, None).expect("get categories");
+        assert_eq!(cats.len(), 0);
+
+        // Add pins in different lists and categories
+        create_pin(
+            &conn,
+            &CreatePinRequest {
+                list_id: Some(1),
+                title: "Place 1".to_string(),
+                description: None,
+                latitude: 10.0,
+                longitude: 10.0,
+                category: Some("Nature & Outdoors".to_string()),
+                source_url: None,
+                image_url: None,
+                address: None,
+                notes: None,
+                visited: None,
+            },
+        )
+        .expect("pin 1");
+
+        let list2 = create_list(
+            &conn,
+            &CreateListRequest {
+                name: "Trip 2".to_string(),
+                icon: None,
+            },
+        )
+        .expect("list 2");
+
+        create_pin(
+            &conn,
+            &CreatePinRequest {
+                list_id: Some(list2.id),
+                title: "Place 2".to_string(),
+                description: None,
+                latitude: 20.0,
+                longitude: 20.0,
+                category: Some("Food & Drink".to_string()),
+                source_url: None,
+                image_url: None,
+                address: None,
+                notes: None,
+                visited: None,
+            },
+        )
+        .expect("pin 2");
+
+        let all_cats = get_categories(&conn, None).expect("get all categories");
+        assert_eq!(all_cats, vec!["Food & Drink", "Nature & Outdoors"]);
+
+        let list1_cats = get_categories(&conn, Some(1)).expect("get list 1 categories");
+        assert_eq!(list1_cats, vec!["Nature & Outdoors"]);
+
+        let list2_cats = get_categories(&conn, Some(list2.id)).expect("get list 2 categories");
+        assert_eq!(list2_cats, vec!["Food & Drink"]);
+    }
+
+    #[test]
+    fn test_nonexistent_entity_lookups_and_operations() {
+        let conn = init_db(":memory:").expect("init db");
+
+        assert!(get_list(&conn, 9999).expect("get list").is_none());
+        assert!(!delete_list(&conn, 9999).expect("delete list"));
+        assert!(update_list(
+            &conn,
+            9999,
+            &UpdateListRequest {
+                name: Some("Name".to_string()),
+                icon: None,
+            }
+        )
+        .expect("update list")
+        .is_none());
+
+        assert!(get_pin(&conn, 9999).expect("get pin").is_none());
+        assert!(!delete_pin(&conn, 9999).expect("delete pin"));
+        assert!(update_pin(
+            &conn,
+            9999,
+            &UpdatePinRequest {
+                list_id: None,
+                title: Some("Title".to_string()),
+                description: None,
+                latitude: None,
+                longitude: None,
+                category: None,
+                source_url: None,
+                image_url: None,
+                address: None,
+                notes: None,
+                visited: None,
+            }
+        )
+        .expect("update pin")
+        .is_none());
+        assert!(toggle_visited(&conn, 9999).expect("toggle visited").is_none());
     }
 }

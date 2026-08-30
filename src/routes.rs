@@ -589,22 +589,20 @@ pub async fn export_json(
 mod tests {
     use super::*;
 
-    fn setup_test_state() -> (AppState, db::TestDbGuard) {
-        let guard = db::TestDbGuard::new("routes");
-        let conn = db::init_db(&guard.path).expect("init db");
-        let state = AppState {
+    fn setup_test_state() -> AppState {
+        let conn = db::init_db(":memory:").expect("init in-memory db");
+        AppState {
             db: Arc::new(Mutex::new(conn)),
             scraper: Arc::new(Scraper::new()),
             geocoder: Arc::new(Geocoder::new()),
-        };
-        (state, guard)
+        }
     }
 
     #[tokio::test]
-    async fn test_routes_list_and_pin_flow() {
-        let (state, _guard) = setup_test_state();
+    async fn test_routes_list_crud_and_validation() {
+        let state = setup_test_state();
 
-        // 1. List lists
+        // 1. Initial list check (default seeded list)
         let (status, Json(res)) = list_lists(State(state.clone())).await;
         assert_eq!(status, StatusCode::OK);
         assert!(res.success);
@@ -612,67 +610,453 @@ mod tests {
         assert_eq!(lists.len(), 1);
         assert_eq!(lists[0].name, "My Bucket List");
 
-        // 2. Create list
+        // 2. Create list validation: empty name
+        let empty_req = CreateListRequest {
+            name: "   ".to_string(),
+            icon: None,
+        };
+        let (status, Json(res)) = create_list(State(state.clone()), Json(empty_req)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(!res.success);
+        assert_eq!(res.error.unwrap(), "List name cannot be empty");
+
+        // 3. Create list success
         let req = CreateListRequest {
-            name: "Paris 2026".to_string(),
-            icon: Some("🥐".to_string()),
+            name: "Tokyo Trip 2026".to_string(),
+            icon: Some("🗼".to_string()),
         };
         let (status, Json(res)) = create_list(State(state.clone()), Json(req)).await;
         assert_eq!(status, StatusCode::CREATED);
+        assert!(res.success);
         let new_list = res.data.unwrap();
-        assert_eq!(new_list.name, "Paris 2026");
-        assert_eq!(new_list.icon, "🥐");
+        assert_eq!(new_list.name, "Tokyo Trip 2026");
+        assert_eq!(new_list.icon, "🗼");
 
-        // 3. Create pin in new list
-        let pin_req = CreatePinRequest {
-            list_id: Some(new_list.id),
-            title: "Eiffel Tower".to_string(),
-            description: Some("Famous landmark".to_string()),
-            latitude: 48.8584,
-            longitude: 2.2945,
-            category: Some("Sightseeing".to_string()),
+        // 4. Get list success
+        let (status, Json(res)) = get_list(State(state.clone()), Path(new_list.id)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(res.data.unwrap().name, "Tokyo Trip 2026");
+
+        // 5. Get list 404 not found
+        let (status, Json(res)) = get_list(State(state.clone()), Path(99999)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(!res.success);
+
+        // 6. Update list validation: empty name
+        let invalid_update = UpdateListRequest {
+            name: Some("  ".to_string()),
+            icon: None,
+        };
+        let (status, Json(res)) = update_list(State(state.clone()), Path(new_list.id), Json(invalid_update)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(!res.success);
+
+        // 7. Update list 404 not found
+        let valid_update = UpdateListRequest {
+            name: Some("Updated Non-Existent".to_string()),
+            icon: None,
+        };
+        let (status, Json(res)) = update_list(State(state.clone()), Path(99999), Json(valid_update)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(!res.success);
+
+        // 8. Update list success
+        let update_req = UpdateListRequest {
+            name: Some("Tokyo & Kyoto 2026".to_string()),
+            icon: Some("🗾".to_string()),
+        };
+        let (status, Json(res)) = update_list(State(state.clone()), Path(new_list.id), Json(update_req)).await;
+        assert_eq!(status, StatusCode::OK);
+        let updated = res.data.unwrap();
+        assert_eq!(updated.name, "Tokyo & Kyoto 2026");
+        assert_eq!(updated.icon, "🗾");
+
+        // 9. Delete list 404 not found
+        let (status, Json(res)) = delete_list(State(state.clone()), Path(99999)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(!res.success);
+
+        // 10. Delete list success
+        let (status, Json(res)) = delete_list(State(state.clone()), Path(new_list.id)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(res.data.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_routes_pin_crud_and_validation() {
+        let state = setup_test_state();
+
+        // 1. Create pin validation: empty title
+        let empty_pin_req = CreatePinRequest {
+            list_id: Some(1),
+            title: "  ".to_string(),
+            description: None,
+            latitude: 35.6586,
+            longitude: 139.7454,
+            category: None,
             source_url: None,
             image_url: None,
-            address: Some("Champ de Mars, Paris".to_string()),
+            address: None,
             notes: None,
+            visited: None,
+        };
+        let (status, Json(res)) = create_pin(State(state.clone()), Json(empty_pin_req)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(res.error.unwrap(), "Title cannot be empty");
+
+        // 2. Create pin success
+        let pin_req = CreatePinRequest {
+            list_id: Some(1),
+            title: "Tokyo Tower".to_string(),
+            description: Some("Famous tower in Tokyo".to_string()),
+            latitude: 35.6586,
+            longitude: 139.7454,
+            category: Some("Sightseeing".to_string()),
+            source_url: Some("https://example.com/tokyo-tower".to_string()),
+            image_url: Some("https://example.com/tokyo-tower.jpg".to_string()),
+            address: Some("Minato City, Tokyo".to_string()),
+            notes: Some("Great sunset view".to_string()),
             visited: Some(false),
         };
         let (status, Json(res)) = create_pin(State(state.clone()), Json(pin_req)).await;
         assert_eq!(status, StatusCode::CREATED);
         let pin = res.data.unwrap();
-        assert_eq!(pin.list_id, new_list.id);
-        assert_eq!(pin.title, "Eiffel Tower");
+        assert_eq!(pin.title, "Tokyo Tower");
+        assert_eq!(pin.category, "Sightseeing");
+        assert_eq!(pin.visited, false);
 
-        // 4. Query pins filtered by list_id
-        let query = ListPinsQuery {
-            list_id: Some(new_list.id),
-            category: None,
+        // 3. Get pin success
+        let (status, Json(res)) = get_pin(State(state.clone()), Path(pin.id)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(res.data.unwrap().id, pin.id);
+
+        // 4. Get pin 404 not found
+        let (status, Json(res)) = get_pin(State(state.clone()), Path(99999)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(!res.success);
+
+        // 5. Update pin success
+        let update_pin_req = UpdatePinRequest {
+            list_id: None,
+            title: Some("Tokyo Tower Observatory".to_string()),
+            description: None,
+            latitude: None,
+            longitude: None,
+            category: Some("Sightseeing".to_string()),
+            source_url: None,
+            image_url: None,
+            address: None,
+            notes: Some("Night view is amazing".to_string()),
             visited: None,
-            search: None,
         };
-        let (status, Json(res)) = list_pins(State(state.clone()), Query(query.clone())).await;
+        let (status, Json(update_res)) = update_pin(State(state.clone()), Path(pin.id), Json(update_pin_req)).await;
+        assert_eq!(status, StatusCode::OK);
+        let updated = update_res.data.unwrap();
+        assert_eq!(updated.title, "Tokyo Tower Observatory");
+        assert_eq!(updated.notes, Some("Night view is amazing".to_string()));
+
+        // 6. Update pin 404 not found
+        let (status, _res) = update_pin(
+            State(state.clone()),
+            Path(99999),
+            Json(UpdatePinRequest {
+                list_id: None,
+                title: Some("NonExistent".to_string()),
+                description: None,
+                latitude: None,
+                longitude: None,
+                category: None,
+                source_url: None,
+                image_url: None,
+                address: None,
+                notes: None,
+                visited: None,
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        // 7. Toggle visited success
+        let (status, Json(res)) = toggle_visited(State(state.clone()), Path(pin.id)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(res.data.unwrap().visited, true);
+
+        let (status, Json(res)) = toggle_visited(State(state.clone()), Path(pin.id)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(res.data.unwrap().visited, false);
+
+        // 8. Toggle visited 404 not found
+        let (status, _res) = toggle_visited(State(state.clone()), Path(99999)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        // 9. Delete pin success
+        let (status, Json(del_res)) = delete_pin(State(state.clone()), Path(pin.id)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(del_res.data.unwrap());
+
+        // 10. Delete pin 404 not found
+        let (status, _res) = delete_pin(State(state.clone()), Path(pin.id)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_routes_pin_query_filters_and_search() {
+        let state = setup_test_state();
+
+        // Seed 3 pins
+        let pin1_req = CreatePinRequest {
+            list_id: Some(1),
+            title: "Sushi Dai".to_string(),
+            description: Some("Fresh tuna and sushi sets".to_string()),
+            latitude: 35.65,
+            longitude: 139.75,
+            category: Some("Food & Drink".to_string()),
+            source_url: None,
+            image_url: None,
+            address: Some("Toyosu Market, Tokyo".to_string()),
+            notes: Some("Arrive early morning".to_string()),
+            visited: Some(false),
+        };
+        let _ = create_pin(State(state.clone()), Json(pin1_req)).await;
+
+        let pin2_req = CreatePinRequest {
+            list_id: Some(1),
+            title: "Senso-ji Temple".to_string(),
+            description: Some("Ancient Buddhist temple in Asakusa".to_string()),
+            latitude: 35.7148,
+            longitude: 139.7967,
+            category: Some("Sightseeing".to_string()),
+            source_url: None,
+            image_url: None,
+            address: Some("Asakusa, Taito City, Tokyo".to_string()),
+            notes: Some("Walk through Kaminarimon gate".to_string()),
+            visited: Some(true),
+        };
+        let _ = create_pin(State(state.clone()), Json(pin2_req)).await;
+
+        let pin3_req = CreatePinRequest {
+            list_id: Some(1),
+            title: "Fuglen Tokyo".to_string(),
+            description: Some("Scandinavian coffee bar".to_string()),
+            latitude: 35.6644,
+            longitude: 139.6917,
+            category: Some("Cafe".to_string()),
+            source_url: None,
+            image_url: None,
+            address: Some("Shibuya City, Tokyo".to_string()),
+            notes: Some("Great pour-over coffee".to_string()),
+            visited: Some(true),
+        };
+        let _ = create_pin(State(state.clone()), Json(pin3_req)).await;
+
+        // Test category filter: Food & Drink
+        let (status, Json(res)) = list_pins(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: Some("Food & Drink".to_string()),
+                visited: None,
+                search: None,
+            }),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         let pins = res.data.unwrap();
         assert_eq!(pins.len(), 1);
-        assert_eq!(pins[0].title, "Eiffel Tower");
+        assert_eq!(pins[0].title, "Sushi Dai");
 
-        // 5. Export JSON filtered by list_id
-        let (status, Json(res)) = export_json(State(state.clone()), Query(query.clone())).await;
+        // Test category filter: All
+        let (status, Json(res)) = list_pins(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: Some("All".to_string()),
+                visited: None,
+                search: None,
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(res.data.unwrap().len(), 3);
+
+        // Test visited filter: true
+        let (status, Json(res)) = list_pins(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: Some(true),
+                search: None,
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(res.data.unwrap().len(), 2);
+
+        // Test visited filter: false
+        let (status, Json(res)) = list_pins(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: Some(false),
+                search: None,
+            }),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.data.unwrap().len(), 1);
 
-        // 6. Update list
-        let update_req = UpdateListRequest {
-            name: Some("Paris & Lyon 2026".to_string()),
-            icon: Some("🍷".to_string()),
-        };
-        let (status, Json(res)) = update_list(State(state.clone()), Path(new_list.id), Json(update_req)).await;
+        // Test search filter: notes search ("pour-over")
+        let (status, Json(res)) = list_pins(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: Some("pour-over".to_string()),
+            }),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(res.data.unwrap().name, "Paris & Lyon 2026");
+        let pins = res.data.unwrap();
+        assert_eq!(pins.len(), 1);
+        assert_eq!(pins[0].title, "Fuglen Tokyo");
 
-        // 7. Delete list
-        let (status, Json(res)) = delete_list(State(state.clone()), Path(new_list.id)).await;
+        // Test search filter: address search ("Shibuya")
+        let (status, Json(res)) = list_pins(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: Some("Shibuya".to_string()),
+            }),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
-        assert!(res.data.unwrap());
+        assert_eq!(res.data.unwrap().len(), 1);
+
+        // Test search filter: no match
+        let (status, Json(res)) = list_pins(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: Some("NonExistentQuery".to_string()),
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(res.data.unwrap().len(), 0);
+
+        // Test get_categories route
+        let (status, Json(res)) = get_categories(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: None,
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let cats = res.data.unwrap();
+        assert_eq!(cats, vec!["Cafe", "Food & Drink", "Sightseeing"]);
+    }
+
+    #[tokio::test]
+    async fn test_routes_validation_and_exports() {
+        let state = setup_test_state();
+
+        // 1. Ingest link validation: empty url
+        let (status, Json(res)) = ingest_link(
+            State(state.clone()),
+            Json(IngestRequest {
+                url: "  ".to_string(),
+                list_id: None,
+                category: None,
+                notes: None,
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(res.error.unwrap(), "URL cannot be empty");
+
+        // 2. Preview scrape validation: empty url
+        let (status, Json(res)) = preview_scrape(
+            State(state.clone()),
+            Json(IngestRequest {
+                url: "".to_string(),
+                list_id: None,
+                category: None,
+                notes: None,
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(res.error.unwrap(), "URL cannot be empty");
+
+        // 3. Create a pin for export verification
+        let _ = create_pin(
+            State(state.clone()),
+            Json(CreatePinRequest {
+                list_id: Some(1),
+                title: "Golden Gate Bridge".to_string(),
+                description: Some("Suspension bridge".to_string()),
+                latitude: 37.8199,
+                longitude: -122.4783,
+                category: Some("Sightseeing".to_string()),
+                source_url: None,
+                image_url: None,
+                address: Some("San Francisco, CA".to_string()),
+                notes: None,
+                visited: Some(true),
+            }),
+        )
+        .await;
+
+        // 4. Export JSON
+        let (status, Json(res)) = export_json(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: None,
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let pins = res.data.unwrap();
+        assert_eq!(pins.len(), 1);
+        assert_eq!(pins[0].title, "Golden Gate Bridge");
+
+        // 5. Export GeoJSON
+        let response = export_geojson(
+            State(state.clone()),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: None,
+            }),
+        )
+        .await
+        .into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // 6. Geocode empty query
+        let (status, Json(res)) = geocode(
+            State(state.clone()),
+            Query(GeocodeQuery {
+                q: "   ".to_string(),
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(res.error.unwrap(), "Location not found");
     }
 }

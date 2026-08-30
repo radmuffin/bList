@@ -15,7 +15,8 @@
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
     "cap:build:ios": "npx cap sync ios && npx cap open ios",
-    "cap:build:android": "npx cap sync android && npx cap open android"
+    "cap:build:android": "npx cap sync android && npx cap open android",
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [
     "map",
