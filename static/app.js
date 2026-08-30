@@ -1116,6 +1116,15 @@
         }
       }
 
+      const moreOptions = document.getElementById('pin-more-options');
+      if (moreOptions) moreOptions.open = false;
+
+      const submitBtn = document.getElementById('btn-submit-pin');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Save Place';
+      }
+
       if (lat && lon) {
         const geoData = await ApiClient.reverseGeocode(lat, lon);
         if (geoData && geoData.display_name) {
@@ -1146,6 +1155,17 @@
       document.getElementById('form-source').value = pin.source_url || '';
       document.getElementById('form-notes').value = pin.notes || '';
 
+      const moreOptions = document.getElementById('pin-more-options');
+      if (moreOptions) {
+        moreOptions.open = Boolean(pin.notes || pin.image_url || pin.source_url);
+      }
+
+      const submitBtn = document.getElementById('btn-submit-pin');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Update Place';
+      }
+
       const formList = document.getElementById('form-list-id');
       if (formList) {
         formList.value = pin.list_id || (State.lists[0] ? State.lists[0].id : 1);
@@ -1164,19 +1184,77 @@
       const id = document.getElementById('form-pin-id').value;
       const selectedListId =
         parseInt(document.getElementById('form-list-id').value, 10) || 1;
+      const submitBtn = document.getElementById('btn-submit-pin');
+
+      const title = document.getElementById('form-title').value.trim();
+      const address = document.getElementById('form-address').value.trim();
+      let lat = parseFloat(document.getElementById('form-lat').value);
+      let lon = parseFloat(document.getElementById('form-lon').value);
+
+      if (!title) {
+        ToastManager.show('Please enter a place name.', 'error');
+        return;
+      }
+
+      // Auto-geocode if coordinates were not filled
+      if (isNaN(lat) || isNaN(lon)) {
+        const query = address || title;
+        if (query) {
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Finding location...';
+          }
+          try {
+            const geoRes = await ApiClient.request(`/api/geocode?q=${encodeURIComponent(query)}`);
+            if (geoRes && geoRes.success && geoRes.data) {
+              lat = geoRes.data.latitude;
+              lon = geoRes.data.longitude;
+              document.getElementById('form-lat').value = lat;
+              document.getElementById('form-lon').value = lon;
+              if (!address && geoRes.data.display_name) {
+                document.getElementById('form-address').value = geoRes.data.display_name;
+              }
+            } else {
+              ToastManager.show('Could not find location automatically. Please enter coordinates in More Options.', 'error');
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerText = id ? 'Update Place' : 'Save Place';
+              }
+              const moreOptions = document.getElementById('pin-more-options');
+              if (moreOptions) moreOptions.open = true;
+              return;
+            }
+          } catch (err) {
+            ToastManager.show('Could not locate address. Please check coordinates in More Options.', 'error');
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.innerText = id ? 'Update Place' : 'Save Place';
+            }
+            return;
+          }
+        } else {
+          ToastManager.show('Please provide a place name or coordinates.', 'error');
+          return;
+        }
+      }
 
       const payload = {
         list_id: selectedListId,
-        title: document.getElementById('form-title').value.trim(),
-        latitude: parseFloat(document.getElementById('form-lat').value),
-        longitude: parseFloat(document.getElementById('form-lon').value),
+        title,
+        latitude: lat,
+        longitude: lon,
         category: document.getElementById('form-category').value,
         visited: document.getElementById('form-visited').value === 'true',
-        address: document.getElementById('form-address').value.trim() || null,
+        address: address || null,
         image_url: document.getElementById('form-image').value.trim() || null,
         source_url: document.getElementById('form-source').value.trim() || null,
         notes: document.getElementById('form-notes').value.trim() || null
       };
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Saving...';
+      }
 
       try {
         let json;
@@ -1209,6 +1287,11 @@
         }
       } catch (err) {
         ToastManager.show(err.message || 'Error connecting to server', 'error');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = id ? 'Update Place' : 'Save Place';
+        }
       }
     },
 

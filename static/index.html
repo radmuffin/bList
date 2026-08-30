@@ -259,7 +259,7 @@
     </div>
   </div>
 
-  <!-- Manual / Edit Pin Modal -->
+  <!-- Add / Edit Place Modal -->
   <div id="pin-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'pin-modal')">
     <div class="modal-card">
       <div class="modal-header">
@@ -269,74 +269,82 @@
       <form id="pin-form" onsubmit="handlePinFormSubmit(event)">
         <input type="hidden" id="form-pin-id">
         
+        <!-- Primary Essential Fields -->
         <div class="form-group">
-          <label for="form-title">Place / Destination Name *</label>
+          <label for="form-title">Place Name *</label>
           <input type="text" id="form-title" required placeholder="e.g. Chicken Boy, Eiffel Tower, Joe's Pizza">
         </div>
 
         <div class="form-row">
           <div class="form-group flex-1">
-            <label for="form-list-id">Collection / Trip</label>
+            <label for="form-list-id">Trip / Collection</label>
             <select id="form-list-id"></select>
           </div>
           <div class="form-group flex-1">
             <label for="form-category">Category</label>
             <select id="form-category">
+              <option value="Place" selected>📍 Place / Landmark</option>
               <option value="Food & Drink">🍔 Food & Drink</option>
               <option value="Cafe">☕ Cafe</option>
               <option value="Sightseeing">🏛️ Sightseeing</option>
               <option value="Nature & Outdoors">🏞️ Nature & Outdoors</option>
               <option value="Hotel & Stay">🏨 Hotel & Stay</option>
               <option value="Shopping">🛍️ Shopping</option>
-              <option value="Place" selected>📍 Place / Landmark</option>
               <option value="General">📌 General</option>
             </select>
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group flex-1">
-            <label for="form-lat">Latitude *</label>
-            <input type="number" step="any" id="form-lat" required placeholder="34.1085">
-          </div>
-          <div class="form-group flex-1">
-            <label for="form-lon">Longitude *</label>
-            <input type="number" step="any" id="form-lon" required placeholder="-118.1943">
-          </div>
+        <div class="form-group">
+          <label for="form-address">Address or City</label>
+          <input type="text" id="form-address" placeholder="e.g. Highland Park, Los Angeles, CA">
         </div>
 
         <div class="form-group">
-          <label for="form-address">Address</label>
-          <input type="text" id="form-address" placeholder="e.g. 5558 N Figueroa St, Los Angeles, CA">
+          <label for="form-visited">Status</label>
+          <select id="form-visited">
+            <option value="false">🎯 Want to Go</option>
+            <option value="true">✅ Visited</option>
+          </select>
         </div>
 
-        <div class="form-row">
-          <div class="form-group flex-1">
-            <label for="form-visited">Status</label>
-            <select id="form-visited">
-              <option value="false">🎯 Want to Go</option>
-              <option value="true">✅ Visited</option>
-            </select>
+        <!-- Collapsible More Options -->
+        <details class="more-options-accordion" id="pin-more-options" style="margin-top: 0.75rem; margin-bottom: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.6rem 0.75rem; background: var(--bg-surface);">
+          <summary style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); cursor: pointer; user-select: none;">
+            ⚙️ More Options (Coordinates, Photo, Notes)
+          </summary>
+          <div style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="form-lat">Latitude</label>
+                <input type="number" step="any" id="form-lat" placeholder="34.1085">
+              </div>
+              <div class="form-group flex-1">
+                <label for="form-lon">Longitude</label>
+                <input type="number" step="any" id="form-lon" placeholder="-118.1943">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="form-image">Photo URL</label>
+              <input type="url" id="form-image" placeholder="https://example.com/photo.jpg">
+            </div>
+
+            <div class="form-group">
+              <label for="form-source">Original Link</label>
+              <input type="url" id="form-source" placeholder="https://maps.google.com/... or instagram.com/...">
+            </div>
+
+            <div class="form-group">
+              <label for="form-notes">Personal Notes & Tips</label>
+              <textarea id="form-notes" rows="2" placeholder="Recommended dishes, sunset spot, best time to visit..."></textarea>
+            </div>
           </div>
-          <div class="form-group flex-1">
-            <label for="form-image">Photo URL</label>
-            <input type="url" id="form-image" placeholder="https://example.com/photo.jpg">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="form-source">Source Link</label>
-          <input type="url" id="form-source" placeholder="https://maps.google.com/... or instagram.com/...">
-        </div>
-
-        <div class="form-group">
-          <label for="form-notes">Personal Notes / Tips</label>
-          <textarea id="form-notes" rows="3" placeholder="Great photo spot, best coffee, sunset view..."></textarea>
-        </div>
+        </details>
 
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closePinModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Place</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-pin">Save Place</button>
         </div>
       </form>
     </div>
