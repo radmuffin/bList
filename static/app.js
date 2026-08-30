@@ -1716,6 +1716,11 @@
       ToastManager.show('Failed to load saved places', 'error');
     }
 
+    const initialParams = new URLSearchParams(window.location.search);
+    if (initialParams.get('view') === 'list' || window.location.hash === '#list') {
+      UIManager.showMobileView('list');
+    }
+
     setupGlobalClickHandlers();
     registerServiceWorker();
     if (window.lucide) window.lucide.createIcons();

@@ -1733,7 +1733,7 @@ label {
     right: 0;
     bottom: 0;
     width: 100%;
-    z-index: 950;
+    z-index: 1050;
     transform: translateY(100%);
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     margin-left: 0 !important;
@@ -1741,6 +1741,15 @@ label {
 
   .sidebar.mobile-open {
     transform: translateY(0);
+    z-index: 1050;
+  }
+
+  .sidebar.mobile-open ~ .map-container .map-floating-controls,
+  .sidebar.mobile-open ~ .map-container #map-click-hint,
+  .sidebar.mobile-open ~ .map-container .leaflet-control-container {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
   }
 
   .drawer-handle-bar {
