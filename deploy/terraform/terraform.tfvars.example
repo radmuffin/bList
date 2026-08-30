@@ -1,0 +1,9 @@
+# deploy/terraform/terraform.tfvars.example
+# Copy this file to terraform.tfvars and fill in your values. Do not commit terraform.tfvars!
+
+domain_name  = "radmuffin.click"
+subdomain    = "blist"
+fly_app_name = "blist-radmuffin"
+aws_region   = "us-east-1"
+fly_region   = "ord"
+fly_org      = "personal"

@@ -1,5 +1,5 @@
 # fly.toml - Fly.io Production Configuration for bList
-app = "blist-app"
+app = "blist-radmuffin"
 primary_region = "ord"
 
 [build]

@@ -6,3 +6,11 @@ pins.db*
 *.db-journal
 test_*.db*
 venv/
+
+# Terraform ignores
+.terraform/
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
+.terraform.lock.hcl
+
