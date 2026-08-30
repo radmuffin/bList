@@ -658,6 +658,17 @@ pub async fn get_categories(
     }
 }
 
+#[debug_handler]
+pub async fn health_check() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "healthy",
+            "version": env!("CARGO_PKG_VERSION")
+        })),
+    )
+}
+
 #[derive(serde::Deserialize)]
 pub struct GeocodeQuery {
     pub q: String,

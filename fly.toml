@@ -32,7 +32,7 @@ primary_region = "ord"
   interval = "30s"
   method = "GET"
   timeout = "5s"
-  path = "/api/categories"
+  path = "/api/health"
 
 [[vm]]
   size = "shared-cpu-1x"

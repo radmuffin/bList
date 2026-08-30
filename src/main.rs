@@ -71,6 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/scrape/preview", post(routes::preview_scrape))
         .route("/categories", get(routes::get_categories))
         .route("/geocode", get(routes::geocode))
+        .route("/health", get(routes::health_check))
         .route("/export/geojson", get(routes::export_geojson))
         .route("/export/json", get(routes::export_json));
 
@@ -96,6 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_origin(tower_http::cors::Any);
 
     let app = Router::new()
+        .route("/health", get(routes::health_check))
         .nest("/api", api_router)
         .fallback_service(static_service)
         .layer(cors)

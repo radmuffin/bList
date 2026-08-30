@@ -10,6 +10,7 @@ const MAX_CODE_LENGTH: usize = 15;
 const PAIR_RESOLUTIONS: [f64; 5] = [20.0, 1.0, 0.05, 0.0025, 0.000125];
 
 /// Encode latitude and longitude into a standard 10-character Full Plus Code (e.g. "849VCWC8+R9").
+#[allow(dead_code)]
 pub fn encode(latitude: f64, longitude: f64, code_length: usize) -> Option<String> {
     if !latitude.is_finite() || !longitude.is_finite() {
         return None;
