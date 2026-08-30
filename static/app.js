@@ -306,9 +306,30 @@
   // 6. Robust API Client
   // ==========================================================================
   const ApiClient = {
+    getUserToken() {
+      let token = localStorage.getItem('blist_user_token');
+      if (!token || !token.trim()) {
+        token =
+          'usr_' +
+          (window.crypto && crypto.randomUUID
+            ? crypto.randomUUID().replace(/-/g, '')
+            : Math.random().toString(36).substring(2) + Date.now().toString(36));
+        localStorage.setItem('blist_user_token', token);
+      }
+      return token;
+    },
+
     async request(url, options = {}) {
       try {
-        const res = await fetch(url, options);
+        const headers = Object.assign(
+          {
+            'x-user-token': this.getUserToken()
+          },
+          options.headers || {}
+        );
+        const reqOptions = Object.assign({}, options, { headers });
+
+        const res = await fetch(url, reqOptions);
         let data;
         try {
           data = await res.json();
@@ -343,6 +364,14 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
+      });
+    },
+
+    async joinList(share_token) {
+      return this.request('/api/lists/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ share_token })
       });
     },
 
@@ -1248,6 +1277,61 @@
       }
     },
 
+    openShareListModal() {
+      const modal = document.getElementById('share-list-modal');
+      const shareInput = document.getElementById('share-link-input');
+      const shareTitle = document.getElementById('share-modal-title');
+
+      let targetList;
+      if (
+        State.currentListFilter !== 'all' &&
+        State.currentListFilter !== 'bucket' &&
+        State.currentListFilter !== 'visited'
+      ) {
+        targetList = State.lists.find((l) => String(l.id) === String(State.currentListFilter));
+      } else if (State.lists.length > 0) {
+        targetList = State.lists[0];
+      }
+
+      if (!targetList) {
+        ToastManager.show('Please select or create a trip to share.', 'info');
+        return;
+      }
+
+      if (shareTitle) {
+        shareTitle.innerText = `Share "${targetList.icon} ${targetList.name}"`;
+      }
+
+      const joinUrl = `${window.location.origin}/?join=${encodeURIComponent(targetList.share_token)}`;
+      if (shareInput) {
+        shareInput.value = joinUrl;
+      }
+
+      if (modal) modal.classList.remove('hidden');
+    },
+
+    closeShareListModal() {
+      const modal = document.getElementById('share-list-modal');
+      if (modal) modal.classList.add('hidden');
+    },
+
+    async copyShareLink() {
+      const shareInput = document.getElementById('share-link-input');
+      if (!shareInput || !shareInput.value) return;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(shareInput.value);
+          ToastManager.show('📋 Collaboration link copied to clipboard!', 'success');
+          return;
+        } catch (_) {}
+      }
+
+      shareInput.select();
+      document.execCommand('copy');
+      ToastManager.show('📋 Link copied to clipboard!', 'success');
+    },
+
     handleBackdropClick(e, modalId) {
       if (e.target.id === modalId) {
         const modal = document.getElementById(modalId);
@@ -1513,12 +1597,40 @@
     }
   }
 
+  async function handleIncomingJoinLink() {
+    const params = new URLSearchParams(window.location.search);
+    const joinToken = params.get('join');
+    if (!joinToken) return;
+
+    try {
+      const res = await ApiClient.joinList(joinToken);
+      if (res && res.success && res.data) {
+        const list = res.data;
+        ToastManager.show(`🎉 Joined shared collection "${list.icon} ${list.name}"!`, 'success');
+        const lists = await ApiClient.fetchLists();
+        State.lists = lists;
+        FilterManager.selectList(list.id);
+      } else {
+        ToastManager.show((res && res.error) || 'Could not join shared list.', 'error');
+      }
+    } catch (err) {
+      ToastManager.show(err.message || 'Failed to join shared list', 'error');
+    }
+
+    params.delete('join');
+    const newSearch = params.toString();
+    const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+    window.history.replaceState({}, document.title, newUrl);
+  }
+
   // ==========================================================================
   // 13. Application Lifecycle Initialization
   // ==========================================================================
   document.addEventListener('DOMContentLoaded', async () => {
     ThemeManager.init();
     MapController.init();
+
+    await handleIncomingJoinLink();
 
     try {
       const lists = await ApiClient.fetchLists();
@@ -1585,6 +1697,9 @@
   window.openCreateListModal = window.openNewListModal;
   window.closeNewListModal = () => ModalManager.closeNewListModal();
   window.closeCreateListModal = window.closeNewListModal;
+  window.openShareListModal = () => ModalManager.openShareListModal();
+  window.closeShareListModal = () => ModalManager.closeShareListModal();
+  window.copyShareLink = () => ModalManager.copyShareLink();
   window.selectListIcon = (emoji) => ModalManager.selectListIcon(emoji);
   window.selectEmoji = window.selectListIcon;
   window.handleCreateListSubmit = (e) => ModalManager.handleCreateListSubmit(e);

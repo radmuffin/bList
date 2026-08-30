@@ -1,10 +1,11 @@
 use axum::{
     debug_handler,
-    extract::{Path, Query, State},
+    extract::{Path, Query, State, FromRequestParts},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
+use axum::http::request::Parts;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -12,7 +13,7 @@ use crate::db::StorageEngine;
 use crate::geocoder::Geocoder;
 use crate::models::{
     ApiResponse, CreateListRequest, CreatePinRequest, IngestRequest, List, ListPinsQuery, Pin,
-    ScrapedMetadata, UpdateListRequest, UpdatePinRequest,
+    ScrapedMetadata, UpdateListRequest, UpdatePinRequest, JoinListRequest,
 };
 use crate::scraper::Scraper;
 
@@ -23,6 +24,105 @@ pub struct AppState {
     pub geocoder: Arc<Geocoder>,
 }
 
+pub struct UserToken(pub String);
+
+#[axum::async_trait]
+impl FromRequestParts<AppState> for UserToken {
+    type Rejection = (StatusCode, Json<ApiResponse<()>>);
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let token = parts.headers
+            .get("x-user-token")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string())
+            .or_else(|| {
+                parts.uri.query().and_then(|q| {
+                    q.split('&')
+                        .find(|p| p.starts_with("user_token="))
+                        .and_then(|p| p.split('=').nth(1))
+                        .map(|v| urlencoding::decode(v).unwrap_or(std::borrow::Cow::Borrowed(v)).into_owned())
+                })
+            });
+
+        let token = match token {
+            Some(t) if !t.trim().is_empty() => t.trim().to_string(),
+            _ => return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::err("Missing or empty X-User-Token header")),
+            )),
+        };
+
+        if let Err(e) = state.storage.auto_associate_device(&token) {
+            tracing::error!("Failed to auto-associate device: {}", e);
+        }
+
+        Ok(UserToken(token))
+    }
+}
+
+fn check_permission_or_err<T>(
+    storage: &Arc<dyn StorageEngine>,
+    user_token: &str,
+    list_id: i64,
+) -> Result<(), (StatusCode, Json<ApiResponse<T>>)> {
+    match storage.get_list(list_id) {
+        Ok(Some(_)) => {
+            match storage.check_permission(user_token, list_id) {
+                Ok(true) => Ok(()),
+                Ok(false) => Err((
+                    StatusCode::FORBIDDEN,
+                    Json(ApiResponse::err("Forbidden: Access denied to this list")),
+                )),
+                Err(e) => Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::err(format!("Database error: {}", e))),
+                )),
+            }
+        }
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::err(format!("List #{} not found", list_id))),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::err(format!("Database error: {}", e))),
+        )),
+    }
+}
+
+fn check_pin_permission_or_err<T>(
+    storage: &Arc<dyn StorageEngine>,
+    user_token: &str,
+    pin_id: i64,
+) -> Result<Pin, (StatusCode, Json<ApiResponse<T>>)> {
+    match storage.get_pin(pin_id) {
+        Ok(Some(pin)) => {
+            match storage.check_permission(user_token, pin.list_id) {
+                Ok(true) => Ok(pin),
+                Ok(false) => Err((
+                    StatusCode::FORBIDDEN,
+                    Json(ApiResponse::err("Forbidden: Access denied to this list")),
+                )),
+                Err(e) => Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::err(format!("Database error: {}", e))),
+                )),
+            }
+        }
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::err(format!("Pin #{} not found", pin_id))),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::err(format!("Database error: {}", e))),
+        )),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // List Handlers
 // ---------------------------------------------------------------------------
@@ -30,8 +130,9 @@ pub struct AppState {
 #[debug_handler]
 pub async fn list_lists(
     State(state): State<AppState>,
+    user_token: UserToken,
 ) -> (StatusCode, Json<ApiResponse<Vec<List>>>) {
-    match state.storage.list_lists() {
+    match state.storage.list_lists(&user_token.0) {
         Ok(lists) => (StatusCode::OK, Json(ApiResponse::ok(lists))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -43,8 +144,12 @@ pub async fn list_lists(
 #[debug_handler]
 pub async fn get_list(
     State(state): State<AppState>,
+    user_token: UserToken,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<List>>) {
+    if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, id) {
+        return err;
+    }
     match state.storage.get_list(id) {
         Ok(Some(list)) => (StatusCode::OK, Json(ApiResponse::ok(list))),
         Ok(None) => (
@@ -61,6 +166,7 @@ pub async fn get_list(
 #[debug_handler]
 pub async fn create_list(
     State(state): State<AppState>,
+    user_token: UserToken,
     Json(req): Json<CreateListRequest>,
 ) -> (StatusCode, Json<ApiResponse<List>>) {
     if req.name.trim().is_empty() {
@@ -70,7 +176,7 @@ pub async fn create_list(
         );
     }
 
-    match state.storage.create_list(&req) {
+    match state.storage.create_list(&req, &user_token.0) {
         Ok(list) => (StatusCode::CREATED, Json(ApiResponse::ok(list))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -82,9 +188,13 @@ pub async fn create_list(
 #[debug_handler]
 pub async fn update_list(
     State(state): State<AppState>,
+    user_token: UserToken,
     Path(id): Path<i64>,
     Json(req): Json<UpdateListRequest>,
 ) -> (StatusCode, Json<ApiResponse<List>>) {
+    if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, id) {
+        return err;
+    }
     if let Some(ref name) = req.name {
         if name.trim().is_empty() {
             return (
@@ -110,8 +220,12 @@ pub async fn update_list(
 #[debug_handler]
 pub async fn delete_list(
     State(state): State<AppState>,
+    user_token: UserToken,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<bool>>) {
+    if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, id) {
+        return err;
+    }
     match state.storage.delete_list(id) {
         Ok(true) => (StatusCode::OK, Json(ApiResponse::ok(true))),
         Ok(false) => (
@@ -125,6 +239,31 @@ pub async fn delete_list(
     }
 }
 
+#[debug_handler]
+pub async fn join_list(
+    State(state): State<AppState>,
+    user_token: UserToken,
+    Json(req): Json<JoinListRequest>,
+) -> (StatusCode, Json<ApiResponse<List>>) {
+    if req.share_token.trim().is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::err("Share token cannot be empty")),
+        );
+    }
+    match state.storage.join_list(req.share_token.trim(), &user_token.0) {
+        Ok(Some(list)) => (StatusCode::OK, Json(ApiResponse::ok(list))),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::err("List not found for the given share token")),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::err(format!("Failed to join list: {}", e))),
+        ),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Pin Handlers
 // ---------------------------------------------------------------------------
@@ -132,9 +271,15 @@ pub async fn delete_list(
 #[debug_handler]
 pub async fn list_pins(
     State(state): State<AppState>,
+    user_token: UserToken,
     Query(query): Query<ListPinsQuery>,
 ) -> (StatusCode, Json<ApiResponse<Vec<Pin>>>) {
-    match state.storage.list_pins(&query) {
+    if let Some(list_id) = query.list_id {
+        if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, list_id) {
+            return err;
+        }
+    }
+    match state.storage.list_pins(&query, &user_token.0) {
         Ok(pins) => (StatusCode::OK, Json(ApiResponse::ok(pins))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -146,24 +291,19 @@ pub async fn list_pins(
 #[debug_handler]
 pub async fn get_pin(
     State(state): State<AppState>,
+    user_token: UserToken,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<Pin>>) {
-    match state.storage.get_pin(id) {
-        Ok(Some(pin)) => (StatusCode::OK, Json(ApiResponse::ok(pin))),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::err(format!("Pin #{} not found", id))),
-        ),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Database query failed: {}", e))),
-        ),
+    match check_pin_permission_or_err(&state.storage, &user_token.0, id) {
+        Ok(pin) => (StatusCode::OK, Json(ApiResponse::ok(pin))),
+        Err(err) => err,
     }
 }
 
 #[debug_handler]
 pub async fn create_pin(
     State(state): State<AppState>,
+    user_token: UserToken,
     Json(req): Json<CreatePinRequest>,
 ) -> (StatusCode, Json<ApiResponse<Pin>>) {
     if req.title.trim().is_empty() {
@@ -186,6 +326,11 @@ pub async fn create_pin(
         );
     }
 
+    let list_id = req.list_id.unwrap_or(1);
+    if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, list_id) {
+        return err;
+    }
+
     match state.storage.create_pin(&req) {
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
@@ -198,9 +343,23 @@ pub async fn create_pin(
 #[debug_handler]
 pub async fn update_pin(
     State(state): State<AppState>,
+    user_token: UserToken,
     Path(id): Path<i64>,
     Json(req): Json<UpdatePinRequest>,
 ) -> (StatusCode, Json<ApiResponse<Pin>>) {
+    let pin = match check_pin_permission_or_err(&state.storage, &user_token.0, id) {
+        Ok(p) => p,
+        Err(err) => return err,
+    };
+
+    if let Some(new_list_id) = req.list_id {
+        if new_list_id != pin.list_id {
+            if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, new_list_id) {
+                return err;
+            }
+        }
+    }
+
     if let Some(lat) = req.latitude {
         if !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
             return (
@@ -224,7 +383,7 @@ pub async fn update_pin(
     }
 
     match state.storage.update_pin(id, &req) {
-        Ok(Some(pin)) => (StatusCode::OK, Json(ApiResponse::ok(pin))),
+        Ok(Some(updated)) => (StatusCode::OK, Json(ApiResponse::ok(updated))),
         Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(format!("Pin #{} not found", id))),
@@ -239,8 +398,12 @@ pub async fn update_pin(
 #[debug_handler]
 pub async fn toggle_visited(
     State(state): State<AppState>,
+    user_token: UserToken,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<Pin>>) {
+    if let Err(err) = check_pin_permission_or_err::<Pin>(&state.storage, &user_token.0, id) {
+        return err;
+    }
     match state.storage.toggle_visited(id) {
         Ok(Some(pin)) => (StatusCode::OK, Json(ApiResponse::ok(pin))),
         Ok(None) => (
@@ -257,8 +420,12 @@ pub async fn toggle_visited(
 #[debug_handler]
 pub async fn delete_pin(
     State(state): State<AppState>,
+    user_token: UserToken,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<bool>>) {
+    if let Err(err) = check_pin_permission_or_err::<bool>(&state.storage, &user_token.0, id) {
+        return err;
+    }
     match state.storage.delete_pin(id) {
         Ok(true) => (StatusCode::OK, Json(ApiResponse::ok(true))),
         Ok(false) => (
@@ -275,6 +442,7 @@ pub async fn delete_pin(
 #[debug_handler]
 pub async fn ingest_link(
     State(state): State<AppState>,
+    user_token: UserToken,
     Json(req): Json<IngestRequest>,
 ) -> (StatusCode, Json<ApiResponse<Pin>>) {
     let raw_url = req.url.trim();
@@ -283,6 +451,11 @@ pub async fn ingest_link(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::err("URL cannot be empty")),
         );
+    }
+
+    let list_id = req.list_id.unwrap_or(1);
+    if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, list_id) {
+        return err;
     }
 
     let meta = match state.scraper.scrape_url(raw_url).await {
@@ -326,7 +499,7 @@ pub async fn ingest_link(
     });
 
     let create_req = CreatePinRequest {
-        list_id: req.list_id.or(Some(1)),
+        list_id: Some(list_id),
         title: meta.title,
         description: meta.description,
         latitude: lat,
@@ -373,9 +546,15 @@ pub async fn preview_scrape(
 #[debug_handler]
 pub async fn get_categories(
     State(state): State<AppState>,
+    user_token: UserToken,
     Query(query): Query<ListPinsQuery>,
 ) -> (StatusCode, Json<ApiResponse<Vec<String>>>) {
-    match state.storage.get_categories(query.list_id) {
+    if let Some(list_id) = query.list_id {
+        if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, list_id) {
+            return err;
+        }
+    }
+    match state.storage.get_categories(query.list_id, &user_token.0) {
         Ok(cats) => (StatusCode::OK, Json(ApiResponse::ok(cats))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -409,15 +588,21 @@ pub async fn geocode(
 
 pub async fn export_geojson(
     State(state): State<AppState>,
+    user_token: UserToken,
     Query(query): Query<ListPinsQuery>,
 ) -> impl IntoResponse {
-    let pins = match state.storage.list_pins(&query) {
+    if let Some(list_id) = query.list_id {
+        if let Err(err) = check_permission_or_err::<serde_json::Value>(&state.storage, &user_token.0, list_id) {
+            return err.into_response();
+        }
+    }
+    let pins = match state.storage.list_pins(&query, &user_token.0) {
         Ok(p) => p,
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": format!("Database error: {}", e) })),
-            );
+            ).into_response();
         }
     };
 
@@ -452,15 +637,21 @@ pub async fn export_geojson(
         "features": features
     });
 
-    (StatusCode::OK, Json(geojson))
+    (StatusCode::OK, Json(geojson)).into_response()
 }
 
 #[debug_handler]
 pub async fn export_json(
     State(state): State<AppState>,
+    user_token: UserToken,
     Query(query): Query<ListPinsQuery>,
 ) -> (StatusCode, Json<ApiResponse<Vec<Pin>>>) {
-    match state.storage.list_pins(&query) {
+    if let Some(list_id) = query.list_id {
+        if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, list_id) {
+            return err;
+        }
+    }
+    match state.storage.list_pins(&query, &user_token.0) {
         Ok(pins) => (StatusCode::OK, Json(ApiResponse::ok(pins))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -501,7 +692,7 @@ mod tests {
         let state = setup_test_sqlite_state();
 
         // List initial seeded lists
-        let (status, Json(res)) = list_lists(State(state.clone())).await;
+        let (status, Json(res)) = list_lists(State(state.clone()), UserToken("test-token".to_string())).await;
         assert_eq!(status, StatusCode::OK);
         assert!(res.success);
         let lists = res.data.unwrap();
@@ -513,7 +704,7 @@ mod tests {
             name: "Euro Summer".to_string(),
             icon: Some("🏖️".to_string()),
         };
-        let (status, Json(res)) = create_list(State(state.clone()), Json(create_req)).await;
+        let (status, Json(res)) = create_list(State(state.clone()), UserToken("test-token".to_string()), Json(create_req)).await;
         assert_eq!(status, StatusCode::CREATED);
         assert!(res.success);
         let created_list = res.data.unwrap();
@@ -525,18 +716,18 @@ mod tests {
             name: "   ".to_string(),
             icon: None,
         };
-        let (status, Json(res)) = create_list(State(state.clone()), Json(empty_req)).await;
+        let (status, Json(res)) = create_list(State(state.clone()), UserToken("test-token".to_string()), Json(empty_req)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert!(!res.success);
         assert_eq!(res.error.unwrap(), "List name cannot be empty");
 
         // Get created list
-        let (status, Json(res)) = get_list(State(state.clone()), Path(created_list.id)).await;
+        let (status, Json(res)) = get_list(State(state.clone()), UserToken("test-token".to_string()), Path(created_list.id)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.data.unwrap().name, "Euro Summer");
 
         // Get non-existent list
-        let (status, Json(res)) = get_list(State(state.clone()), Path(99999)).await;
+        let (status, Json(res)) = get_list(State(state.clone()), UserToken("test-token".to_string()), Path(99999)).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert!(!res.success);
 
@@ -546,7 +737,7 @@ mod tests {
             icon: Some("✈️".to_string()),
         };
         let (status, Json(res)) =
-            update_list(State(state.clone()), Path(created_list.id), Json(update_req)).await;
+            update_list(State(state.clone()), UserToken("test-token".to_string()), Path(created_list.id), Json(update_req)).await;
         assert_eq!(status, StatusCode::OK);
         let updated_list = res.data.unwrap();
         assert_eq!(updated_list.name, "Euro Trip 2026");
@@ -558,17 +749,17 @@ mod tests {
             icon: None,
         };
         let (status, Json(res)) =
-            update_list(State(state.clone()), Path(created_list.id), Json(invalid_update)).await;
+            update_list(State(state.clone()), UserToken("test-token".to_string()), Path(created_list.id), Json(invalid_update)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(res.error.unwrap(), "List name cannot be empty");
 
         // Delete list
-        let (status, Json(res)) = delete_list(State(state.clone()), Path(created_list.id)).await;
+        let (status, Json(res)) = delete_list(State(state.clone()), UserToken("test-token".to_string()), Path(created_list.id)).await;
         assert_eq!(status, StatusCode::OK);
         assert!(res.data.unwrap());
 
         // Delete non-existent list
-        let (status, Json(res)) = delete_list(State(state.clone()), Path(99999)).await;
+        let (status, Json(res)) = delete_list(State(state.clone()), UserToken("test-token".to_string()), Path(99999)).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert!(!res.success);
     }
@@ -591,7 +782,7 @@ mod tests {
             notes: Some("Book tickets early".to_string()),
             visited: Some(false),
         };
-        let (status, Json(res)) = create_pin(State(state.clone()), Json(pin_req)).await;
+        let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(pin_req)).await;
         assert_eq!(status, StatusCode::CREATED);
         assert!(res.success);
         let created_pin = res.data.unwrap();
@@ -613,17 +804,17 @@ mod tests {
             notes: None,
             visited: None,
         };
-        let (status, Json(res)) = create_pin(State(state.clone()), Json(empty_title_req)).await;
+        let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(empty_title_req)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(res.error.unwrap(), "Title cannot be empty");
 
         // Get pin
-        let (status, Json(res)) = get_pin(State(state.clone()), Path(created_pin.id)).await;
+        let (status, Json(res)) = get_pin(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.data.unwrap().title, "Colosseum");
 
         // Get non-existent pin
-        let (status, Json(_res)) = get_pin(State(state.clone()), Path(99999)).await;
+        let (status, Json(_res)) = get_pin(State(state.clone()), UserToken("test-token".to_string()), Path(99999)).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
 
         // Update pin
@@ -641,7 +832,7 @@ mod tests {
             visited: None,
         };
         let (status, Json(res)) =
-            update_pin(State(state.clone()), Path(created_pin.id), Json(update_req)).await;
+            update_pin(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id), Json(update_req)).await;
         assert_eq!(status, StatusCode::OK);
         let updated_pin = res.data.unwrap();
         assert_eq!(updated_pin.title, "Flavian Amphitheatre (Colosseum)");
@@ -649,21 +840,21 @@ mod tests {
         assert_eq!(updated_pin.notes, Some("Night tour booked".to_string()));
 
         // Toggle visited
-        let (status, Json(res)) = toggle_visited(State(state.clone()), Path(created_pin.id)).await;
+        let (status, Json(res)) = toggle_visited(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.data.unwrap().visited, true);
 
-        let (status, Json(res)) = toggle_visited(State(state.clone()), Path(created_pin.id)).await;
+        let (status, Json(res)) = toggle_visited(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.data.unwrap().visited, false);
 
         // Delete pin
-        let (status, Json(res)) = delete_pin(State(state.clone()), Path(created_pin.id)).await;
+        let (status, Json(res)) = delete_pin(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
         assert_eq!(status, StatusCode::OK);
         assert!(res.data.unwrap());
 
         // Delete non-existent pin
-        let (status, Json(_res)) = delete_pin(State(state.clone()), Path(99999)).await;
+        let (status, Json(_res)) = delete_pin(State(state.clone()), UserToken("test-token".to_string()), Path(99999)).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
@@ -692,7 +883,7 @@ mod tests {
                 notes: None,
                 visited: Some(visited),
             };
-            let _ = create_pin(State(state.clone()), Json(req)).await;
+            let _ = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(req)).await;
         }
 
         // Filter by category
@@ -702,7 +893,7 @@ mod tests {
             visited: None,
             search: None,
         };
-        let (status, Json(res)) = list_pins(State(state.clone()), Query(query)).await;
+        let (status, Json(res)) = list_pins(State(state.clone()), UserToken("test-token".to_string()), Query(query)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.data.unwrap().len(), 2);
 
@@ -713,7 +904,7 @@ mod tests {
             visited: Some(true),
             search: None,
         };
-        let (status, Json(res)) = list_pins(State(state.clone()), Query(query)).await;
+        let (status, Json(res)) = list_pins(State(state.clone()), UserToken("test-token".to_string()), Query(query)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.data.unwrap().len(), 2);
 
@@ -724,7 +915,7 @@ mod tests {
             visited: None,
             search: Some("Sagrada".to_string()),
         };
-        let (status, Json(res)) = list_pins(State(state.clone()), Query(query)).await;
+        let (status, Json(res)) = list_pins(State(state.clone()), UserToken("test-token".to_string()), Query(query)).await;
         assert_eq!(status, StatusCode::OK);
         let found = res.data.unwrap();
         assert_eq!(found.len(), 1);
@@ -742,7 +933,7 @@ mod tests {
             category: None,
             notes: None,
         };
-        let (status, Json(res)) = ingest_link(State(state.clone()), Json(empty_ingest)).await;
+        let (status, Json(res)) = ingest_link(State(state.clone()), UserToken("test-token".to_string()), Json(empty_ingest)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(res.error.unwrap(), "URL cannot be empty");
 
@@ -760,6 +951,7 @@ mod tests {
         // Get categories
         let (status, Json(res)) = get_categories(
             State(state.clone()),
+            UserToken("test-token".to_string()),
             Query(ListPinsQuery {
                 list_id: Some(1),
                 category: None,
@@ -774,6 +966,7 @@ mod tests {
         // Export JSON
         let (status, Json(res)) = export_json(
             State(state.clone()),
+            UserToken("test-token".to_string()),
             Query(ListPinsQuery {
                 list_id: Some(1),
                 category: None,
@@ -788,6 +981,7 @@ mod tests {
         // Export GeoJSON
         let response = export_geojson(
             State(state.clone()),
+            UserToken("test-token".to_string()),
             Query(ListPinsQuery {
                 list_id: Some(1),
                 category: None,
@@ -821,7 +1015,7 @@ mod tests {
                 category: None,
                 notes: None,
             };
-            let (status, Json(res)) = ingest_link(State(state.clone()), Json(ingest_req)).await;
+            let (status, Json(res)) = ingest_link(State(state.clone()), UserToken("test-token".to_string()), Json(ingest_req)).await;
             assert_eq!(status, StatusCode::BAD_REQUEST, "Ingest should block SSRF URL: {}", url);
             assert!(!res.success);
             assert!(
@@ -859,7 +1053,7 @@ mod tests {
             notes: None,
             visited: None,
         };
-        let (status, Json(res)) = create_pin(State(state.clone()), Json(invalid_pin_req)).await;
+        let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(invalid_pin_req)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert!(!res.success);
         assert!(res.error.unwrap().contains("Invalid GPS coordinates"));
@@ -877,7 +1071,7 @@ mod tests {
             notes: None,
             visited: None,
         };
-        let (status, Json(_res)) = create_pin(State(state.clone()), Json(nan_pin_req)).await;
+        let (status, Json(_res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(nan_pin_req)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
 
         // Update pin with invalid coords
@@ -894,7 +1088,7 @@ mod tests {
             notes: None,
             visited: None,
         };
-        let (_, Json(res)) = create_pin(State(state.clone()), Json(valid_req)).await;
+        let (_, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(valid_req)).await;
         let pin = res.data.unwrap();
 
         let invalid_update = UpdatePinRequest {
@@ -910,7 +1104,7 @@ mod tests {
             notes: None,
             visited: None,
         };
-        let (status, Json(res)) = update_pin(State(state.clone()), Path(pin.id), Json(invalid_update)).await;
+        let (status, Json(res)) = update_pin(State(state.clone()), UserToken("test-token".to_string()), Path(pin.id), Json(invalid_update)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert!(res.error.unwrap().contains("Invalid latitude"));
     }
@@ -923,7 +1117,7 @@ mod tests {
             name: "Kyoto Trip".to_string(),
             icon: Some("⛩️".to_string()),
         };
-        let (status, Json(res)) = create_list(State(state.clone()), Json(req)).await;
+        let (status, Json(res)) = create_list(State(state.clone()), UserToken("test-token".to_string()), Json(req)).await;
         assert_eq!(status, StatusCode::CREATED);
         let list = res.data.unwrap();
         assert_eq!(list.name, "Kyoto Trip");
@@ -941,11 +1135,11 @@ mod tests {
             notes: None,
             visited: Some(false),
         };
-        let (status, Json(res)) = create_pin(State(state.clone()), Json(pin_req)).await;
+        let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(pin_req)).await;
         assert_eq!(status, StatusCode::CREATED);
         let pin = res.data.unwrap();
 
-        let (status, Json(res)) = toggle_visited(State(state.clone()), Path(pin.id)).await;
+        let (status, Json(res)) = toggle_visited(State(state.clone()), UserToken("test-token".to_string()), Path(pin.id)).await;
         assert_eq!(status, StatusCode::OK);
         assert!(res.data.unwrap().visited);
     }

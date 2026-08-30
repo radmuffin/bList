@@ -145,7 +145,10 @@
           <div class="list-selector-wrapper">
             <div class="list-selector-header">
               <span class="section-label">TRIP / COLLECTION</span>
-              <button class="btn-link-action" onclick="openNewListModal()" title="Create New List">+ New List</button>
+              <div class="list-actions-group">
+                <button class="btn-link-action" id="share-list-btn" onclick="openShareListModal()" title="Share / Collaborate on this list">🔗 Share</button>
+                <button class="btn-link-action" onclick="openNewListModal()" title="Create New List">+ New</button>
+              </div>
             </div>
             <div class="custom-select-container">
               <select id="list-select" onchange="handleListChange(event)">
@@ -372,6 +375,31 @@
           <button type="submit" class="btn btn-primary">Create List</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Share / Collaborate List Modal -->
+  <div id="share-list-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'share-list-modal')">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <h2 id="share-modal-title">Share Trip Collection</h2>
+        <button class="btn-close" onclick="closeShareListModal()">&times;</button>
+      </div>
+      <div class="share-modal-body" style="padding: 1rem 0;">
+        <p class="share-modal-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.4;">
+          Anyone with this link can view this trip collection and collaborate with you in real-time:
+        </p>
+        <div class="share-link-input-group" style="display: flex; gap: 0.5rem; align-items: center;">
+          <input type="text" id="share-link-input" readonly style="flex: 1; padding: 0.6rem 0.75rem; font-size: 0.85rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);">
+          <button type="button" class="btn btn-primary" onclick="copyShareLink()" style="white-space: nowrap;">
+            <i data-lucide="copy" class="btn-icon"></i>
+            <span>Copy</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-actions" style="margin-top: 1rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeShareListModal()">Done</button>
+      </div>
     </div>
   </div>
 

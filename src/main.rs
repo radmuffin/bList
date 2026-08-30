@@ -50,6 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // API Routes
     let api_router = Router::new()
         .route("/lists", get(routes::list_lists).post(routes::create_list))
+        .route("/lists/join", post(routes::join_list))
         .route(
             "/lists/:id",
             get(routes::get_list)
@@ -89,6 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::header::CONTENT_TYPE,
             axum::http::header::ACCEPT,
             axum::http::header::AUTHORIZATION,
+            axum::http::HeaderName::from_static("x-user-token"),
         ])
         .allow_origin(tower_http::cors::Any);
 

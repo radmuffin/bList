@@ -25,6 +25,7 @@ pub fn configure_pragmas(conn: &Connection) -> Result<()> {
 }
 
 /// Map rusqlite database errors to user-friendly, descriptive application error messages.
+#[allow(dead_code)]
 pub fn map_rusqlite_error(err: &rusqlite::Error) -> String {
     match err {
         rusqlite::Error::SqliteFailure(ffi_err, msg) => match ffi_err.code {
@@ -62,6 +63,7 @@ pub fn map_rusqlite_error(err: &rusqlite::Error) -> String {
 }
 
 /// Map rusqlite errors to the most appropriate HTTP Status Code.
+#[allow(dead_code)]
 pub fn map_status_code(err: &rusqlite::Error) -> StatusCode {
     match err {
         rusqlite::Error::SqliteFailure(ffi_err, _) => match ffi_err.code {
@@ -126,22 +128,25 @@ impl From<&str> for StorageError {
 
 /// Clean interface for bucket list CRUD operations.
 pub trait ListRepository: Send + Sync {
-    fn list_lists(&self) -> Result<Vec<List>, StorageError>;
+    fn list_lists(&self, user_token: &str) -> Result<Vec<List>, StorageError>;
     fn get_list(&self, id: i64) -> Result<Option<List>, StorageError>;
-    fn create_list(&self, req: &CreateListRequest) -> Result<List, StorageError>;
+    fn create_list(&self, req: &CreateListRequest, user_token: &str) -> Result<List, StorageError>;
     fn update_list(&self, id: i64, req: &UpdateListRequest) -> Result<Option<List>, StorageError>;
     fn delete_list(&self, id: i64) -> Result<bool, StorageError>;
+    fn check_permission(&self, user_token: &str, list_id: i64) -> Result<bool, StorageError>;
+    fn join_list(&self, share_token: &str, user_token: &str) -> Result<Option<List>, StorageError>;
+    fn auto_associate_device(&self, user_token: &str) -> Result<(), StorageError>;
 }
 
 /// Clean interface for map pin CRUD, querying, and category operations.
 pub trait PinRepository: Send + Sync {
-    fn list_pins(&self, query: &ListPinsQuery) -> Result<Vec<Pin>, StorageError>;
+    fn list_pins(&self, query: &ListPinsQuery, user_token: &str) -> Result<Vec<Pin>, StorageError>;
     fn get_pin(&self, id: i64) -> Result<Option<Pin>, StorageError>;
     fn create_pin(&self, req: &CreatePinRequest) -> Result<Pin, StorageError>;
     fn update_pin(&self, id: i64, req: &UpdatePinRequest) -> Result<Option<Pin>, StorageError>;
     fn toggle_visited(&self, id: i64) -> Result<Option<Pin>, StorageError>;
     fn delete_pin(&self, id: i64) -> Result<bool, StorageError>;
-    fn get_categories(&self, list_id: Option<i64>) -> Result<Vec<String>, StorageError>;
+    fn get_categories(&self, list_id: Option<i64>, user_token: &str) -> Result<Vec<String>, StorageError>;
 }
 
 /// Unified storage engine interface combining list and pin repositories.
@@ -181,12 +186,13 @@ impl SqliteRepository {
 }
 
 impl ListRepository for SqliteRepository {
-    fn list_lists(&self) -> Result<Vec<List>, StorageError> {
+    fn list_lists(&self, user_token: &str) -> Result<Vec<List>, StorageError> {
+        self.auto_associate_device(user_token)?;
         let conn = self
             .conn
             .lock()
             .map_err(|e| StorageError::Lock(e.to_string()))?;
-        list_lists(&conn).map_err(Into::into)
+        list_lists(&conn, Some(user_token)).map_err(Into::into)
     }
 
     fn get_list(&self, id: i64) -> Result<Option<List>, StorageError> {
@@ -197,12 +203,13 @@ impl ListRepository for SqliteRepository {
         get_list(&conn, id).map_err(Into::into)
     }
 
-    fn create_list(&self, req: &CreateListRequest) -> Result<List, StorageError> {
+    fn create_list(&self, req: &CreateListRequest, user_token: &str) -> Result<List, StorageError> {
+        self.auto_associate_device(user_token)?;
         let conn = self
             .conn
             .lock()
             .map_err(|e| StorageError::Lock(e.to_string()))?;
-        create_list(&conn, req).map_err(Into::into)
+        create_list(&conn, req, Some(user_token)).map_err(Into::into)
     }
 
     fn update_list(&self, id: i64, req: &UpdateListRequest) -> Result<Option<List>, StorageError> {
@@ -220,15 +227,78 @@ impl ListRepository for SqliteRepository {
             .map_err(|e| StorageError::Lock(e.to_string()))?;
         delete_list(&conn, id).map_err(Into::into)
     }
-}
 
-impl PinRepository for SqliteRepository {
-    fn list_pins(&self, query: &ListPinsQuery) -> Result<Vec<Pin>, StorageError> {
+    fn check_permission(&self, user_token: &str, list_id: i64) -> Result<bool, StorageError> {
+        self.auto_associate_device(user_token)?;
         let conn = self
             .conn
             .lock()
             .map_err(|e| StorageError::Lock(e.to_string()))?;
-        list_pins(&conn, query).map_err(Into::into)
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM device_lists WHERE user_token = ? AND list_id = ?",
+            params![user_token, list_id],
+            |r| r.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    fn join_list(&self, share_token: &str, user_token: &str) -> Result<Option<List>, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Lock(e.to_string()))?;
+        
+        let mut stmt = conn.prepare("SELECT id, name, icon, created_at, owner_token, share_token FROM lists WHERE share_token = ?")?;
+        let mut rows = stmt.query(params![share_token])?;
+        if let Some(row) = rows.next()? {
+            let list = List {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                icon: row.get(2)?,
+                created_at: row.get(3)?,
+                owner_token: row.get(4)?,
+                share_token: row.get(5)?,
+            };
+            conn.execute(
+                "INSERT OR IGNORE INTO device_lists (user_token, list_id) VALUES (?, ?)",
+                params![user_token, list.id],
+            )?;
+            Ok(Some(list))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn auto_associate_device(&self, user_token: &str) -> Result<(), StorageError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Lock(e.to_string()))?;
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM device_lists", [], |r| r.get(0))?;
+        if count == 0 {
+            let mut stmt = conn.prepare("SELECT id FROM lists")?;
+            let list_ids = stmt.query_map([], |row| row.get::<_, i64>(0))?
+                .collect::<Result<Vec<i64>, rusqlite::Error>>()?;
+            for lid in list_ids {
+                conn.execute(
+                    "INSERT OR IGNORE INTO device_lists (user_token, list_id) VALUES (?, ?)",
+                    params![user_token, lid],
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl PinRepository for SqliteRepository {
+    fn list_pins(&self, query: &ListPinsQuery, user_token: &str) -> Result<Vec<Pin>, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Lock(e.to_string()))?;
+        list_pins(&conn, query, Some(user_token)).map_err(Into::into)
     }
 
     fn get_pin(&self, id: i64) -> Result<Option<Pin>, StorageError> {
@@ -271,12 +341,13 @@ impl PinRepository for SqliteRepository {
         delete_pin(&conn, id).map_err(Into::into)
     }
 
-    fn get_categories(&self, list_id: Option<i64>) -> Result<Vec<String>, StorageError> {
+    fn get_categories(&self, list_id: Option<i64>, user_token: &str) -> Result<Vec<String>, StorageError> {
+        self.auto_associate_device(user_token)?;
         let conn = self
             .conn
             .lock()
             .map_err(|e| StorageError::Lock(e.to_string()))?;
-        get_categories(&conn, list_id).map_err(Into::into)
+        get_categories(&conn, list_id, Some(user_token)).map_err(Into::into)
     }
 }
 
@@ -289,6 +360,7 @@ impl PinRepository for SqliteRepository {
 pub struct InMemoryStorage {
     lists: RwLock<HashMap<i64, List>>,
     pins: RwLock<HashMap<i64, Pin>>,
+    device_lists: RwLock<Vec<(String, i64)>>,
     next_list_id: RwLock<i64>,
     next_pin_id: RwLock<i64>,
 }
@@ -302,6 +374,8 @@ impl InMemoryStorage {
             name: "My Bucket List".to_string(),
             icon: "📍".to_string(),
             created_at: Utc::now().to_rfc3339(),
+            owner_token: "".to_string(),
+            share_token: uuid::Uuid::new_v4().to_string(),
         };
         storage.lists.write().unwrap().insert(1, default_list);
         *storage.next_list_id.write().unwrap() = 2;
@@ -311,9 +385,19 @@ impl InMemoryStorage {
 }
 
 impl ListRepository for InMemoryStorage {
-    fn list_lists(&self) -> Result<Vec<List>, StorageError> {
+    fn list_lists(&self, user_token: &str) -> Result<Vec<List>, StorageError> {
+        self.auto_associate_device(user_token)?;
+        
+        let device_lists = self.device_lists.read().unwrap();
         let lists = self.lists.read().unwrap();
-        let mut result: Vec<List> = lists.values().cloned().collect();
+        let mut result = Vec::new();
+        for (tok, lid) in device_lists.iter() {
+            if tok == user_token {
+                if let Some(list) = lists.get(lid) {
+                    result.push(list.clone());
+                }
+            }
+        }
         result.sort_by_key(|l| l.id);
         Ok(result)
     }
@@ -323,7 +407,7 @@ impl ListRepository for InMemoryStorage {
         Ok(lists.get(&id).cloned())
     }
 
-    fn create_list(&self, req: &CreateListRequest) -> Result<List, StorageError> {
+    fn create_list(&self, req: &CreateListRequest, user_token: &str) -> Result<List, StorageError> {
         let mut next_id = self.next_list_id.write().unwrap();
         let id = *next_id;
         *next_id += 1;
@@ -338,9 +422,15 @@ impl ListRepository for InMemoryStorage {
             name: req.name.trim().to_string(),
             icon,
             created_at: Utc::now().to_rfc3339(),
+            owner_token: user_token.to_string(),
+            share_token: uuid::Uuid::new_v4().to_string(),
         };
 
         self.lists.write().unwrap().insert(id, list.clone());
+        
+        // Auto-associate the new list
+        self.device_lists.write().unwrap().push((user_token.to_string(), id));
+        
         Ok(list)
     }
 
@@ -369,17 +459,62 @@ impl ListRepository for InMemoryStorage {
         if removed {
             let mut pins = self.pins.write().unwrap();
             pins.retain(|_, p| p.list_id != id);
+            
+            // Remove device list mappings
+            let mut device_lists = self.device_lists.write().unwrap();
+            device_lists.retain(|(_, lid)| *lid != id);
         }
         Ok(removed)
+    }
+
+    fn check_permission(&self, user_token: &str, list_id: i64) -> Result<bool, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let device_lists = self.device_lists.read().unwrap();
+        Ok(device_lists.iter().any(|(tok, lid)| tok == user_token && *lid == list_id))
+    }
+
+    fn join_list(&self, share_token: &str, user_token: &str) -> Result<Option<List>, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let lists = self.lists.read().unwrap();
+        if let Some(list) = lists.values().find(|l| l.share_token == share_token) {
+            let mut device_lists = self.device_lists.write().unwrap();
+            if !device_lists.iter().any(|(tok, lid)| tok == user_token && *lid == list.id) {
+                device_lists.push((user_token.to_string(), list.id));
+            }
+            Ok(Some(list.clone()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn auto_associate_device(&self, user_token: &str) -> Result<(), StorageError> {
+        let mut device_lists = self.device_lists.write().unwrap();
+        if device_lists.is_empty() {
+            let lists = self.lists.read().unwrap();
+            for &id in lists.keys() {
+                device_lists.push((user_token.to_string(), id));
+            }
+        }
+        Ok(())
     }
 }
 
 impl PinRepository for InMemoryStorage {
-    fn list_pins(&self, query: &ListPinsQuery) -> Result<Vec<Pin>, StorageError> {
+    fn list_pins(&self, query: &ListPinsQuery, user_token: &str) -> Result<Vec<Pin>, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let device_lists = self.device_lists.read().unwrap();
+        let allowed_lists: std::collections::HashSet<i64> = device_lists.iter()
+            .filter(|(tok, _)| tok == user_token)
+            .map(|(_, lid)| *lid)
+            .collect();
+
         let pins = self.pins.read().unwrap();
         let mut result: Vec<Pin> = pins
             .values()
             .filter(|p| {
+                if !allowed_lists.contains(&p.list_id) {
+                    return false;
+                }
                 if let Some(lid) = query.list_id {
                     if p.list_id != lid {
                         return false;
@@ -503,10 +638,20 @@ impl PinRepository for InMemoryStorage {
         Ok(pins.remove(&id).is_some())
     }
 
-    fn get_categories(&self, list_id: Option<i64>) -> Result<Vec<String>, StorageError> {
+    fn get_categories(&self, list_id: Option<i64>, user_token: &str) -> Result<Vec<String>, StorageError> {
+        self.auto_associate_device(user_token)?;
+        let device_lists = self.device_lists.read().unwrap();
+        let allowed_lists: std::collections::HashSet<i64> = device_lists.iter()
+            .filter(|(tok, _)| tok == user_token)
+            .map(|(_, lid)| *lid)
+            .collect();
+
         let pins = self.pins.read().unwrap();
         let mut set = std::collections::BTreeSet::new();
         for pin in pins.values() {
+            if !allowed_lists.contains(&pin.list_id) {
+                continue;
+            }
             if let Some(lid) = list_id {
                 if pin.list_id != lid {
                     continue;
@@ -540,7 +685,9 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             icon TEXT NOT NULL DEFAULT '📍',
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            owner_token TEXT NOT NULL DEFAULT '',
+            share_token TEXT NOT NULL DEFAULT ''
         );
 
         CREATE TABLE IF NOT EXISTS pins (
@@ -558,6 +705,14 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
             visited INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS device_lists (
+            user_token TEXT NOT NULL,
+            list_id INTEGER NOT NULL,
+            PRIMARY KEY (user_token, list_id),
+            FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_device_lists_user_token ON device_lists(user_token);
         "#,
     )?;
 
@@ -582,12 +737,48 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
         )?;
     }
 
+    // Migration check for lists table (owner_token, share_token)
+    let (has_owner_token, has_share_token) = {
+        let mut stmt = conn.prepare("PRAGMA table_info(lists)")?;
+        let columns = stmt.query_map([], |row| row.get::<_, String>(1))?;
+        let mut has_owner = false;
+        let mut has_share = false;
+        for col in columns {
+            let col_name = col?;
+            if col_name == "owner_token" {
+                has_owner = true;
+            } else if col_name == "share_token" {
+                has_share = true;
+            }
+        }
+        (has_owner, has_share)
+    };
+
+    if !has_owner_token {
+        conn.execute("ALTER TABLE lists ADD COLUMN owner_token TEXT NOT NULL DEFAULT ''", [])?;
+    }
+    if !has_share_token {
+        conn.execute("ALTER TABLE lists ADD COLUMN share_token TEXT NOT NULL DEFAULT ''", [])?;
+    }
+
+    // Populate share_token with random UUID for any lists where share_token is empty
+    {
+        let mut stmt = conn.prepare("SELECT id FROM lists WHERE share_token = ''")?;
+        let list_ids = stmt.query_map([], |row| row.get::<_, i64>(0))?
+            .collect::<Result<Vec<i64>, rusqlite::Error>>()?;
+        for id in list_ids {
+            let uuid = uuid::Uuid::new_v4().to_string();
+            conn.execute("UPDATE lists SET share_token = ? WHERE id = ?", params![uuid, id])?;
+        }
+    }
+
     conn.execute_batch(
         r#"
         CREATE INDEX IF NOT EXISTS idx_pins_list_id ON pins(list_id);
         CREATE INDEX IF NOT EXISTS idx_pins_category ON pins(category);
         CREATE INDEX IF NOT EXISTS idx_pins_visited ON pins(visited);
         CREATE INDEX IF NOT EXISTS idx_pins_coords ON pins(latitude, longitude);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_share_token ON lists(share_token);
         "#,
     )?;
 
@@ -595,35 +786,65 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
     let list_count: i64 = conn.query_row("SELECT COUNT(*) FROM lists", [], |r| r.get(0))?;
     if list_count == 0 {
         let created_at = Utc::now().to_rfc3339();
+        let share_token = uuid::Uuid::new_v4().to_string();
         conn.execute(
-            "INSERT INTO lists (id, name, icon, created_at) VALUES (1, 'My Bucket List', '📍', ?)",
-            params![created_at],
+            "INSERT INTO lists (id, name, icon, created_at, owner_token, share_token) VALUES (1, 'My Bucket List', '📍', ?, '', ?)",
+            params![created_at, share_token],
         )?;
     }
 
     Ok(conn)
 }
 
-pub fn list_lists(conn: &Connection) -> rusqlite::Result<Vec<List>> {
-    let mut stmt = conn.prepare("SELECT id, name, icon, created_at FROM lists ORDER BY id ASC")?;
-    let list_iter = stmt.query_map([], |row| {
-        Ok(List {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            icon: row.get(2)?,
-            created_at: row.get(3)?,
-        })
-    })?;
+pub fn list_lists(conn: &Connection, user_token: Option<&str>) -> rusqlite::Result<Vec<List>> {
+    let mut sql = String::from(
+        "SELECT l.id, l.name, l.icon, l.created_at, l.owner_token, l.share_token \
+         FROM lists l"
+    );
+    let mut params_vec = Vec::new();
+    if let Some(tok) = user_token {
+        sql.push_str(" INNER JOIN device_lists dl ON l.id = dl.list_id WHERE dl.user_token = ?");
+        params_vec.push(tok.to_string());
+    }
+    sql.push_str(" ORDER BY l.id ASC");
 
     let mut lists = Vec::new();
-    for list in list_iter {
-        lists.push(list?);
+    if let Some(tok) = user_token {
+        let mut stmt = conn.prepare(&sql)?;
+        let list_iter = stmt.query_map(params![tok], |row| {
+            Ok(List {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                icon: row.get(2)?,
+                created_at: row.get(3)?,
+                owner_token: row.get(4)?,
+                share_token: row.get(5)?,
+            })
+        })?;
+        for list in list_iter {
+            lists.push(list?);
+        }
+    } else {
+        let mut stmt = conn.prepare(&sql)?;
+        let list_iter = stmt.query_map([], |row| {
+            Ok(List {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                icon: row.get(2)?,
+                created_at: row.get(3)?,
+                owner_token: row.get(4)?,
+                share_token: row.get(5)?,
+            })
+        })?;
+        for list in list_iter {
+            lists.push(list?);
+        }
     }
     Ok(lists)
 }
 
 pub fn get_list(conn: &Connection, id: i64) -> rusqlite::Result<Option<List>> {
-    let mut stmt = conn.prepare("SELECT id, name, icon, created_at FROM lists WHERE id = ?")?;
+    let mut stmt = conn.prepare("SELECT id, name, icon, created_at, owner_token, share_token FROM lists WHERE id = ?")?;
     let mut rows = stmt.query(params![id])?;
     if let Some(row) = rows.next()? {
         Ok(Some(List {
@@ -631,32 +852,45 @@ pub fn get_list(conn: &Connection, id: i64) -> rusqlite::Result<Option<List>> {
             name: row.get(1)?,
             icon: row.get(2)?,
             created_at: row.get(3)?,
+            owner_token: row.get(4)?,
+            share_token: row.get(5)?,
         }))
     } else {
         Ok(None)
     }
 }
 
-pub fn create_list(conn: &Connection, req: &CreateListRequest) -> rusqlite::Result<List> {
+pub fn create_list(conn: &Connection, req: &CreateListRequest, user_token: Option<&str>) -> rusqlite::Result<List> {
     let created_at = Utc::now().to_rfc3339();
     let default_icon = "📍".to_string();
     let icon = match &req.icon {
         Some(i) if !i.trim().is_empty() => i.trim(),
         _ => &default_icon,
     };
+    let owner = user_token.unwrap_or("");
+    let share_token = uuid::Uuid::new_v4().to_string();
 
     conn.execute(
-        "INSERT INTO lists (name, icon, created_at) VALUES (?, ?, ?)",
-        params![req.name.trim(), icon, created_at],
+        "INSERT INTO lists (name, icon, created_at, owner_token, share_token) VALUES (?, ?, ?, ?, ?)",
+        params![req.name.trim(), icon, created_at, owner, share_token],
     )?;
 
     let id = conn.last_insert_rowid();
+
+    if let Some(tok) = user_token {
+        conn.execute(
+            "INSERT OR IGNORE INTO device_lists (user_token, list_id) VALUES (?, ?)",
+            params![tok, id],
+        )?;
+    }
 
     Ok(List {
         id,
         name: req.name.trim().to_string(),
         icon: icon.to_string(),
         created_at,
+        owner_token: owner.to_string(),
+        share_token,
     })
 }
 
@@ -696,33 +930,41 @@ pub fn delete_list(conn: &Connection, id: i64) -> Result<bool> {
     Ok(rows_affected > 0)
 }
 
-pub fn list_pins(conn: &Connection, query: &ListPinsQuery) -> rusqlite::Result<Vec<Pin>> {
+pub fn list_pins(conn: &Connection, query: &ListPinsQuery, user_token: Option<&str>) -> rusqlite::Result<Vec<Pin>> {
     let mut sql = String::from(
-        "SELECT id, list_id, title, description, latitude, longitude, category, source_url, image_url, address, notes, visited, created_at FROM pins WHERE 1=1"
+        "SELECT p.id, p.list_id, p.title, p.description, p.latitude, p.longitude, p.category, p.source_url, p.image_url, p.address, p.notes, p.visited, p.created_at \
+         FROM pins p"
     );
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
+    if let Some(tok) = user_token {
+        sql.push_str(" INNER JOIN device_lists dl ON p.list_id = dl.list_id WHERE dl.user_token = ?");
+        params_vec.push(Box::new(tok.to_string()));
+    } else {
+        sql.push_str(" WHERE 1=1");
+    }
+
     if let Some(list_id) = query.list_id {
-        sql.push_str(" AND list_id = ?");
+        sql.push_str(" AND p.list_id = ?");
         params_vec.push(Box::new(list_id));
     }
 
     if let Some(ref cat) = query.category {
         if !cat.is_empty() && cat != "All" {
-            sql.push_str(" AND category = ?");
+            sql.push_str(" AND p.category = ?");
             params_vec.push(Box::new(cat.clone()));
         }
     }
 
     if let Some(vis) = query.visited {
-        sql.push_str(" AND visited = ?");
+        sql.push_str(" AND p.visited = ?");
         params_vec.push(Box::new(if vis { 1 } else { 0 }));
     }
 
     if let Some(ref search) = query.search {
         if !search.trim().is_empty() {
             sql.push_str(
-                " AND (title LIKE ? OR address LIKE ? OR notes LIKE ? OR description LIKE ?)",
+                " AND (p.title LIKE ? OR p.address LIKE ? OR p.notes LIKE ? OR p.description LIKE ?)",
             );
             let pattern = format!("%{}%", search.trim());
             params_vec.push(Box::new(pattern.clone()));
@@ -732,7 +974,7 @@ pub fn list_pins(conn: &Connection, query: &ListPinsQuery) -> rusqlite::Result<V
         }
     }
 
-    sql.push_str(" ORDER BY id DESC");
+    sql.push_str(" ORDER BY p.id DESC");
 
     let params_slice: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql)?;
@@ -922,13 +1164,25 @@ pub fn delete_pin(conn: &Connection, id: i64) -> rusqlite::Result<bool> {
     Ok(rows_affected > 0)
 }
 
-pub fn get_categories(conn: &Connection, list_id: Option<i64>) -> rusqlite::Result<Vec<String>> {
-    let (sql, params_vec): (String, Vec<Box<dyn rusqlite::ToSql>>) = match list_id {
-        Some(lid) => (
+pub fn get_categories(conn: &Connection, list_id: Option<i64>, user_token: Option<&str>) -> rusqlite::Result<Vec<String>> {
+    let (sql, params_vec): (String, Vec<Box<dyn rusqlite::ToSql>>) = match (list_id, user_token) {
+        (Some(lid), Some(tok)) => (
+            "SELECT DISTINCT p.category FROM pins p \
+             INNER JOIN device_lists dl ON p.list_id = dl.list_id \
+             WHERE dl.user_token = ? AND p.list_id = ? AND p.category IS NOT NULL AND p.category != '' ORDER BY p.category ASC".to_string(),
+            vec![Box::new(tok.to_string()), Box::new(lid)],
+        ),
+        (None, Some(tok)) => (
+            "SELECT DISTINCT p.category FROM pins p \
+             INNER JOIN device_lists dl ON p.list_id = dl.list_id \
+             WHERE dl.user_token = ? AND p.category IS NOT NULL AND p.category != '' ORDER BY p.category ASC".to_string(),
+            vec![Box::new(tok.to_string())],
+        ),
+        (Some(lid), None) => (
             "SELECT DISTINCT category FROM pins WHERE list_id = ? AND category IS NOT NULL AND category != '' ORDER BY category ASC".to_string(),
             vec![Box::new(lid)],
         ),
-        None => (
+        (None, None) => (
             "SELECT DISTINCT category FROM pins WHERE category IS NOT NULL AND category != '' ORDER BY category ASC".to_string(),
             Vec::new(),
         ),
@@ -1032,7 +1286,7 @@ mod tests {
     #[test]
     fn test_init_and_seed_default_list() {
         let conn = init_db(":memory:").expect("init in-memory db");
-        let lists = list_lists(&conn).expect("list lists");
+        let lists = list_lists(&conn, None).expect("list lists");
         assert_eq!(lists.len(), 1);
         assert_eq!(lists[0].id, 1);
         assert_eq!(lists[0].name, "My Bucket List");
@@ -1049,7 +1303,7 @@ mod tests {
             name: "Japan 2026".to_string(),
             icon: Some("🗾".to_string()),
         };
-        let created = repo.create_list(&req).expect("create list");
+        let created = repo.create_list(&req, "test-user").expect("create list");
         assert_eq!(created.name, "Japan 2026");
 
         let fetched = repo.get_list(created.id).expect("get list").expect("some");
@@ -1088,11 +1342,11 @@ mod tests {
                 category: None,
                 visited: None,
                 search: None,
-            })
+            }, "test-user")
             .expect("list pins");
         assert_eq!(pins.len(), 1);
 
-        let cats = repo.get_categories(Some(created.id)).expect("categories");
+        let cats = repo.get_categories(Some(created.id), "test-user").expect("categories");
         assert_eq!(cats, vec!["Sightseeing".to_string()]);
 
         let deleted = repo.delete_list(created.id).expect("delete list");
@@ -1102,14 +1356,14 @@ mod tests {
     #[test]
     fn test_in_memory_storage_engine() {
         let repo = InMemoryStorage::new();
-        let lists = repo.list_lists().unwrap();
+        let lists = repo.list_lists("test-user").unwrap();
         assert_eq!(lists.len(), 1);
 
         let req = CreateListRequest {
             name: "Iceland".to_string(),
             icon: Some("🇮🇸".to_string()),
         };
-        let list = repo.create_list(&req).unwrap();
+        let list = repo.create_list(&req, "test-user").unwrap();
         assert_eq!(list.name, "Iceland");
 
         let pin_req = CreatePinRequest {
@@ -1137,7 +1391,7 @@ mod tests {
                 category: None,
                 visited: Some(true),
                 search: Some("Lagoon".to_string()),
-            })
+            }, "test-user")
             .unwrap();
         assert_eq!(pins.len(), 1);
     }
@@ -1147,7 +1401,7 @@ mod tests {
         let conn = init_db(":memory:").unwrap();
         let arc_conn = Arc::new(Mutex::new(conn));
         let repo = SqliteRepository::from_arc(arc_conn);
-        let lists = repo.list_lists().unwrap();
+        let lists = repo.list_lists("test-user").unwrap();
         assert_eq!(lists.len(), 1);
     }
 
@@ -1160,7 +1414,7 @@ mod tests {
             name: "Japan 2026".to_string(),
             icon: Some("🗾".to_string()),
         };
-        let created = create_list(&conn, &req).expect("create list");
+        let created = create_list(&conn, &req, None).expect("create list");
         assert_eq!(created.name, "Japan 2026");
         assert_eq!(created.icon, "🗾");
 
@@ -1203,6 +1457,7 @@ mod tests {
                 name: "Road Trip".to_string(),
                 icon: Some("🚗".to_string()),
             },
+            None,
         )
         .expect("create list");
 
@@ -1229,6 +1484,7 @@ mod tests {
                 visited: None,
                 search: None,
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(pins_before.len(), 1);
@@ -1243,6 +1499,7 @@ mod tests {
                 visited: None,
                 search: None,
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(pins_after.len(), 0);
@@ -1291,7 +1548,7 @@ mod tests {
             category: None,
             visited: None,
             search: None,
-        }).expect("list pins");
+        }, None).expect("list pins");
 
         assert_eq!(pins.len(), num_threads * 10);
     }
@@ -1399,6 +1656,7 @@ mod tests {
                 visited: None,
                 search: None,
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(sightseeing.len(), 2);
@@ -1412,6 +1670,7 @@ mod tests {
                 visited: None,
                 search: None,
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(all_cat.len(), 4);
@@ -1425,6 +1684,7 @@ mod tests {
                 visited: Some(true),
                 search: None,
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(visited_pins.len(), 2);
@@ -1437,6 +1697,7 @@ mod tests {
                 visited: Some(false),
                 search: None,
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(unvisited_pins.len(), 2);
@@ -1450,6 +1711,7 @@ mod tests {
                 visited: None,
                 search: Some("Eiffel".to_string()),
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(search_eiffel.len(), 1);
@@ -1464,6 +1726,7 @@ mod tests {
                 visited: None,
                 search: Some("Odeon".to_string()),
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(search_odeon.len(), 1);
@@ -1478,6 +1741,7 @@ mod tests {
                 visited: None,
                 search: Some("Mona Lisa".to_string()),
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(search_mona.len(), 1);
@@ -1492,6 +1756,7 @@ mod tests {
                 visited: None,
                 search: Some("NonExistentKeywordXYZ".to_string()),
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(search_none.len(), 0);
@@ -1505,6 +1770,7 @@ mod tests {
                 visited: Some(true),
                 search: None,
             },
+            None,
         )
         .expect("list pins");
         assert_eq!(combined.len(), 1);
@@ -1516,7 +1782,7 @@ mod tests {
         let conn = init_db(":memory:").expect("init db");
 
         // Initial empty categories
-        let cats = get_categories(&conn, None).expect("get categories");
+        let cats = get_categories(&conn, None, None).expect("get categories");
         assert_eq!(cats.len(), 0);
 
         // Add pins in different lists and categories
@@ -1544,6 +1810,7 @@ mod tests {
                 name: "Trip 2".to_string(),
                 icon: None,
             },
+            None,
         )
         .expect("list 2");
 
@@ -1565,13 +1832,13 @@ mod tests {
         )
         .expect("pin 2");
 
-        let all_cats = get_categories(&conn, None).expect("get all categories");
+        let all_cats = get_categories(&conn, None, None).expect("get all categories");
         assert_eq!(all_cats, vec!["Food & Drink", "Nature & Outdoors"]);
 
-        let list1_cats = get_categories(&conn, Some(1)).expect("get list 1 categories");
+        let list1_cats = get_categories(&conn, Some(1), None).expect("get list 1 categories");
         assert_eq!(list1_cats, vec!["Nature & Outdoors"]);
 
-        let list2_cats = get_categories(&conn, Some(list2.id)).expect("get list 2 categories");
+        let list2_cats = get_categories(&conn, Some(list2.id), None).expect("get list 2 categories");
         assert_eq!(list2_cats, vec!["Food & Drink"]);
     }
 

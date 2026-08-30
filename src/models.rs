@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct List {
     pub id: i64,
     pub name: String,
     pub icon: String,
     pub created_at: String,
+    pub owner_token: String,
+    pub share_token: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,6 +20,11 @@ pub struct CreateListRequest {
 pub struct UpdateListRequest {
     pub name: Option<String>,
     pub icon: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JoinListRequest {
+    pub share_token: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,12 +173,16 @@ mod tests {
             name: "Euro Summer".to_string(),
             icon: "🏖️".to_string(),
             created_at: "2026-08-30T12:00:00Z".to_string(),
+            owner_token: "some-owner".to_string(),
+            share_token: "some-share".to_string(),
         };
         let json_str = serde_json::to_string(&list).expect("serialize list");
         let deserialized: List = serde_json::from_str(&json_str).expect("deserialize list");
         assert_eq!(deserialized.id, 42);
         assert_eq!(deserialized.name, "Euro Summer");
         assert_eq!(deserialized.icon, "🏖️");
+        assert_eq!(deserialized.owner_token, "some-owner");
+        assert_eq!(deserialized.share_token, "some-share");
 
         // CreateListRequest
         let create_req = CreateListRequest {
