@@ -100,6 +100,9 @@ const WEATHER_CODE_MAP = {
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
   initMap();
+  initCategoryBarListener();
+  initPinListListener();
+  initMapPopupListeners();
   await fetchLists();
   await fetchPins();
   setupGlobalClickHandlers();
@@ -631,10 +634,12 @@ function renderCategories() {
   const categories = ['All', ...new Set(allPins.map(p => p.category).filter(Boolean))];
 
   container.innerHTML = categories.map(cat => `
-    <button class="cat-chip ${selectedCategory === cat ? 'active' : ''}" onclick="setCategoryFilter('${escapeHtml(cat)}')">
+    <button class="cat-chip ${selectedCategory === cat ? 'active' : ''}" data-category="${escapeHtml(cat)}">
       ${escapeHtml(cat)}
     </button>
   `).join('');
+
+  initCategoryBarListener();
 }
 
 // ============================================================================
@@ -666,9 +671,11 @@ function renderPinList() {
 
     const assignedList = getListNameForPin(pin);
     const weatherCached = weatherCache[`${pin.latitude.toFixed(2)},${pin.longitude.toFixed(2)}`];
+    const safeImage = sanitizeUrl(pin.image_url);
+    const safeSource = sanitizeUrl(pin.source_url);
 
     return `
-      <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
+      <div class="pin-card ${pin.visited ? 'visited-card' : ''}" data-pin-id="${pin.id}" id="card-pin-${pin.id}">
         <div class="pin-card-header">
           <div class="pin-card-title">${escapeHtml(pin.title)}</div>
           <div class="badges-row">
@@ -687,8 +694,8 @@ function renderPinList() {
           </div>
         </div>
 
-        ${pin.image_url ? `
-          <img src="${escapeHtml(pin.image_url)}" class="pin-card-thumb" alt="${escapeHtml(pin.title)}" onerror="this.style.display='none'">
+        ${safeImage ? `
+          <img src="${escapeHtml(safeImage)}" class="pin-card-thumb" alt="${escapeHtml(pin.title)}" onerror="this.style.display='none'">
         ` : ''}
 
         ${pin.address ? `
@@ -704,28 +711,28 @@ function renderPinList() {
           </div>
         ` : ''}
 
-        <div class="pin-card-footer" onclick="event.stopPropagation()">
+        <div class="pin-card-footer">
           <label class="status-toggle">
-            <input type="checkbox" ${pin.visited ? 'checked' : ''} onchange="toggleVisited(${pin.id})">
+            <input type="checkbox" ${pin.visited ? 'checked' : ''} data-action="toggle-visited" data-pin-id="${pin.id}">
             <span>${pin.visited ? 'Visited' : 'Mark Visited'}</span>
           </label>
 
           <div class="card-action-btns">
-            <a href="https://www.google.com/maps/dir/?api=1&destination=${pin.latitude},${pin.longitude}" target="_blank" rel="noopener noreferrer" class="btn-icon-sm" title="Get Directions">
+            <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pin.latitude)},${encodeURIComponent(pin.longitude)}" target="_blank" rel="noopener noreferrer" class="btn-icon-sm" title="Get Directions">
               <i data-lucide="navigation" style="width: 14px; height: 14px;"></i>
             </a>
-            <button class="btn-icon-sm" onclick="sharePin(${pin.id})" title="Share Place">
+            <button class="btn-icon-sm" data-action="share" data-pin-id="${pin.id}" title="Share Place">
               <i data-lucide="share-2" style="width: 14px; height: 14px;"></i>
             </button>
-            ${pin.source_url ? `
-              <a href="${escapeHtml(pin.source_url)}" target="_blank" rel="noopener noreferrer" class="btn-icon-sm" title="Open Source Link">
+            ${safeSource ? `
+              <a href="${escapeHtml(safeSource)}" target="_blank" rel="noopener noreferrer" class="btn-icon-sm" title="Open Source Link">
                 <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
               </a>
             ` : ''}
-            <button class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit Place">
+            <button class="btn-icon-sm" data-action="edit" data-pin-id="${pin.id}" title="Edit Place">
               <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
             </button>
-            <button class="btn-icon-sm delete-btn" onclick="deletePin(${pin.id})" title="Delete Place">
+            <button class="btn-icon-sm delete-btn" data-action="delete" data-pin-id="${pin.id}" title="Delete Place">
               <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
             </button>
           </div>
@@ -733,6 +740,8 @@ function renderPinList() {
       </div>
     `;
   }).join('');
+
+  initPinListListener();
 }
 
 function renderMarkers() {
@@ -775,10 +784,12 @@ async function loadAndRenderPopup(marker, pin) {
 
   const assignedList = getListNameForPin(pin);
   const weather = await fetchWeather(pin.latitude, pin.longitude);
+  const safeImage = sanitizeUrl(pin.image_url);
+  const safeSource = sanitizeUrl(pin.source_url);
 
   const popupHtml = `
-    <div class="pin-popup">
-      ${pin.image_url ? `<img src="${escapeHtml(pin.image_url)}" class="popup-img" alt="${escapeHtml(pin.title)}" onerror="this.style.display='none'">` : ''}
+    <div class="pin-popup" data-pin-id="${pin.id}">
+      ${safeImage ? `<img src="${escapeHtml(safeImage)}" class="popup-img" alt="${escapeHtml(pin.title)}" onerror="this.style.display='none'">` : ''}
       <div class="popup-body">
         <div class="popup-badges-row">
           <span class="pin-badge ${pin.visited ? 'badge-visited' : ''}">
@@ -800,14 +811,14 @@ async function loadAndRenderPopup(marker, pin) {
         ${pin.notes ? `<div class="popup-notes">"${escapeHtml(pin.notes)}"</div>` : ''}
 
         <div class="popup-actions-grid">
-          <a href="https://www.google.com/maps/dir/?api=1&destination=${pin.latitude},${pin.longitude}" target="_blank" rel="noopener noreferrer" class="btn-popup-action primary-action">
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pin.latitude)},${encodeURIComponent(pin.longitude)}" target="_blank" rel="noopener noreferrer" class="btn-popup-action primary-action">
             <i data-lucide="navigation"></i> Directions
           </a>
-          <button class="btn-popup-action" onclick="sharePin(${pin.id})">
+          <button class="btn-popup-action" data-action="popup-share" data-pin-id="${pin.id}">
             <i data-lucide="share-2"></i> Share
           </button>
-          ${pin.source_url ? `
-            <a href="${escapeHtml(pin.source_url)}" target="_blank" rel="noopener noreferrer" class="btn-popup-action">
+          ${safeSource ? `
+            <a href="${escapeHtml(safeSource)}" target="_blank" rel="noopener noreferrer" class="btn-popup-action">
               <i data-lucide="external-link"></i> Link
             </a>
           ` : ''}
@@ -815,14 +826,14 @@ async function loadAndRenderPopup(marker, pin) {
 
         <div class="popup-footer">
           <label class="status-toggle">
-            <input type="checkbox" ${pin.visited ? 'checked' : ''} onchange="toggleVisited(${pin.id})">
+            <input type="checkbox" ${pin.visited ? 'checked' : ''} data-action="popup-toggle-visited" data-pin-id="${pin.id}">
             <span>${pin.visited ? 'Visited' : 'Mark Visited'}</span>
           </label>
           <div class="card-action-btns">
-            <button class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit Place">
+            <button class="btn-icon-sm" data-action="popup-edit" data-pin-id="${pin.id}" title="Edit Place">
               <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
             </button>
-            <button class="btn-icon-sm delete-btn" onclick="deletePin(${pin.id})" title="Delete Place">
+            <button class="btn-icon-sm delete-btn" data-action="popup-delete" data-pin-id="${pin.id}" title="Delete Place">
               <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
             </button>
           </div>
@@ -832,6 +843,7 @@ async function loadAndRenderPopup(marker, pin) {
   `;
 
   marker.bindPopup(popupHtml).openPopup();
+  initMapPopupListeners();
   lucide.createIcons();
 }
 
@@ -1021,7 +1033,8 @@ async function sharePin(id) {
   const pin = allPins.find(p => p.id === id);
   if (!pin) return;
 
-  const shareUrl = pin.source_url || window.location.href;
+  const safeSource = sanitizeUrl(pin.source_url);
+  const shareUrl = safeSource || window.location.href;
   const shareData = {
     title: `${pin.title} | bList`,
     text: `Check out ${pin.title} ${pin.address ? `(${pin.address})` : ''} on my travel bucket list!`,
@@ -1310,14 +1323,152 @@ function showToast(message, type = 'info') {
   }, 3000);
 }
 
+// ============================================================================
+// Security & Sanitization Utilities
+// ============================================================================
+
+/**
+ * Validates and sanitizes URLs against dangerous schemes (javascript:, data:, vbscript:).
+ * Only allows http:, https:, mailto:, and trusted relative paths.
+ */
+function sanitizeUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  // Block dangerous schemes even if obfuscated with control characters or mixed case
+  const lower = trimmed.replace(/[\x00-\x20\s]/g, '').toLowerCase();
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('data:') ||
+    lower.startsWith('vbscript:')
+  ) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(trimmed, window.location.origin);
+    const protocol = parsed.protocol.toLowerCase();
+    if (protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:') {
+      return trimmed;
+    }
+  } catch (_) {
+    if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.startsWith('/\\')) {
+      return trimmed;
+    }
+  }
+  return '';
+}
+
+function isSafeUrl(url) {
+  return Boolean(sanitizeUrl(url));
+}
+
 // Utility: HTML Escape
 function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/[&<>"']/g, m => ({
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, m => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
     "'": '&#39;'
   })[m]);
+}
+
+// Event Delegation Listeners
+function initCategoryBarListener() {
+  const container = document.getElementById('categories-bar');
+  if (container && !container.dataset.listenerAttached) {
+    container.dataset.listenerAttached = 'true';
+    container.addEventListener('click', (e) => {
+      const chip = e.target.closest('.cat-chip');
+      if (chip && chip.dataset.category) {
+        setCategoryFilter(chip.dataset.category);
+      }
+    });
+  }
+}
+
+function initPinListListener() {
+  const container = document.getElementById('pin-list');
+  if (container && !container.dataset.listenerAttached) {
+    container.dataset.listenerAttached = 'true';
+    container.addEventListener('click', (e) => {
+      const actionBtn = e.target.closest('[data-action]');
+      if (actionBtn) {
+        e.stopPropagation();
+        const action = actionBtn.dataset.action;
+        const pinId = parseInt(actionBtn.dataset.pinId, 10);
+        if (!pinId) return;
+
+        if (action === 'share') {
+          sharePin(pinId);
+        } else if (action === 'edit') {
+          openEditPinModal(pinId);
+        } else if (action === 'delete') {
+          deletePin(pinId);
+        }
+        return;
+      }
+
+      if (e.target.closest('.pin-card-footer') || e.target.closest('a') || e.target.closest('input')) {
+        return;
+      }
+
+      const card = e.target.closest('.pin-card');
+      if (card && card.dataset.pinId) {
+        const pinId = parseInt(card.dataset.pinId, 10);
+        if (pinId) {
+          handlePinCardClick(pinId);
+        }
+      }
+    });
+
+    container.addEventListener('change', (e) => {
+      const toggle = e.target.closest('[data-action="toggle-visited"]');
+      if (toggle && toggle.dataset.pinId) {
+        const pinId = parseInt(toggle.dataset.pinId, 10);
+        if (pinId) {
+          toggleVisited(pinId);
+        }
+      }
+    });
+  }
+}
+
+function initMapPopupListeners() {
+  if (map && !map._hasPopupListenerAttached) {
+    map._hasPopupListenerAttached = true;
+    map.on('popupopen', (e) => {
+      const popupEl = e.popup.getElement();
+      if (!popupEl) return;
+
+      popupEl.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('[data-action]');
+        if (!btn) return;
+        const action = btn.dataset.action;
+        const pinId = parseInt(btn.dataset.pinId, 10);
+        if (!pinId) return;
+
+        if (action === 'popup-share') {
+          sharePin(pinId);
+        } else if (action === 'popup-edit') {
+          openEditPinModal(pinId);
+        } else if (action === 'popup-delete') {
+          deletePin(pinId);
+        }
+      });
+
+      popupEl.addEventListener('change', (ev) => {
+        const toggle = ev.target.closest('[data-action="popup-toggle-visited"]');
+        if (toggle && toggle.dataset.pinId) {
+          const pinId = parseInt(toggle.dataset.pinId, 10);
+          if (pinId) {
+            toggleVisited(pinId);
+          }
+        }
+      });
+    });
+  }
 }

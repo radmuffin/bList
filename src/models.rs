@@ -87,7 +87,7 @@ pub struct ScrapedMetadata {
     pub source_type: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GeoLocation {
     pub latitude: f64,
     pub longitude: f64,

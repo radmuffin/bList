@@ -3,6 +3,7 @@ mod geocoder;
 mod models;
 mod routes;
 mod scraper;
+mod security;
 
 use axum::{
     routing::{get, patch, post},
@@ -71,10 +72,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let static_service =
         ServeDir::new("static").fallback(ServeFile::new("static/index.html"));
 
+    let cors = CorsLayer::new()
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::PATCH,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+            axum::http::header::AUTHORIZATION,
+        ])
+        .allow_origin(tower_http::cors::Any);
+
     let app = Router::new()
         .nest("/api", api_router)
         .fallback_service(static_service)
-        .layer(CorsLayer::permissive())
+        .layer(cors)
+        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state);
 
     let port: u16 = std::env::var("PORT")
