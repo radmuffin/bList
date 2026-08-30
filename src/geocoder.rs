@@ -94,3 +94,86 @@ impl Geocoder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_geocode_empty_and_whitespace_query() {
+        let geocoder = Geocoder::new();
+        assert_eq!(geocoder.geocode("").await.expect("empty query"), None);
+        assert_eq!(geocoder.geocode("   ").await.expect("spaces"), None);
+        assert_eq!(geocoder.geocode("	
+  
+").await.expect("tabs/newlines"), None);
+    }
+
+    #[test]
+    fn test_nominatim_search_result_deserialization() {
+        let json_data = r#"[
+            {
+                "lat": "35.6585805",
+                "lon": "139.7454329",
+                "display_name": "Tokyo Tower, 4-2-8, Shibakoen, Minato, Tokyo, Japan"
+            }
+        ]"#;
+
+        let results: Vec<NominatimSearchResult> = serde_json::from_str(json_data).expect("deserialize search result");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].lat, "35.6585805");
+        assert_eq!(results[0].lon, "139.7454329");
+        assert_eq!(results[0].display_name, "Tokyo Tower, 4-2-8, Shibakoen, Minato, Tokyo, Japan");
+
+        let lat: f64 = results[0].lat.parse().expect("parse lat");
+        let lon: f64 = results[0].lon.parse().expect("parse lon");
+        assert!((lat - 35.6585805).abs() < 1e-5);
+        assert!((lon - 139.7454329).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_nominatim_search_result_empty_array() {
+        let json_data = "[]";
+        let results: Vec<NominatimSearchResult> = serde_json::from_str(json_data).expect("deserialize empty array");
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_nominatim_search_result_invalid_number() {
+        let json_data = r#"[
+            {
+                "lat": "invalid_lat",
+                "lon": "139.7454329",
+                "display_name": "Invalid Coord Place"
+            }
+        ]"#;
+
+        let results: Vec<NominatimSearchResult> = serde_json::from_str(json_data).expect("deserialize search result");
+        assert_eq!(results.len(), 1);
+        assert!(results[0].lat.parse::<f64>().is_err());
+    }
+
+    #[test]
+    fn test_nominatim_reverse_result_deserialization() {
+        let json_data = r#"{
+            "display_name": "Eiffel Tower, 5, Avenue Anatole France, Quartier du Gros-Caillou, Paris, France"
+        }"#;
+
+        let result: NominatimReverseResult = serde_json::from_str(json_data).expect("deserialize reverse result");
+        assert_eq!(
+            result.display_name,
+            "Eiffel Tower, 5, Avenue Anatole France, Quartier du Gros-Caillou, Paris, France"
+        );
+    }
+
+    #[test]
+    fn test_url_encoding_for_query() {
+        let query = "Café de Flore & Les Deux Magots, Paris";
+        let encoded = urlencoding::encode(query);
+        let url = format!(
+            "https://nominatim.openstreetmap.org/search?format=json&q={}&limit=1&addressdetails=1",
+            encoded
+        );
+        assert!(url.contains("Caf%C3%A9%20de%20Flore%20%26%20Les%20Deux%20Magots%2C%20Paris"));
+    }
+}
