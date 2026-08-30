@@ -615,7 +615,25 @@ impl Geocoder {
             return Ok(cached);
         }
 
-        // 2. Delegate to underlying provider
+        // 2. Check if the query is a valid Full Plus Code (Open Location Code)
+        let first_word = safe_query.split_whitespace().next().unwrap_or(safe_query);
+        if crate::plus_code::is_full(first_word) {
+            if let Some((lat, lon)) = crate::plus_code::decode(first_word) {
+                let display_name = match self.reverse_geocode(lat, lon).await {
+                    Ok(Some(addr)) => format!("{} ({})", addr, first_word.to_uppercase()),
+                    _ => format!("Plus Code: {}", first_word.to_uppercase()),
+                };
+                let geo = GeoLocation {
+                    latitude: lat,
+                    longitude: lon,
+                    display_name,
+                };
+                self.cache.insert_forward(safe_query, Some(geo.clone()));
+                return Ok(Some(geo));
+            }
+        }
+
+        // 3. Delegate to underlying provider
         let result = self.provider.geocode(safe_query).await?;
 
         // 3. Populate cache

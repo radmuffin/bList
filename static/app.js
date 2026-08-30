@@ -757,6 +757,10 @@
     },
 
     renderBadgesHtml(pin, { distanceStr, weather, assignedList }) {
+      const plusCode = (window.bListHelpers && window.bListHelpers.encodePlusCode)
+        ? window.bListHelpers.encodePlusCode(pin.latitude, pin.longitude)
+        : '';
+
       return `
         <span class="pin-badge ${pin.visited ? 'badge-visited' : ''}">
           ${pin.visited ? '✅ Visited' : Utils.escapeHtml(pin.category || 'Place')}
@@ -769,6 +773,11 @@
             : ''
         }
         ${distanceStr ? `<span class="pin-badge badge-distance">📍 ${distanceStr}</span>` : ''}
+        ${
+          plusCode
+            ? `<span class="pin-badge badge-plus-code" onclick="event.stopPropagation(); copyPlusCode('${plusCode}')" title="Click to copy Plus Code (${plusCode})">🧭 ${plusCode}</span>`
+            : ''
+        }
         <span class="pin-badge badge-weather ${weather ? '' : 'hidden'}" id="weather-badge-${pin.id}">
           ${weather ? `${weather.icon} ${weather.tempF}°F` : ''}
         </span>
@@ -1827,6 +1836,17 @@
   window.exportData = (format) => FeatureActions.exportData(format);
   window.showToast = (msg, type) => ToastManager.show(msg, type);
   window.escapeHtml = (str) => Utils.escapeHtml(str);
+  window.copyPlusCode = async (code) => {
+    if (!code) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(code);
+        ToastManager.show(`🧭 Plus Code ${code} copied to clipboard!`, 'success');
+        return;
+      } catch (_) {}
+    }
+    ToastManager.show(`🧭 Plus Code: ${code}`, 'info');
+  };
 
   // Sync & Multi-Device
   window.openSyncModal = () => ModalManager.openSyncModal();

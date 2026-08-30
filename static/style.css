@@ -852,6 +852,23 @@ body {
   border: 1px solid var(--border-color);
 }
 
+.pin-badge.badge-plus-code {
+  background-color: var(--bg-main);
+  color: var(--text-muted);
+  border: 1px dashed var(--border-color);
+  cursor: copy;
+  font-family: monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  transition: all 0.15s ease;
+}
+
+.pin-badge.badge-plus-code:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background-color: var(--primary-light);
+}
+
 .pin-card-address {
   font-size: 12px;
   color: var(--text-muted);

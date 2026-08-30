@@ -1,6 +1,7 @@
 mod db;
 mod geocoder;
 mod models;
+mod plus_code;
 mod routes;
 mod scraper;
 mod security;
