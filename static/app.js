@@ -19,29 +19,12 @@
           attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }
       },
-      light: {
-        name: 'Clean Light',
-        url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
-        options: {
-          maxZoom: 19,
-          subdomains: 'abcd',
-          attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        }
-      },
       dark: {
         name: 'Dark Mode',
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
         options: {
           maxZoom: 16,
           attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
-        }
-      },
-      satellite: {
-        name: 'Satellite',
-        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}',
-        options: {
-          maxZoom: 18,
-          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP'
         }
       }
     },
@@ -524,10 +507,7 @@
       if (!State.map) return;
       const isLayerLocked = localStorage.getItem('blist_layer_locked') === 'true';
       if (!isLayerLocked) {
-        if (
-          effectiveTheme === 'dark' &&
-          (State.currentLayerName === 'osm' || State.currentLayerName === 'light')
-        ) {
+        if (effectiveTheme === 'dark' && State.currentLayerName === 'osm') {
           this.applyLayer('dark', false);
         } else if (effectiveTheme === 'light' && State.currentLayerName === 'dark') {
           this.applyLayer('osm', false);
