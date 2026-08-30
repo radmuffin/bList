@@ -1,5 +1,8 @@
 /target
 pins.db*
+*.db
 *.db-shm
 *.db-wal
+*.db-journal
+test_*.db*
 venv/

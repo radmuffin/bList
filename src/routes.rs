@@ -36,7 +36,7 @@ pub async fn list_lists(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -45,8 +45,8 @@ pub async fn list_lists(
     match db::list_lists(&conn) {
         Ok(lists) => (StatusCode::OK, Json(ApiResponse::ok(lists))),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to fetch lists: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -60,7 +60,7 @@ pub async fn get_list(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -73,8 +73,8 @@ pub async fn get_list(
             Json(ApiResponse::err(format!("List #{} not found", id))),
         ),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Database query failed: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -95,7 +95,7 @@ pub async fn create_list(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -104,8 +104,8 @@ pub async fn create_list(
     match db::create_list(&conn, &req) {
         Ok(list) => (StatusCode::CREATED, Json(ApiResponse::ok(list))),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to create list: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -129,7 +129,7 @@ pub async fn update_list(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -142,8 +142,8 @@ pub async fn update_list(
             Json(ApiResponse::err(format!("List #{} not found", id))),
         ),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to update list: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -157,7 +157,7 @@ pub async fn delete_list(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -170,8 +170,8 @@ pub async fn delete_list(
             Json(ApiResponse::err(format!("List #{} not found", id))),
         ),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to delete list: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -189,7 +189,7 @@ pub async fn list_pins(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -198,8 +198,8 @@ pub async fn list_pins(
     match db::list_pins(&conn, &query) {
         Ok(pins) => (StatusCode::OK, Json(ApiResponse::ok(pins))),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to fetch pins: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -213,7 +213,7 @@ pub async fn get_pin(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -226,8 +226,8 @@ pub async fn get_pin(
             Json(ApiResponse::err(format!("Pin #{} not found", id))),
         ),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Database query failed: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -248,7 +248,7 @@ pub async fn create_pin(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -257,8 +257,8 @@ pub async fn create_pin(
     match db::create_pin(&conn, &req) {
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to create pin: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -273,7 +273,7 @@ pub async fn update_pin(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -286,8 +286,8 @@ pub async fn update_pin(
             Json(ApiResponse::err(format!("Pin #{} not found", id))),
         ),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to update pin: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -301,7 +301,7 @@ pub async fn toggle_visited(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -314,8 +314,8 @@ pub async fn toggle_visited(
             Json(ApiResponse::err(format!("Pin #{} not found", id))),
         ),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to toggle visited: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -329,7 +329,7 @@ pub async fn delete_pin(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -342,8 +342,8 @@ pub async fn delete_pin(
             Json(ApiResponse::err(format!("Pin #{} not found", id))),
         ),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to delete pin: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -419,7 +419,7 @@ pub async fn ingest_link(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -428,8 +428,8 @@ pub async fn ingest_link(
     match db::create_pin(&conn, &create_req) {
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to save ingested pin: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(format!("Failed to save ingested pin: {}", db::map_rusqlite_error(&e)))),
         ),
     }
 }
@@ -465,7 +465,7 @@ pub async fn get_categories(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
@@ -474,8 +474,8 @@ pub async fn get_categories(
     match db::get_categories(&conn, query.list_id) {
         Ok(cats) => (StatusCode::OK, Json(ApiResponse::ok(cats))),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to get categories: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -511,8 +511,8 @@ pub async fn export_geojson(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("Database error: {}", e) })),
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({ "error": format!("Database lock error: {}", e) })),
             );
         }
     };
@@ -521,8 +521,8 @@ pub async fn export_geojson(
         Ok(p) => p,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("Failed to fetch pins: {}", e) })),
+                db::map_status_code(&e),
+                Json(json!({ "error": db::map_rusqlite_error(&e) })),
             );
         }
     };
@@ -570,8 +570,8 @@ pub async fn export_json(
         Ok(c) => c,
         Err(e) => {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database error: {}", e))),
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ApiResponse::err(format!("Database lock error: {}", e))),
             );
         }
     };
@@ -579,8 +579,8 @@ pub async fn export_json(
     match db::list_pins(&conn, &query) {
         Ok(pins) => (StatusCode::OK, Json(ApiResponse::ok(pins))),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Export failed: {}", e))),
+            db::map_status_code(&e),
+            Json(ApiResponse::err(db::map_rusqlite_error(&e))),
         ),
     }
 }
@@ -589,20 +589,20 @@ pub async fn export_json(
 mod tests {
     use super::*;
 
-    fn setup_test_state(db_name: &str) -> AppState {
-        let _ = std::fs::remove_file(db_name);
-        let conn = db::init_db(db_name).expect("init db");
-        AppState {
+    fn setup_test_state() -> (AppState, db::TestDbGuard) {
+        let guard = db::TestDbGuard::new("routes");
+        let conn = db::init_db(&guard.path).expect("init db");
+        let state = AppState {
             db: Arc::new(Mutex::new(conn)),
             scraper: Arc::new(Scraper::new()),
             geocoder: Arc::new(Geocoder::new()),
-        }
+        };
+        (state, guard)
     }
 
     #[tokio::test]
     async fn test_routes_list_and_pin_flow() {
-        let db_name = "test_routes.db";
-        let state = setup_test_state(db_name);
+        let (state, _guard) = setup_test_state();
 
         // 1. List lists
         let (status, Json(res)) = list_lists(State(state.clone())).await;
@@ -657,7 +657,7 @@ mod tests {
         assert_eq!(pins[0].title, "Eiffel Tower");
 
         // 5. Export JSON filtered by list_id
-        let (status, Json(res)) = export_json(State(state.clone()), Query(query)).await;
+        let (status, Json(res)) = export_json(State(state.clone()), Query(query.clone())).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.data.unwrap().len(), 1);
 
@@ -674,7 +674,5 @@ mod tests {
         let (status, Json(res)) = delete_list(State(state.clone()), Path(new_list.id)).await;
         assert_eq!(status, StatusCode::OK);
         assert!(res.data.unwrap());
-
-        let _ = std::fs::remove_file(db_name);
     }
 }
