@@ -5,11 +5,10 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use rusqlite::Connection;
 use serde_json::json;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use crate::db;
+use crate::db::StorageEngine;
 use crate::geocoder::Geocoder;
 use crate::models::{
     ApiResponse, CreateListRequest, CreatePinRequest, IngestRequest, List, ListPinsQuery, Pin,
@@ -19,7 +18,7 @@ use crate::scraper::Scraper;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: Arc<Mutex<Connection>>,
+    pub storage: Arc<dyn StorageEngine>,
     pub scraper: Arc<Scraper>,
     pub geocoder: Arc<Geocoder>,
 }
@@ -32,17 +31,7 @@ pub struct AppState {
 pub async fn list_lists(
     State(state): State<AppState>,
 ) -> (StatusCode, Json<ApiResponse<Vec<List>>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::list_lists(&conn) {
+    match state.storage.list_lists() {
         Ok(lists) => (StatusCode::OK, Json(ApiResponse::ok(lists))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -56,17 +45,7 @@ pub async fn get_list(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<List>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::get_list(&conn, id) {
+    match state.storage.get_list(id) {
         Ok(Some(list)) => (StatusCode::OK, Json(ApiResponse::ok(list))),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -91,17 +70,7 @@ pub async fn create_list(
         );
     }
 
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::create_list(&conn, &req) {
+    match state.storage.create_list(&req) {
         Ok(list) => (StatusCode::CREATED, Json(ApiResponse::ok(list))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -125,17 +94,7 @@ pub async fn update_list(
         }
     }
 
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::update_list(&conn, id, &req) {
+    match state.storage.update_list(id, &req) {
         Ok(Some(list)) => (StatusCode::OK, Json(ApiResponse::ok(list))),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -153,17 +112,7 @@ pub async fn delete_list(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<bool>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::delete_list(&conn, id) {
+    match state.storage.delete_list(id) {
         Ok(true) => (StatusCode::OK, Json(ApiResponse::ok(true))),
         Ok(false) => (
             StatusCode::NOT_FOUND,
@@ -185,17 +134,7 @@ pub async fn list_pins(
     State(state): State<AppState>,
     Query(query): Query<ListPinsQuery>,
 ) -> (StatusCode, Json<ApiResponse<Vec<Pin>>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::list_pins(&conn, &query) {
+    match state.storage.list_pins(&query) {
         Ok(pins) => (StatusCode::OK, Json(ApiResponse::ok(pins))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -209,17 +148,7 @@ pub async fn get_pin(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<Pin>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::get_pin(&conn, id) {
+    match state.storage.get_pin(id) {
         Ok(Some(pin)) => (StatusCode::OK, Json(ApiResponse::ok(pin))),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -244,17 +173,7 @@ pub async fn create_pin(
         );
     }
 
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::create_pin(&conn, &req) {
+    match state.storage.create_pin(&req) {
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -269,17 +188,7 @@ pub async fn update_pin(
     Path(id): Path<i64>,
     Json(req): Json<UpdatePinRequest>,
 ) -> (StatusCode, Json<ApiResponse<Pin>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::update_pin(&conn, id, &req) {
+    match state.storage.update_pin(id, &req) {
         Ok(Some(pin)) => (StatusCode::OK, Json(ApiResponse::ok(pin))),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -297,17 +206,7 @@ pub async fn toggle_visited(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<Pin>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::toggle_visited(&conn, id) {
+    match state.storage.toggle_visited(id) {
         Ok(Some(pin)) => (StatusCode::OK, Json(ApiResponse::ok(pin))),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -325,17 +224,7 @@ pub async fn delete_pin(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> (StatusCode, Json<ApiResponse<bool>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::delete_pin(&conn, id) {
+    match state.storage.delete_pin(id) {
         Ok(true) => (StatusCode::OK, Json(ApiResponse::ok(true))),
         Ok(false) => (
             StatusCode::NOT_FOUND,
@@ -396,8 +285,8 @@ pub async fn ingest_link(
     };
 
     let category = req.category.unwrap_or_else(|| match meta.source_type.as_str() {
-        "instagram" => "Social".to_string(),
-        "google_maps" | "apple_maps" => "Place".to_string(),
+        "instagram" | "tiktok" => "Social".to_string(),
+        "google_maps" | "apple_maps" | "tripadvisor" | "yelp" | "alltrails" => "Place".to_string(),
         _ => "General".to_string(),
     });
 
@@ -415,17 +304,7 @@ pub async fn ingest_link(
         visited: Some(false),
     };
 
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::create_pin(&conn, &create_req) {
+    match state.storage.create_pin(&create_req) {
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -461,17 +340,7 @@ pub async fn get_categories(
     State(state): State<AppState>,
     Query(query): Query<ListPinsQuery>,
 ) -> (StatusCode, Json<ApiResponse<Vec<String>>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database lock error: {}", e))),
-            );
-        }
-    };
-
-    match db::get_categories(&conn, query.list_id) {
+    match state.storage.get_categories(query.list_id) {
         Ok(cats) => (StatusCode::OK, Json(ApiResponse::ok(cats))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -507,22 +376,12 @@ pub async fn export_geojson(
     State(state): State<AppState>,
     Query(query): Query<ListPinsQuery>,
 ) -> impl IntoResponse {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("Database error: {}", e) })),
-            );
-        }
-    };
-
-    let pins = match db::list_pins(&conn, &query) {
+    let pins = match state.storage.list_pins(&query) {
         Ok(p) => p,
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("Failed to fetch pins: {}", e) })),
+                Json(json!({ "error": format!("Database error: {}", e) })),
             );
         }
     };
@@ -566,17 +425,7 @@ pub async fn export_json(
     State(state): State<AppState>,
     Query(query): Query<ListPinsQuery>,
 ) -> (StatusCode, Json<ApiResponse<Vec<Pin>>>) {
-    let conn = match state.db.lock() {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(format!("Database error: {}", e))),
-            );
-        }
-    };
-
-    match db::list_pins(&conn, &query) {
+    match state.storage.list_pins(&query) {
         Ok(pins) => (StatusCode::OK, Json(ApiResponse::ok(pins))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -588,21 +437,35 @@ pub async fn export_json(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::{InMemoryStorage, SqliteRepository};
 
-    fn setup_test_state(db_name: &str) -> AppState {
+    fn setup_test_sqlite_state(db_name: &str) -> AppState {
         let _ = std::fs::remove_file(db_name);
-        let conn = db::init_db(db_name).expect("init db");
+        let storage = Arc::new(SqliteRepository::open(db_name).expect("init sqlite repo"));
+        let geocoder = Arc::new(Geocoder::new());
+        let scraper = Arc::new(Scraper::with_geocoder(geocoder.clone()));
         AppState {
-            db: Arc::new(Mutex::new(conn)),
-            scraper: Arc::new(Scraper::new()),
-            geocoder: Arc::new(Geocoder::new()),
+            storage,
+            scraper,
+            geocoder,
+        }
+    }
+
+    fn setup_test_in_memory_state() -> AppState {
+        let storage = Arc::new(InMemoryStorage::new());
+        let geocoder = Arc::new(Geocoder::new());
+        let scraper = Arc::new(Scraper::with_geocoder(geocoder.clone()));
+        AppState {
+            storage,
+            scraper,
+            geocoder,
         }
     }
 
     #[tokio::test]
-    async fn test_routes_list_and_pin_flow() {
+    async fn test_routes_list_and_pin_flow_sqlite() {
         let db_name = "test_routes.db";
-        let state = setup_test_state(db_name);
+        let state = setup_test_sqlite_state(db_name);
 
         // 1. List lists
         let (status, Json(res)) = list_lists(State(state.clone())).await;
@@ -666,7 +529,8 @@ mod tests {
             name: Some("Paris & Lyon 2026".to_string()),
             icon: Some("🍷".to_string()),
         };
-        let (status, Json(res)) = update_list(State(state.clone()), Path(new_list.id), Json(update_req)).await;
+        let (status, Json(res)) =
+            update_list(State(state.clone()), Path(new_list.id), Json(update_req)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.data.unwrap().name, "Paris & Lyon 2026");
 
@@ -676,5 +540,40 @@ mod tests {
         assert!(res.data.unwrap());
 
         let _ = std::fs::remove_file(db_name);
+    }
+
+    #[tokio::test]
+    async fn test_routes_in_memory_backend() {
+        let state = setup_test_in_memory_state();
+
+        let req = CreateListRequest {
+            name: "Kyoto Trip".to_string(),
+            icon: Some("⛩️".to_string()),
+        };
+        let (status, Json(res)) = create_list(State(state.clone()), Json(req)).await;
+        assert_eq!(status, StatusCode::CREATED);
+        let list = res.data.unwrap();
+        assert_eq!(list.name, "Kyoto Trip");
+
+        let pin_req = CreatePinRequest {
+            list_id: Some(list.id),
+            title: "Fushimi Inari Taisha".to_string(),
+            description: Some("Shrine gates".to_string()),
+            latitude: 34.9671,
+            longitude: 135.7727,
+            category: Some("Culture".to_string()),
+            source_url: None,
+            image_url: None,
+            address: Some("Fushimi Ward, Kyoto".to_string()),
+            notes: None,
+            visited: Some(false),
+        };
+        let (status, Json(res)) = create_pin(State(state.clone()), Json(pin_req)).await;
+        assert_eq!(status, StatusCode::CREATED);
+        let pin = res.data.unwrap();
+
+        let (status, Json(res)) = toggle_visited(State(state.clone()), Path(pin.id)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(res.data.unwrap().visited);
     }
 }

@@ -9,11 +9,12 @@ use axum::{
     Router,
 };
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::db::SqliteRepository;
 use crate::geocoder::Geocoder;
 use crate::routes::AppState;
 use crate::scraper::Scraper;
@@ -33,13 +34,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize Database
     let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "pins.db".to_string());
-    let conn = db::init_db(&db_path)?;
+    let storage = Arc::new(SqliteRepository::open(&db_path)?);
     println!("📦 Connected to SQLite database at: {}", db_path);
 
+    let geocoder = Arc::new(Geocoder::new());
+    let scraper = Arc::new(Scraper::with_geocoder(geocoder.clone()));
+
     let state = AppState {
-        db: Arc::new(Mutex::new(conn)),
-        scraper: Arc::new(Scraper::new()),
-        geocoder: Arc::new(Geocoder::new()),
+        storage,
+        scraper,
+        geocoder,
     };
 
     // API Routes
