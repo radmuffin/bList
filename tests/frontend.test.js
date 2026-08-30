@@ -11,7 +11,9 @@ const {
   geoJSONToPins,
   filterPins,
   sortPins,
-  getEffectiveTheme
+  getEffectiveTheme,
+  APP_INFO,
+  getAppInfo
 } = require('../static/helpers.js');
 
 describe('Frontend Unit Tests: Helpers Suite', () => {
@@ -336,6 +338,22 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
     it('should resolve auto setting based on system preferences', () => {
       assert.strictEqual(getEffectiveTheme('auto', true), 'dark');
       assert.strictEqual(getEffectiveTheme('auto', false), 'light');
+    });
+  });
+
+  describe('App Metadata & Repository Links (getAppInfo & APP_INFO)', () => {
+    it('should expose app name, version, and valid repository links', () => {
+      const info = getAppInfo();
+      assert.strictEqual(info.name, 'bList');
+      assert.strictEqual(info.version, '0.1.0');
+      assert.strictEqual(info.repositoryUrl, 'https://github.com/radmuffin/bList');
+      assert.strictEqual(info.issuesUrl, 'https://github.com/radmuffin/bList/issues');
+      assert.strictEqual(info.license, 'MIT');
+    });
+
+    it('should return a frozen/immutable or isolated object', () => {
+      assert.strictEqual(typeof APP_INFO, 'object');
+      assert.strictEqual(Object.isFrozen(APP_INFO), true);
     });
   });
 

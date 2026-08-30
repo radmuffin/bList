@@ -337,6 +337,22 @@
       }
     },
 
+    async fetchAppInfo() {
+      try {
+        const res = await fetch('/api/info');
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (_) {}
+      return {
+        name: 'bList',
+        version: '0.1.0',
+        repository: 'https://github.com/radmuffin/bList',
+        issues_url: 'https://github.com/radmuffin/bList/issues',
+        license: 'MIT'
+      };
+    },
+
     async fetchLists() {
       const json = await this.request('/api/lists');
       return json && json.success && json.data ? json.data : [];
@@ -1458,10 +1474,45 @@
       }, 500);
     },
 
+    async openAboutModal() {
+      const modal = document.getElementById('about-modal');
+      if (!modal) return;
+
+      try {
+        const info = await ApiClient.fetchAppInfo();
+        if (info && info.version) {
+          const ver = info.version.startsWith('v') ? info.version : `v${info.version}`;
+          const badge = document.getElementById('about-version-badge');
+          const metaVer = document.getElementById('about-meta-version');
+          const sideVer = document.getElementById('sidebar-version-tag');
+          if (badge) badge.textContent = ver;
+          if (metaVer) metaVer.textContent = ver;
+          if (sideVer) sideVer.textContent = ver;
+        }
+      } catch (_) {}
+
+      modal.classList.remove('hidden');
+      if (window.lucide) window.lucide.createIcons();
+    },
+
+    closeAboutModal() {
+      const modal = document.getElementById('about-modal');
+      if (modal) modal.classList.add('hidden');
+      if (window.location.hash === '#about') {
+        history.replaceState(null, document.title, window.location.pathname + window.location.search);
+      }
+    },
+
     handleBackdropClick(e, modalId) {
       if (e.target.id === modalId) {
         const modal = document.getElementById(modalId);
-        if (modal) modal.classList.add('hidden');
+        if (modal) {
+          if (modalId === 'about-modal') {
+            this.closeAboutModal();
+          } else {
+            modal.classList.add('hidden');
+          }
+        }
       }
     }
   };
@@ -1711,6 +1762,20 @@
         layerMenu.classList.add('hidden');
       }
     });
+
+    // Close any open modals on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const openModals = document.querySelectorAll('.modal-overlay:not(.hidden)');
+        openModals.forEach((m) => {
+          if (m.id === 'about-modal') {
+            ModalManager.closeAboutModal();
+          } else {
+            m.classList.add('hidden');
+          }
+        });
+      }
+    });
   }
 
   function registerServiceWorker() {
@@ -1793,6 +1858,20 @@
       UIManager.showMobileView('list');
     }
 
+    if (
+      initialParams.get('about') !== null ||
+      window.location.hash === '#about' ||
+      window.location.pathname === '/about'
+    ) {
+      ModalManager.openAboutModal();
+    }
+
+    window.addEventListener('hashchange', () => {
+      if (window.location.hash === '#about') {
+        ModalManager.openAboutModal();
+      }
+    });
+
     setupGlobalClickHandlers();
     registerServiceWorker();
     if (window.lucide) window.lucide.createIcons();
@@ -1826,6 +1905,10 @@
   window.toggleLayerMenu = () => MapController.toggleLayerMenu();
   window.toggleLayerSwitcher = window.toggleLayerMenu;
   window.switchMapLayer = (layerKey) => MapController.switchLayer(layerKey);
+
+  // About & Info
+  window.openAboutModal = () => ModalManager.openAboutModal();
+  window.closeAboutModal = () => ModalManager.closeAboutModal();
 
   // Features
   window.surpriseMe = () => FeatureActions.surpriseMe();

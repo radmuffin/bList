@@ -111,6 +111,10 @@
             <i data-lucide="download" class="btn-icon"></i>
             <span class="btn-text">Export</span>
           </button>
+          <button class="btn btn-ghost" id="about-btn-header" onclick="openAboutModal()" title="About bList">
+            <i data-lucide="info" class="btn-icon"></i>
+            <span class="btn-text">About</span>
+          </button>
         </div>
       </div>
 
@@ -194,6 +198,14 @@
             <h3>No places saved yet</h3>
             <p>Paste a Google Maps, Instagram, or travel link above to add your first destination!</p>
           </div>
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div class="sidebar-footer">
+          <button type="button" class="btn-sidebar-about" onclick="openAboutModal()" title="About bList">
+            <i data-lucide="info"></i>
+            <span>About bList &bull; <span id="sidebar-version-tag">v0.1.0</span></span>
+          </button>
         </div>
       </aside>
 
@@ -451,6 +463,102 @@
       </div>
       <div class="modal-actions" style="margin-top: 1rem;">
         <button type="button" class="btn btn-secondary" onclick="closeSyncModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- About Modal -->
+  <div id="about-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'about-modal')">
+    <div class="modal-card modal-about">
+      <div class="modal-header">
+        <div class="about-header-title">
+          <span class="about-logo-icon">🗺️</span>
+          <h2>About bList</h2>
+        </div>
+        <button class="btn-close" onclick="closeAboutModal()" aria-label="Close modal">&times;</button>
+      </div>
+
+      <div class="about-modal-body">
+        <div class="about-hero">
+          <div class="about-badge-row">
+            <span class="app-version-badge" id="about-version-badge">v0.1.0</span>
+            <span class="app-status-badge"><span class="status-dot"></span> Active</span>
+          </div>
+          <p class="about-tagline">Visual Map Bucket List &amp; Trip Planner</p>
+          <p class="about-desc">
+            A fast, private, and deterministic travel bucket list application. Easily save places from Google Maps, Instagram, Apple Maps, and travel articles, organize trips into custom collections, and explore on an interactive map.
+          </p>
+        </div>
+
+        <div class="about-section">
+          <h3 class="about-section-heading">
+            <i data-lucide="message-square-code"></i>
+            <span>Contact Us &amp; Support</span>
+          </h3>
+          <p class="about-section-subtext">
+            Found a bug, want to request a feature, or have a question? Contact us directly or report issues on GitHub:
+          </p>
+          <div class="about-actions-grid">
+            <a href="https://github.com/radmuffin/bList/issues" target="_blank" rel="noopener noreferrer" class="about-btn-action primary-action" title="Open GitHub Issues">
+              <div class="action-icon-wrapper">
+                <i data-lucide="bug"></i>
+              </div>
+              <div class="action-text">
+                <span class="action-title">Contact Us / Issues</span>
+                <span class="action-desc">Report bugs, submit feedback, or request features</span>
+              </div>
+              <i data-lucide="external-link" class="action-arrow"></i>
+            </a>
+
+            <a href="https://github.com/radmuffin/bList" target="_blank" rel="noopener noreferrer" class="about-btn-action secondary-action" title="Open GitHub Repository">
+              <div class="action-icon-wrapper">
+                <i data-lucide="github"></i>
+              </div>
+              <div class="action-text">
+                <span class="action-title">GitHub Repository</span>
+                <span class="action-desc">radmuffin/bList &bull; Star, explore code &amp; contribute</span>
+              </div>
+              <i data-lucide="external-link" class="action-arrow"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="about-section">
+          <h3 class="about-section-heading">
+            <i data-lucide="cpu"></i>
+            <span>System &amp; Architecture</span>
+          </h3>
+          <div class="about-meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">Backend Engine</span>
+              <span class="meta-value">Rust &amp; Axum 0.7</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Database</span>
+              <span class="meta-value">SQLite (WAL Mode)</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Map Engine</span>
+              <span class="meta-value">OpenStreetMap &amp; Leaflet</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Platform</span>
+              <span class="meta-value">PWA &amp; Web</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">License</span>
+              <span class="meta-value">MIT Open Source</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Version</span>
+              <span class="meta-value" id="about-meta-version">v0.1.0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 1.25rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeAboutModal()">Close</button>
       </div>
     </div>
   </div>

@@ -669,6 +669,20 @@ pub async fn health_check() -> (StatusCode, Json<serde_json::Value>) {
     )
 }
 
+#[debug_handler]
+pub async fn app_info() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "name": "bList",
+            "version": env!("CARGO_PKG_VERSION"),
+            "repository": "https://github.com/radmuffin/bList",
+            "issues_url": "https://github.com/radmuffin/bList/issues",
+            "license": "MIT"
+        })),
+    )
+}
+
 #[derive(serde::Deserialize)]
 pub struct GeocodeQuery {
     pub q: String,
@@ -1315,5 +1329,16 @@ mod tests {
             Path(pin.id),
         ).await;
         assert_eq!(status, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_routes_app_info() {
+        let (status, Json(info)) = app_info().await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(info["name"], "bList");
+        assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(info["repository"], "https://github.com/radmuffin/bList");
+        assert_eq!(info["issues_url"], "https://github.com/radmuffin/bList/issues");
+        assert_eq!(info["license"], "MIT");
     }
 }
