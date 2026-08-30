@@ -1090,8 +1090,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_routes_ssrf_protection_in_ingest_and_preview() {
-        let db_name = "test_routes_ssrf.db";
-        let state = setup_test_state(db_name);
+        let state = setup_test_state();
 
         let ssrf_targets = [
             "http://127.0.0.1:8080/admin",
@@ -1133,14 +1132,11 @@ mod tests {
             );
             assert!(!res_prev.success);
         }
-
-        let _ = std::fs::remove_file(db_name);
     }
 
     #[tokio::test]
     async fn test_routes_invalid_coordinates_rejected() {
-        let db_name = "test_routes_coords.db";
-        let state = setup_test_state(db_name);
+        let state = setup_test_state();
 
         let invalid_pin_req = CreatePinRequest {
             list_id: Some(1),
@@ -1159,7 +1155,6 @@ mod tests {
         let (status, Json(res)) = create_pin(State(state.clone()), Json(invalid_pin_req)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert!(!res.success);
-
-        let _ = std::fs::remove_file(db_name);
+        assert!(res.error.unwrap().contains("latitude"));
     }
 }

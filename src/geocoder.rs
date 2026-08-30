@@ -111,7 +111,6 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[tokio::test]
     async fn test_geocode_empty_and_whitespace_query() {
         let geocoder = Geocoder::new();
         assert_eq!(geocoder.geocode("").await.expect("empty query"), None);
