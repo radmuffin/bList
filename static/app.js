@@ -29,6 +29,25 @@
       }
     },
 
+    API_BASE_URL: (function () {
+      try {
+        const customHost = localStorage.getItem('blist_api_host');
+        if (customHost) return customHost.replace(/\/+$/, '');
+
+        const isNative =
+          (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+          window.location.protocol === 'capacitor:' ||
+          window.location.protocol === 'ionic:' ||
+          window.location.protocol === 'file:' ||
+          (window.location.hostname === 'localhost' && window.location.port === '');
+
+        if (isNative) {
+          return 'https://blist-radmuffin.fly.dev';
+        }
+      } catch (_) {}
+      return '';
+    })(),
+
     CATEGORY_ICONS: {
       'Food & Drink': 'utensils',
       'Cafe': 'coffee',
@@ -76,6 +95,8 @@
     currentTileLayer: null,
     currentLayerName: 'osm',
     markers: {},
+    routePolyline: null,
+    isRouteActive: false,
     allPins: [],
     lists: [],
     currentListFilter: 'all', // 'all', 'bucket', 'visited', or list_id as string
@@ -200,6 +221,85 @@
   };
 
   // ==========================================================================
+  // 4b. Offline Mode & Mutation Sync Manager
+  // ==========================================================================
+  const OfflineManager = {
+    init() {
+      this.updateStatus();
+      window.addEventListener('online', () => {
+        this.updateStatus();
+        this.syncQueue();
+      });
+      window.addEventListener('offline', () => {
+        this.updateStatus();
+      });
+    },
+
+    updateStatus() {
+      const isOnline = navigator.onLine;
+      const badge = document.getElementById('offline-badge');
+      if (badge) {
+        badge.classList.toggle('hidden', isOnline);
+      }
+      if (!isOnline) {
+        ToastManager.show('⚡ Offline Mode: Working with cached places & map tiles', 'info');
+      }
+    },
+
+    getQueue() {
+      try {
+        return JSON.parse(localStorage.getItem('blist_offline_queue') || '[]');
+      } catch (_) {
+        return [];
+      }
+    },
+
+    saveQueue(queue) {
+      localStorage.setItem('blist_offline_queue', JSON.stringify(queue));
+    },
+
+    enqueue(mutation) {
+      const queue = this.getQueue();
+      queue.push(mutation);
+      this.saveQueue(queue);
+    },
+
+    async syncQueue() {
+      const queue = this.getQueue();
+      if (queue.length === 0) return;
+
+      ToastManager.show(`🔄 Reconnected! Syncing ${queue.length} offline changes...`, 'info');
+      const remaining = [];
+
+      for (const item of queue) {
+        try {
+          if (item.type === 'toggleVisited') {
+            await ApiClient.toggleVisited(item.id);
+          } else if (item.type === 'createPin') {
+            await ApiClient.createPin(item.payload);
+          } else if (item.type === 'deletePin') {
+            await ApiClient.deletePin(item.id);
+          }
+        } catch (_) {
+          remaining.push(item);
+        }
+      }
+
+      this.saveQueue(remaining);
+      if (remaining.length === 0) {
+        ToastManager.show('✨ All offline changes synced with server!', 'success');
+        try {
+          const freshPins = await ApiClient.fetchPins();
+          if (freshPins && freshPins.length > 0) {
+            State.allPins = freshPins;
+            UIManager.renderAll();
+          }
+        } catch (_) {}
+      }
+    }
+  };
+
+  // ==========================================================================
   // 5. Theme Management Engine
   // ==========================================================================
   const ThemeManager = {
@@ -240,7 +340,7 @@
       document.documentElement.setAttribute('data-theme', theme);
       document.documentElement.setAttribute('data-resolved-theme', effectiveTheme);
 
-      document.querySelectorAll('.theme-opt').forEach((btn) => {
+      document.querySelectorAll('.theme-opt, .theme-opt-pill').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.themeVal === theme);
       });
 
@@ -269,6 +369,8 @@
 
       const menu = document.getElementById('theme-menu');
       if (menu) menu.classList.add('hidden');
+      const moreMenu = document.getElementById('mobile-more-menu');
+      if (moreMenu) moreMenu.classList.add('hidden');
 
       const toastMsg =
         theme === 'auto'
@@ -289,6 +391,12 @@
   // 6. Robust API Client
   // ==========================================================================
   const ApiClient = {
+    getUrl(path) {
+      if (path.startsWith('http://') || path.startsWith('https://')) return path;
+      const base = CONFIG.API_BASE_URL || '';
+      return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+    },
+
     getUserToken() {
       let token = localStorage.getItem('blist_user_token');
       if (!token || !token.trim()) {
@@ -304,6 +412,7 @@
 
     async request(url, options = {}) {
       try {
+        const fullUrl = this.getUrl(url);
         const headers = Object.assign(
           {
             'x-user-token': this.getUserToken()
@@ -312,7 +421,7 @@
         );
         const reqOptions = Object.assign({}, options, { headers });
 
-        const res = await fetch(url, reqOptions);
+        const res = await fetch(fullUrl, reqOptions);
         let data;
         try {
           data = await res.json();
@@ -339,7 +448,7 @@
 
     async fetchAppInfo() {
       try {
-        const res = await fetch('/api/info');
+        const res = await fetch(this.getUrl('/api/info'));
         if (res.ok) {
           return await res.json();
         }
@@ -354,8 +463,27 @@
     },
 
     async fetchLists() {
-      const json = await this.request('/api/lists');
-      return json && json.success && json.data ? json.data : [];
+      try {
+        const json = await this.request('/api/lists');
+        if (json && json.success && json.data) {
+          localStorage.setItem('blist_cached_lists', JSON.stringify(json.data));
+          return json.data;
+        }
+      } catch (err) {
+        const cached = localStorage.getItem('blist_cached_lists');
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch (_) {}
+        }
+      }
+      const cached = localStorage.getItem('blist_cached_lists');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (_) {}
+      }
+      return [];
     },
 
     async createList(payload) {
@@ -375,8 +503,27 @@
     },
 
     async fetchPins() {
-      const json = await this.request('/api/pins');
-      return json && json.success && json.data ? json.data : [];
+      try {
+        const json = await this.request('/api/pins');
+        if (json && json.success && json.data) {
+          localStorage.setItem('blist_cached_pins', JSON.stringify(json.data));
+          return json.data;
+        }
+      } catch (err) {
+        const cached = localStorage.getItem('blist_cached_pins');
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch (_) {}
+        }
+      }
+      const cached = localStorage.getItem('blist_cached_pins');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (_) {}
+      }
+      return [];
     },
 
     async createPin(payload) {
@@ -460,7 +607,7 @@
     },
 
     async exportData(format = 'geojson') {
-      const res = await fetch(`/api/export/${format}`);
+      const res = await fetch(this.getUrl(`/api/export/${format}`));
       return await res.json();
     }
   };
@@ -521,12 +668,22 @@
 
     syncTheme(effectiveTheme, isUserAction = false) {
       if (!State.map) return;
-      const isLayerLocked = localStorage.getItem('blist_layer_locked') === 'true';
-      if (!isLayerLocked) {
-        if (effectiveTheme === 'dark' && State.currentLayerName === 'osm') {
+      if (isUserAction) {
+        // User explicitly toggled theme in UI -> adapt map layer directly
+        localStorage.removeItem('blist_layer_locked');
+        if (effectiveTheme === 'dark') {
           this.applyLayer('dark', false);
-        } else if (effectiveTheme === 'light' && State.currentLayerName === 'dark') {
+        } else {
           this.applyLayer('osm', false);
+        }
+      } else {
+        const isLayerLocked = localStorage.getItem('blist_layer_locked') === 'true';
+        if (!isLayerLocked) {
+          if (effectiveTheme === 'dark' && State.currentLayerName === 'osm') {
+            this.applyLayer('dark', false);
+          } else if (effectiveTheme === 'light' && State.currentLayerName === 'dark') {
+            this.applyLayer('osm', false);
+          }
         }
       }
     },
@@ -575,7 +732,75 @@
         State.markers[pin.id] = marker;
       });
 
+      this.updateRouteLine();
       if (window.lucide) window.lucide.createIcons();
+    },
+
+    toggleRouteLine() {
+      State.isRouteActive = !State.isRouteActive;
+      const fab = document.getElementById('route-fab');
+      if (fab) fab.classList.toggle('active', State.isRouteActive);
+
+      this.updateRouteLine();
+      if (State.isRouteActive) {
+        ToastManager.show('🚗 Trip Route enabled! Connecting places in sequence.', 'info');
+      } else {
+        ToastManager.show('Route view hidden', 'info');
+      }
+    },
+
+    updateRouteLine() {
+      if (!State.map) return;
+      if (State.routePolyline) {
+        State.map.removeLayer(State.routePolyline);
+        State.routePolyline = null;
+      }
+
+      const badge = document.getElementById('route-info-badge');
+      const textSpan = document.getElementById('route-distance-text');
+
+      if (!State.isRouteActive) {
+        if (badge) badge.classList.add('hidden');
+        return;
+      }
+
+      const filtered = FilterManager.getFilteredPins();
+      if (filtered.length < 2) {
+        if (badge) {
+          badge.classList.remove('hidden');
+          if (textSpan) textSpan.textContent = filtered.length === 1 ? '1 place on route' : 'No places to connect';
+        }
+        return;
+      }
+
+      const latLngs = filtered.map((p) => [p.latitude, p.longitude]);
+
+      let totalKm = 0;
+      for (let i = 0; i < filtered.length - 1; i++) {
+        totalKm += Utils.calculateDistance(
+          filtered[i].latitude,
+          filtered[i].longitude,
+          filtered[i + 1].latitude,
+          filtered[i + 1].longitude
+        );
+      }
+
+      const mi = (totalKm * 0.621371).toFixed(1);
+      const km = totalKm.toFixed(1);
+
+      if (badge && textSpan) {
+        badge.classList.remove('hidden');
+        textSpan.textContent = `🚗 Route (${filtered.length} stops): ${mi} mi (${km} km)`;
+      }
+
+      State.routePolyline = L.polyline(latLngs, {
+        color: '#2563eb',
+        weight: 4,
+        opacity: 0.85,
+        dashArray: '8, 8',
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(State.map);
     },
 
     async loadAndRenderPopup(marker, pin) {
@@ -769,7 +994,42 @@
       this.renderPinList();
       MapController.renderMarkers();
       this.updateCounts();
+      this.updateTripProgress();
       if (window.lucide) window.lucide.createIcons();
+    },
+
+    updateTripProgress() {
+      const card = document.getElementById('trip-progress-card');
+      const label = document.getElementById('trip-progress-label');
+      const stats = document.getElementById('trip-progress-stats');
+      const bar = document.getElementById('trip-progress-bar');
+      if (!card || !label || !stats || !bar) return;
+
+      let activePins = State.allPins;
+      let listTitle = 'Bucket List Progress';
+
+      if (State.currentListFilter !== 'all' && State.currentListFilter !== 'bucket' && State.currentListFilter !== 'visited') {
+        const listId = parseInt(State.currentListFilter, 10);
+        const list = State.lists.find((l) => l.id === listId);
+        if (list) {
+          activePins = State.allPins.filter((p) => p.list_id === listId);
+          listTitle = `${list.icon || '📍'} ${list.name}`;
+        }
+      }
+
+      const total = activePins.length;
+      const visited = activePins.filter((p) => p.visited === 1 || p.visited === true).length;
+      const percentage = total > 0 ? Math.round((visited / total) * 100) : 0;
+
+      label.textContent = listTitle;
+      if (total === 0) {
+        stats.textContent = '0 places';
+      } else if (visited === total) {
+        stats.textContent = `🏆 ${visited}/${total} Visited (100%) 🎉`;
+      } else {
+        stats.textContent = `${visited} / ${total} visited (${percentage}%)`;
+      }
+      bar.style.width = `${percentage}%`;
     },
 
     renderBadgesHtml(pin, { distanceStr, weather, assignedList }) {
@@ -1690,20 +1950,37 @@
     },
 
     async toggleVisited(id) {
+      const idx = State.allPins.findIndex((p) => p.id === id);
+      if (idx !== -1) {
+        State.allPins[idx].visited = State.allPins[idx].visited ? 0 : 1;
+        localStorage.setItem('blist_cached_pins', JSON.stringify(State.allPins));
+        UIManager.renderAll();
+        const pin = State.allPins[idx];
+        ToastManager.show(
+          pin.visited ? `✅ Visited "${pin.title}"!` : `🎯 Added "${pin.title}" back to Bucket List!`,
+          'success'
+        );
+      }
+
       try {
+        if (!navigator.onLine) {
+          OfflineManager.enqueue({ type: 'toggleVisited', id });
+          return;
+        }
         const json = await ApiClient.toggleVisited(id);
-        if (json.success && json.data) {
-          const idx = State.allPins.findIndex((p) => p.id === id);
+        if (json && json.success && json.data) {
           if (idx !== -1) {
             State.allPins[idx] = json.data;
+            localStorage.setItem('blist_cached_pins', JSON.stringify(State.allPins));
             UIManager.renderAll();
-            ToastManager.show(
-              json.data.visited ? '🎉 Marked as visited!' : '🎯 Added back to bucket list'
-            );
           }
         }
       } catch (err) {
-        ToastManager.show(err.message || 'Failed to update status', 'error');
+        if (!navigator.onLine) {
+          OfflineManager.enqueue({ type: 'toggleVisited', id });
+        } else {
+          ToastManager.show('Note: Offline change queued for sync', 'info');
+        }
       }
     },
 
@@ -1740,6 +2017,25 @@
       } catch (err) {
         ToastManager.show(err.message || 'Failed to export data', 'error');
       }
+    },
+
+    openGoogleMapsRoute() {
+      const filtered = FilterManager.getFilteredPins();
+      if (!filtered || filtered.length < 2) {
+        ToastManager.show('Add at least 2 places to create multi-stop directions', 'error');
+        return;
+      }
+
+      const url = (window.bListHelpers && typeof window.bListHelpers.generateGoogleMapsRouteUrl === 'function')
+        ? window.bListHelpers.generateGoogleMapsRouteUrl(filtered)
+        : null;
+
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        ToastManager.show(`🚗 Opening ${Math.min(filtered.length, 10)}-stop route in Google Maps!`, 'success');
+      } else {
+        ToastManager.show('Could not generate multi-stop route directions', 'error');
+      }
     }
   };
 
@@ -1761,11 +2057,25 @@
       if (layerWrapper && !layerWrapper.contains(e.target) && layerMenu) {
         layerMenu.classList.add('hidden');
       }
+
+      // Close Mobile More menu if clicking outside
+      const moreWrapper = document.getElementById('mobile-more-wrapper');
+      const moreMenu = document.getElementById('mobile-more-menu');
+      if (moreWrapper && !moreWrapper.contains(e.target) && moreMenu) {
+        moreMenu.classList.add('hidden');
+      }
     });
 
-    // Close any open modals on Escape key
+    // Close any open modals or menus on Escape key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        const moreMenu = document.getElementById('mobile-more-menu');
+        if (moreMenu) moreMenu.classList.add('hidden');
+        const themeMenu = document.getElementById('theme-menu');
+        if (themeMenu) themeMenu.classList.add('hidden');
+        const layerMenu = document.getElementById('layer-menu');
+        if (layerMenu) layerMenu.classList.add('hidden');
+
         const openModals = document.querySelectorAll('.modal-overlay:not(.hidden)');
         openModals.forEach((m) => {
           if (m.id === 'about-modal') {
@@ -1828,15 +2138,69 @@
     window.history.replaceState({}, document.title, newUrl);
   }
 
+  async function handleIncomingShareTarget(explicitText = null) {
+    let sharedPayload = explicitText;
+    if (!sharedPayload) {
+      const params = new URLSearchParams(window.location.search);
+      sharedPayload = params.get('url') || params.get('text') || params.get('title');
+      if (params.has('url') || params.has('text') || params.has('title')) {
+        params.delete('url');
+        params.delete('text');
+        params.delete('title');
+        const newSearch = params.toString();
+        const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    }
+
+    if (!sharedPayload || !sharedPayload.trim()) return;
+
+    // Extract URL or address from shared text
+    const text = sharedPayload.trim();
+    const urlMatch = text.match(/(https?:\/\/[^\s]+)/i);
+    const linkToSave = urlMatch ? urlMatch[0] : text;
+
+    ToastManager.show('📥 Processing shared location link...', 'info');
+
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.classList.remove('hidden');
+
+    try {
+      const targetListId = (State.currentListFilter && !isNaN(parseInt(State.currentListFilter, 10)))
+        ? parseInt(State.currentListFilter, 10)
+        : (State.lists[0] ? State.lists[0].id : 1);
+
+      const json = await ApiClient.ingestPin(linkToSave, targetListId);
+      if (overlay) overlay.classList.add('hidden');
+
+      if (json && json.success && json.data) {
+        State.allPins.unshift(json.data);
+        UIManager.renderAll();
+        ToastManager.show(`✨ Saved "${json.data.title}"!`, 'success');
+        if (window.innerWidth <= 768) {
+          UIManager.showMobileView('map');
+        }
+        MapController.flyToPin(json.data.id);
+      } else {
+        ToastManager.show((json && json.error) || 'Failed to extract location. Tap "+ Add Place" to add manually.', 'error');
+      }
+    } catch (err) {
+      if (overlay) overlay.classList.add('hidden');
+      ToastManager.show(err.message || 'Error processing shared link', 'error');
+    }
+  }
+
   // ==========================================================================
   // 13. Application Lifecycle Initialization
   // ==========================================================================
   document.addEventListener('DOMContentLoaded', async () => {
     ThemeManager.init();
     MapController.init();
+    OfflineManager.init();
 
     await handleIncomingSyncLink();
     await handleIncomingJoinLink();
+    await handleIncomingShareTarget();
 
     try {
       const lists = await ApiClient.fetchLists();
@@ -1896,6 +2260,19 @@
   // Theme
   window.setTheme = (theme) => ThemeManager.set(theme);
   window.toggleThemeMenu = () => ThemeManager.toggleMenu();
+  window.toggleMobileMoreMenu = () => {
+    const menu = document.getElementById('mobile-more-menu');
+    if (menu) {
+      menu.classList.toggle('hidden');
+      if (!menu.classList.contains('hidden') && window.lucide) {
+        window.lucide.createIcons();
+      }
+    }
+  };
+  window.closeMobileMoreMenu = () => {
+    const menu = document.getElementById('mobile-more-menu');
+    if (menu) menu.classList.add('hidden');
+  };
 
   // Navigation & Map
   window.toggleSidebar = () => UIManager.toggleSidebar();
@@ -1905,6 +2282,7 @@
   window.toggleLayerMenu = () => MapController.toggleLayerMenu();
   window.toggleLayerSwitcher = window.toggleLayerMenu;
   window.switchMapLayer = (layerKey) => MapController.switchLayer(layerKey);
+  window.toggleRouteLine = () => MapController.toggleRouteLine();
 
   // About & Info
   window.openAboutModal = () => ModalManager.openAboutModal();
@@ -1971,4 +2349,6 @@
   window.handleSaveLinkSubmit = (e, inputId) => FeatureActions.handleSaveLinkSubmit(e, inputId);
   window.toggleVisited = (id) => FeatureActions.toggleVisited(id);
   window.deletePin = (id) => FeatureActions.deletePin(id);
+  window.openGoogleMapsRoute = () => FeatureActions.openGoogleMapsRoute();
+  window.handleNativeShare = (text) => handleIncomingShareTarget(text);
 })();

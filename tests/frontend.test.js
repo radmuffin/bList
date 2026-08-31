@@ -4,14 +4,18 @@ const {
   escapeHtml,
   isValidHttpUrl,
   sanitizeUrl,
+  resolveApiUrl,
+  parseShareTargetPayload,
   calculateDistance,
   formatDistance,
   validateCoordinates,
+  generateGoogleMapsRouteUrl,
   pinsToGeoJSON,
   geoJSONToPins,
   filterPins,
   sortPins,
   getEffectiveTheme,
+  encodePlusCode,
   APP_INFO,
   getAppInfo
 } = require('../static/helpers.js');
@@ -63,6 +67,7 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(isValidHttpUrl('javascript:alert(1)'), false);
       assert.strictEqual(isValidHttpUrl(''), false);
       assert.strictEqual(isValidHttpUrl(null), false);
+      assert.strictEqual(isValidHttpUrl(undefined), false);
       assert.strictEqual(isValidHttpUrl('not a url'), false);
     });
 
@@ -80,18 +85,183 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
     it('should block javascript: and malicious protocols', () => {
       assert.strictEqual(sanitizeUrl('javascript:alert("XSS")'), '');
       assert.strictEqual(sanitizeUrl('JAVASCRIPT:alert(1)'), '');
+      assert.strictEqual(sanitizeUrl('java\nscript:alert(1)'), '');
+      assert.strictEqual(sanitizeUrl('java\r\nscript:alert(1)'), '');
       assert.strictEqual(sanitizeUrl('data:text/html,<script>alert(1)</script>'), '');
       assert.strictEqual(sanitizeUrl('vbscript:msgbox(1)'), '');
       assert.strictEqual(sanitizeUrl('file:///etc/passwd'), '');
+      assert.strictEqual(sanitizeUrl('blob:http://example.com/uuid'), '');
+      assert.strictEqual(sanitizeUrl('about:blank'), '');
+      assert.strictEqual(sanitizeUrl('tel:+1234567890'), '');
+      assert.strictEqual(sanitizeUrl('mailto:user@example.com'), '');
     });
 
     it('should allow valid relative paths', () => {
       assert.strictEqual(sanitizeUrl('/api/pins'), '/api/pins');
       assert.strictEqual(sanitizeUrl('/static/images/logo.png'), '/static/images/logo.png');
+      assert.strictEqual(sanitizeUrl('/api/pins?status=visited&category=Food'), '/api/pins?status=visited&category=Food');
     });
 
     it('should reject protocol-relative URLs starting with // to avoid open redirects', () => {
       assert.strictEqual(sanitizeUrl('//evil.com/phish'), '');
+      assert.strictEqual(sanitizeUrl('///evil.com'), '');
+    });
+
+    it('should handle null, undefined, empty, and non-string inputs safely', () => {
+      assert.strictEqual(sanitizeUrl(null), '');
+      assert.strictEqual(sanitizeUrl(undefined), '');
+      assert.strictEqual(sanitizeUrl(''), '');
+      assert.strictEqual(sanitizeUrl(12345), '');
+      assert.strictEqual(sanitizeUrl({}), '');
+    });
+  });
+
+  describe('API URL Resolution (resolveApiUrl / ApiClient.getUrl)', () => {
+    it('should preserve absolute HTTP and HTTPS URLs as-is', () => {
+      assert.strictEqual(
+        resolveApiUrl('https://api.example.com/pins'),
+        'https://api.example.com/pins'
+      );
+      assert.strictEqual(
+        resolveApiUrl('http://localhost:3000/api/info'),
+        'http://localhost:3000/api/info'
+      );
+    });
+
+    it('should return relative paths unchanged when no baseUrl is provided', () => {
+      assert.strictEqual(resolveApiUrl('/api/pins'), '/api/pins');
+      assert.strictEqual(resolveApiUrl('/api/lists'), '/api/lists');
+    });
+
+    it('should resolve relative paths against custom base URL with proper slash normalization', () => {
+      assert.strictEqual(
+        resolveApiUrl('/api/pins', 'http://localhost:3000'),
+        'http://localhost:3000/api/pins'
+      );
+      assert.strictEqual(
+        resolveApiUrl('api/pins', 'http://localhost:3000/'),
+        'http://localhost:3000/api/pins'
+      );
+      assert.strictEqual(
+        resolveApiUrl('/api/lists/1', 'https://blist.fly.dev/'),
+        'https://blist.fly.dev/api/lists/1'
+      );
+    });
+
+    it('should resolve against default native host when isNative is true and no base is specified', () => {
+      assert.strictEqual(
+        resolveApiUrl('/api/pins', '', true),
+        'https://blist.fly.dev/api/pins'
+      );
+      assert.strictEqual(
+        resolveApiUrl('api/geocode?q=Paris', '', true),
+        'https://blist.fly.dev/api/geocode?q=Paris'
+      );
+    });
+
+    it('should handle empty, null, or invalid endpoints safely', () => {
+      assert.strictEqual(resolveApiUrl(''), '');
+      assert.strictEqual(resolveApiUrl(null), '');
+      assert.strictEqual(resolveApiUrl(undefined), '');
+      assert.strictEqual(resolveApiUrl('   '), '');
+    });
+  });
+
+  describe('Web Share Target Parsing (parseShareTargetPayload / handleIncomingShareTarget)', () => {
+    it('should extract direct URL when provided in url parameter', () => {
+      const result = parseShareTargetPayload({
+        url: 'https://maps.google.com/?q=Tokyo+Tower',
+        title: 'Tokyo Tower',
+        text: 'Famous red landmark'
+      });
+      assert.strictEqual(result.url, 'https://maps.google.com/?q=Tokyo+Tower');
+      assert.strictEqual(result.title, 'Tokyo Tower');
+      assert.strictEqual(result.text, 'Famous red landmark');
+      assert.strictEqual(result.isUrlCandidate, true);
+    });
+
+    it('should extract embedded URL when hidden inside text parameter', () => {
+      const result = parseShareTargetPayload({
+        title: 'Check this place out',
+        text: 'Best bakery in town! https://maps.app.goo.gl/Bakery123'
+      });
+      assert.strictEqual(result.url, 'https://maps.app.goo.gl/Bakery123');
+      assert.strictEqual(result.title, 'Check this place out');
+      assert.strictEqual(result.text, 'Best bakery in town!');
+      assert.strictEqual(result.isUrlCandidate, true);
+    });
+
+    it('should parse multi-line share text and derive title from first line when title is empty', () => {
+      const result = parseShareTargetPayload({
+        title: '',
+        text: 'Senso-ji Temple\n2 Chome-3-1 Asakusa, Taito City, Tokyo\nhttps://maps.google.com/?cid=98765'
+      });
+      assert.strictEqual(result.url, 'https://maps.google.com/?cid=98765');
+      assert.strictEqual(result.title, 'Senso-ji Temple');
+      assert.ok(result.text.includes('2 Chome-3-1 Asakusa'));
+      assert.strictEqual(result.isUrlCandidate, true);
+    });
+
+    it('should handle Instagram post shares', () => {
+      const result = parseShareTargetPayload({
+        title: 'Instagram Post',
+        text: 'Awesome ramen joint https://www.instagram.com/p/C_abc123xyz/'
+      });
+      assert.strictEqual(result.url, 'https://www.instagram.com/p/C_abc123xyz/');
+      assert.strictEqual(result.isUrlCandidate, true);
+    });
+
+    it('should handle Apple Maps share URLs', () => {
+      const result = parseShareTargetPayload({
+        text: 'https://maps.apple.com/?address=1+Infinite+Loop,+Cupertino,+CA'
+      });
+      assert.strictEqual(result.url, 'https://maps.apple.com/?address=1+Infinite+Loop,+Cupertino,+CA');
+      assert.strictEqual(result.isUrlCandidate, true);
+    });
+
+    it('should recognize plain text queries without URLs', () => {
+      const result = parseShareTargetPayload({
+        text: 'Louvre Museum Paris'
+      });
+      assert.strictEqual(result.url, '');
+      assert.strictEqual(result.title, 'Louvre Museum Paris');
+      assert.strictEqual(result.isUrlCandidate, false);
+    });
+
+    it('should parse URL-encoded query strings directly', () => {
+      const query = '?title=Kyoto+Shrine&text=Historic+place&url=https%3A%2F%2Fmaps.google.com%2F%3Fq%3DKyoto';
+      const result = parseShareTargetPayload(query);
+      assert.strictEqual(result.url, 'https://maps.google.com/?q=Kyoto');
+      assert.strictEqual(result.title, 'Kyoto Shrine');
+      assert.strictEqual(result.isUrlCandidate, true);
+    });
+
+    it('should handle URL passed purely in title parameter', () => {
+      const result = parseShareTargetPayload({
+        title: 'https://maps.google.com/?q=London',
+        text: '',
+        url: ''
+      });
+      assert.strictEqual(result.url, 'https://maps.google.com/?q=London');
+      assert.strictEqual(result.isUrlCandidate, true);
+    });
+
+    it('should handle null, undefined, empty, and non-object inputs safely', () => {
+      assert.deepStrictEqual(parseShareTargetPayload(null), {
+        url: '',
+        title: '',
+        text: '',
+        rawText: '',
+        isUrlCandidate: false
+      });
+      assert.deepStrictEqual(parseShareTargetPayload(undefined), {
+        url: '',
+        title: '',
+        text: '',
+        rawText: '',
+        isUrlCandidate: false
+      });
+      assert.strictEqual(parseShareTargetPayload('').isUrlCandidate, false);
     });
   });
 
@@ -146,12 +316,18 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(feat1.properties.category, 'Sightseeing');
     });
 
-    it('should filter out pins with invalid coordinates during GeoJSON export', () => {
+    it('should filter out pins with invalid or out-of-bounds coordinates during GeoJSON export', () => {
       const invalidPins = [
         ...mockPins,
-        { id: 3, title: 'Invalid Lat', latitude: 999.0, longitude: 10.0 },
-        { id: 4, title: 'NaN Coords', latitude: NaN, longitude: 10.0 },
-        { id: 5, title: 'Invalid Lon', latitude: 45.0, longitude: -500.0 }
+        { id: 3, title: 'Invalid Lat High', latitude: 90.0001, longitude: 10.0 },
+        { id: 4, title: 'Invalid Lat Low', latitude: -90.0001, longitude: 10.0 },
+        { id: 5, title: 'Invalid Lon High', latitude: 45.0, longitude: 180.0001 },
+        { id: 6, title: 'Invalid Lon Low', latitude: 45.0, longitude: -180.0001 },
+        { id: 7, title: 'NaN Coords', latitude: NaN, longitude: 10.0 },
+        { id: 8, title: 'Infinity Coords', latitude: Infinity, longitude: 0.0 },
+        { id: 9, title: 'Null Coords', latitude: null, longitude: null },
+        { id: 10, title: 'Boolean Coords', latitude: false, longitude: true },
+        { id: 11, title: 'Array Coords', latitude: [48.8], longitude: [2.3] }
       ];
 
       const geojson = pinsToGeoJSON(invalidPins);
@@ -188,14 +364,31 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(parsed[0].visited, true);
     });
 
-    it('should validate geographical coordinates within bounds (-90..90, -180..180)', () => {
+    it('should validate geographical coordinates within exact bounds (-90..90, -180..180)', () => {
+      // Valid boundaries
       assert.strictEqual(validateCoordinates(0, 0), true);
       assert.strictEqual(validateCoordinates(90, 180), true);
       assert.strictEqual(validateCoordinates(-90, -180), true);
-      assert.strictEqual(validateCoordinates(90.1, 0), false);
-      assert.strictEqual(validateCoordinates(-90.1, 0), false);
-      assert.strictEqual(validateCoordinates(0, 180.1), false);
-      assert.strictEqual(validateCoordinates(0, -180.1), false);
+      assert.strictEqual(validateCoordinates(45.5, -122.6), true);
+      assert.strictEqual(validateCoordinates('35.6895', '139.6917'), true);
+
+      // Out of bounds
+      assert.strictEqual(validateCoordinates(90.0001, 0), false);
+      assert.strictEqual(validateCoordinates(-90.0001, 0), false);
+      assert.strictEqual(validateCoordinates(0, 180.0001), false);
+      assert.strictEqual(validateCoordinates(0, -180.0001), false);
+      assert.strictEqual(validateCoordinates(1000, 2000), false);
+
+      // Non-numeric & invalid types
+      assert.strictEqual(validateCoordinates(null, 0), false);
+      assert.strictEqual(validateCoordinates(0, null), false);
+      assert.strictEqual(validateCoordinates(undefined, 0), false);
+      assert.strictEqual(validateCoordinates(false, true), false);
+      assert.strictEqual(validateCoordinates(NaN, 0), false);
+      assert.strictEqual(validateCoordinates(0, Infinity), false);
+      assert.strictEqual(validateCoordinates(-Infinity, 0), false);
+      assert.strictEqual(validateCoordinates([48.8], 2.3), false);
+      assert.strictEqual(validateCoordinates({ lat: 48.8 }, 2.3), false);
       assert.strictEqual(validateCoordinates('invalid', 0), false);
     });
   });
@@ -207,9 +400,10 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.ok(Math.abs(distance - 343.5) < 5.0, `Expected ~343.5km, got ${distance}`);
     });
 
-    it('should return 0 distance for identical coordinates', () => {
-      const distance = calculateDistance(35.6586, 139.7454, 35.6586, 139.7454);
-      assert.strictEqual(distance, 0);
+    it('should return 0 distance for identical coordinates or invalid inputs', () => {
+      assert.strictEqual(calculateDistance(35.6586, 139.7454, 35.6586, 139.7454), 0);
+      assert.strictEqual(calculateDistance(NaN, 0, 10, 10), 0);
+      assert.strictEqual(calculateDistance(0, 0, null, 10), 0);
     });
 
     it('should format distances properly in meters for < 1km and miles/km for >= 1km', () => {
@@ -217,6 +411,23 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(formatDistance(0.05), '50 m away');
       assert.strictEqual(formatDistance(10.0), '6.2 mi away (10.0 km)');
       assert.strictEqual(formatDistance(100.0), '62.1 mi away (100.0 km)');
+      assert.strictEqual(formatDistance(-5), '0 m away');
+      assert.strictEqual(formatDistance(NaN), '0 m away');
+    });
+  });
+
+  describe('Plus Code / Open Location Code Encoding', () => {
+    it('should encode Eiffel Tower coordinates into a valid Plus Code', () => {
+      const code = encodePlusCode(48.8584, 2.2945);
+      assert.ok(code.length >= 8);
+      assert.ok(code.includes('+'));
+    });
+
+    it('should handle edge cases like poles and meridian', () => {
+      assert.ok(encodePlusCode(90.0, 0.0).includes('+'));
+      assert.ok(encodePlusCode(-90.0, 0.0).includes('+'));
+      assert.ok(encodePlusCode(0.0, 180.0).includes('+'));
+      assert.strictEqual(encodePlusCode(NaN, 0.0), '');
     });
   });
 
@@ -261,27 +472,22 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
     });
 
     it('should search case-insensitively across title, address, notes, and description', () => {
-      // Search title
       const searchTitle = filterPins(pins, { search: 'ichiran' });
       assert.strictEqual(searchTitle.length, 1);
       assert.strictEqual(searchTitle[0].title, 'Ichiran Ramen');
 
-      // Search address
       const searchAddress = filterPins(pins, { search: 'Harajuku' });
       assert.strictEqual(searchAddress.length, 1);
       assert.strictEqual(searchAddress[0].title, 'Meiji Shrine');
 
-      // Search notes
       const searchNotes = filterPins(pins, { search: 'cold brew' });
       assert.strictEqual(searchNotes.length, 1);
       assert.strictEqual(searchNotes[0].title, 'Blue Bottle Coffee');
 
-      // Search description
       const searchDesc = filterPins(pins, { search: 'morning market' });
       assert.strictEqual(searchDesc.length, 1);
       assert.strictEqual(searchDesc[0].title, 'Tsukiji Outer Market');
 
-      // Non-matching search
       const noMatch = filterPins(pins, { search: 'nonexistentquery123' });
       assert.strictEqual(noMatch.length, 0);
     });
@@ -295,6 +501,12 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       });
       assert.strictEqual(combined.length, 1);
       assert.strictEqual(combined[0].title, 'Ichiran Ramen');
+    });
+
+    it('should handle empty or null pin list safely', () => {
+      assert.deepStrictEqual(filterPins(null), []);
+      assert.deepStrictEqual(filterPins(undefined), []);
+      assert.deepStrictEqual(filterPins([]), []);
     });
   });
 
@@ -325,6 +537,11 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       const sorted = sortPins(pins, 'nearest', userLoc);
       assert.deepStrictEqual(sorted.map(p => p.id), [1, 2, 3]);
     });
+
+    it('should handle null or empty lists safely', () => {
+      assert.deepStrictEqual(sortPins(null), []);
+      assert.deepStrictEqual(sortPins([]), []);
+    });
   });
 
   describe('Theme Management (getEffectiveTheme)', () => {
@@ -354,6 +571,76 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
     it('should return a frozen/immutable or isolated object', () => {
       assert.strictEqual(typeof APP_INFO, 'object');
       assert.strictEqual(Object.isFrozen(APP_INFO), true);
+    });
+  });
+
+  describe('Trip Planning Progress & Route Calculations', () => {
+    it('should correctly calculate trip progress percentage', () => {
+      const calculateProgress = (pins) => {
+        if (!pins || pins.length === 0) return { total: 0, visited: 0, percentage: 0 };
+        const total = pins.length;
+        const visited = pins.filter(p => p.visited).length;
+        const percentage = Math.round((visited / total) * 100);
+        return { total, visited, percentage };
+      };
+
+      assert.deepStrictEqual(calculateProgress([]), { total: 0, visited: 0, percentage: 0 });
+      assert.deepStrictEqual(
+        calculateProgress([{ id: 1, visited: false }, { id: 2, visited: true }, { id: 3, visited: false }, { id: 4, visited: true }]),
+        { total: 4, visited: 2, percentage: 50 }
+      );
+      assert.deepStrictEqual(
+        calculateProgress([{ id: 1, visited: true }, { id: 2, visited: true }]),
+        { total: 2, visited: 2, percentage: 100 }
+      );
+    });
+
+    it('should calculate sequential route distances between multi-stop pins', () => {
+      const calculateTotalRoute = (pins) => {
+        if (!pins || pins.length < 2) return 0;
+        let total = 0;
+        for (let i = 0; i < pins.length - 1; i++) {
+          total += calculateDistance(pins[i].latitude, pins[i].longitude, pins[i + 1].latitude, pins[i + 1].longitude);
+        }
+        return total;
+      };
+
+      const testPins = [
+        { latitude: 48.8584, longitude: 2.2945 }, // Eiffel Tower, Paris
+        { latitude: 48.8606, longitude: 2.3376 }, // Louvre Museum, Paris (~3.2 km)
+        { latitude: 48.8529, longitude: 2.3500 }  // Notre-Dame, Paris (~1.2 km)
+      ];
+
+      const routeKm = calculateTotalRoute(testPins);
+      assert.ok(routeKm > 4.0 && routeKm < 5.0, `Expected total route between 4 and 5 km, got ${routeKm}`);
+    });
+
+    it('should generate a valid Google Maps multi-stop directions URL', () => {
+      const testPins = [
+        { latitude: 35.6586, longitude: 139.7454 }, // Tokyo Tower
+        { latitude: 35.7148, longitude: 139.7967 }, // Senso-ji
+        { latitude: 35.6595, longitude: 139.7005 }  // Shibuya Crossing
+      ];
+
+      const url = generateGoogleMapsRouteUrl(testPins);
+      assert.strictEqual(
+        url,
+        'https://www.google.com/maps/dir/35.6586,139.7454/35.7148,139.7967/35.6595,139.7005'
+      );
+    });
+
+    it('should cap Google Maps route stops at maxStops and reject invalid inputs', () => {
+      assert.strictEqual(generateGoogleMapsRouteUrl(null), null);
+      assert.strictEqual(generateGoogleMapsRouteUrl([]), null);
+      assert.strictEqual(generateGoogleMapsRouteUrl([{ latitude: 10, longitude: 20 }]), null);
+
+      const manyPins = Array.from({ length: 15 }, (_, i) => ({
+        latitude: 10 + i,
+        longitude: 20 + i
+      }));
+      const url = generateGoogleMapsRouteUrl(manyPins, 5);
+      const parts = url.replace('https://www.google.com/maps/dir/', '').split('/');
+      assert.strictEqual(parts.length, 5);
     });
   });
 

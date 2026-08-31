@@ -24,6 +24,7 @@ pub struct AppState {
     pub geocoder: Arc<Geocoder>,
 }
 
+#[derive(Debug, Clone)]
 pub struct UserToken(pub String);
 
 #[axum::async_trait]
@@ -1341,4 +1342,229 @@ mod tests {
         assert_eq!(info["issues_url"], "https://github.com/radmuffin/bList/issues");
         assert_eq!(info["license"], "MIT");
     }
+
+    #[tokio::test]
+    async fn test_routes_user_token_extractor_header_and_query() {
+        use axum::http::Request;
+
+        let state = setup_test_in_memory_state();
+
+        // 1. Header token
+        let req1 = Request::builder()
+            .header("x-user-token", "header-device-123")
+            .body(())
+            .unwrap();
+        let (mut parts1, _) = req1.into_parts();
+        let token1 = UserToken::from_request_parts(&mut parts1, &state).await.expect("extract header");
+        assert_eq!(token1.0, "header-device-123");
+
+        // 2. Query param token
+        let req2 = Request::builder()
+            .uri("/api/pins?user_token=query-device-456&list_id=1")
+            .body(())
+            .unwrap();
+        let (mut parts2, _) = req2.into_parts();
+        let token2 = UserToken::from_request_parts(&mut parts2, &state).await.expect("extract query");
+        assert_eq!(token2.0, "query-device-456");
+
+        // 3. Encoded query param token
+        let req3 = Request::builder()
+            .uri("/api/pins?user_token=device%20custom%20token")
+            .body(())
+            .unwrap();
+        let (mut parts3, _) = req3.into_parts();
+        let token3 = UserToken::from_request_parts(&mut parts3, &state).await.expect("extract encoded query");
+        assert_eq!(token3.0, "device custom token");
+
+        // 4. Missing token -> rejected with 400 Bad Request
+        let req4 = Request::builder()
+            .uri("/api/pins")
+            .body(())
+            .unwrap();
+        let (mut parts4, _) = req4.into_parts();
+        let err4 = UserToken::from_request_parts(&mut parts4, &state).await;
+        assert!(err4.is_err());
+        let (status, _) = err4.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+
+        // 5. Empty token -> rejected with 400 Bad Request
+        let req5 = Request::builder()
+            .header("x-user-token", "   ")
+            .body(())
+            .unwrap();
+        let (mut parts5, _) = req5.into_parts();
+        let err5 = UserToken::from_request_parts(&mut parts5, &state).await;
+        assert!(err5.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_routes_pin_filtering_combined_matrix() {
+        let state = setup_test_in_memory_state();
+        let token = UserToken("tester-filter-matrix".to_string());
+
+        // Create list 2
+        let (_, Json(res_list)) = create_list(
+            State(state.clone()),
+            token.clone(),
+            Json(CreateListRequest {
+                name: "European Tour".to_string(),
+                icon: Some("✈️".to_string()),
+            }),
+        ).await;
+        let list2 = res_list.data.unwrap();
+
+        // Pin 1: List 1, Cafe, Visited
+        let _ = create_pin(
+            State(state.clone()),
+            token.clone(),
+            Json(CreatePinRequest {
+                list_id: Some(1),
+                title: "Cafe de Flore".to_string(),
+                description: Some("Historic Parisian coffee shop".to_string()),
+                latitude: 48.8542,
+                longitude: 2.3325,
+                category: Some("Cafe".to_string()),
+                source_url: None,
+                image_url: None,
+                address: Some("Saint-Germain-des-Prés, Paris".to_string()),
+                notes: Some("Famous hot chocolate".to_string()),
+                visited: Some(true),
+            }),
+        ).await;
+
+        // Pin 2: List 1, Sightseeing, Bucket
+        let _ = create_pin(
+            State(state.clone()),
+            token.clone(),
+            Json(CreatePinRequest {
+                list_id: Some(1),
+                title: "Eiffel Tower".to_string(),
+                description: Some("Iron lattice tower on Champ de Mars".to_string()),
+                latitude: 48.8584,
+                longitude: 2.2945,
+                category: Some("Sightseeing".to_string()),
+                source_url: None,
+                image_url: None,
+                address: Some("Paris, France".to_string()),
+                notes: Some("Visit at golden hour".to_string()),
+                visited: Some(false),
+            }),
+        ).await;
+
+        // Pin 3: List 2, Cafe, Bucket
+        let _ = create_pin(
+            State(state.clone()),
+            token.clone(),
+            Json(CreatePinRequest {
+                list_id: Some(list2.id),
+                title: "Caffe Florian".to_string(),
+                description: Some("Oldest coffeehouse in Venice".to_string()),
+                latitude: 45.4337,
+                longitude: 12.3381,
+                category: Some("Cafe".to_string()),
+                source_url: None,
+                image_url: None,
+                address: Some("Piazza San Marco, Venice, Italy".to_string()),
+                notes: Some("Live orchestral music outside".to_string()),
+                visited: Some(false),
+            }),
+        ).await;
+
+        // Query 1: All pins for user
+        let (status, Json(res)) = list_pins(
+            State(state.clone()),
+            token.clone(),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: None,
+            }),
+        ).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(res.data.unwrap().len(), 3);
+
+        // Query 2: Filter by List 1 only
+        let (_, Json(res)) = list_pins(
+            State(state.clone()),
+            token.clone(),
+            Query(ListPinsQuery {
+                list_id: Some(1),
+                category: None,
+                visited: None,
+                search: None,
+            }),
+        ).await;
+        assert_eq!(res.data.unwrap().len(), 2);
+
+        // Query 3: Filter by category Cafe across all lists
+        let (_, Json(res)) = list_pins(
+            State(state.clone()),
+            token.clone(),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: Some("Cafe".to_string()),
+                visited: None,
+                search: None,
+            }),
+        ).await;
+        assert_eq!(res.data.unwrap().len(), 2);
+
+        // Query 4: Filter by category Cafe in List 1
+        let (_, Json(res)) = list_pins(
+            State(state.clone()),
+            token.clone(),
+            Query(ListPinsQuery {
+                list_id: Some(1),
+                category: Some("Cafe".to_string()),
+                visited: None,
+                search: None,
+            }),
+        ).await;
+        let pins = res.data.unwrap();
+        assert_eq!(pins.len(), 1);
+        assert_eq!(pins[0].title, "Cafe de Flore");
+
+        // Query 5: Filter visited = true
+        let (_, Json(res)) = list_pins(
+            State(state.clone()),
+            token.clone(),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: Some(true),
+                search: None,
+            }),
+        ).await;
+        assert_eq!(res.data.unwrap().len(), 1);
+
+        // Query 6: Search notes match "orchestral"
+        let (_, Json(res)) = list_pins(
+            State(state.clone()),
+            token.clone(),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: Some("orchestral".to_string()),
+            }),
+        ).await;
+        let search_res = res.data.unwrap();
+        assert_eq!(search_res.len(), 1);
+        assert_eq!(search_res[0].title, "Caffe Florian");
+
+        // Query 7: Search no match
+        let (_, Json(res)) = list_pins(
+            State(state.clone()),
+            token.clone(),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: Some("UnmatchedKeyword12345".to_string()),
+            }),
+        ).await;
+        assert_eq!(res.data.unwrap().len(), 0);
+    }
+
 }

@@ -1152,4 +1152,123 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_apple_maps_scraper_can_handle_and_url_extraction() {
+        let scraper = AppleMapsScraper;
+        assert!(scraper.can_handle("https://maps.apple.com/?ll=37.7749,-122.4194&q=San+Francisco"));
+        assert!(scraper.can_handle("https://maps.apple.com/?address=1+Infinite+Loop,+Cupertino,+CA"));
+        assert!(scraper.can_handle("http://maps.apple.com/place?auid=123456"));
+        assert!(!scraper.can_handle("https://maps.google.com/?q=Paris"));
+        assert!(!scraper.can_handle("https://www.instagram.com/p/123"));
+
+        // Test coordinate regex
+        let re_ll = Regex::new(r"[?&](?:ll|coordinate)=(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
+        let caps = re_ll.captures("https://maps.apple.com/?ll=37.7749,-122.4194&q=SF").unwrap();
+        assert_eq!(caps.get(1).unwrap().as_str(), "37.7749");
+        assert_eq!(caps.get(2).unwrap().as_str(), "-122.4194");
+
+        let caps_coord = re_ll.captures("https://maps.apple.com/?coordinate=48.8584,2.2945").unwrap();
+        assert_eq!(caps_coord.get(1).unwrap().as_str(), "48.8584");
+        assert_eq!(caps_coord.get(2).unwrap().as_str(), "2.2945");
+
+        // Test address regex
+        let re_address = Regex::new(r"[?&]address=([^&]+)").unwrap();
+        let caps_addr = re_address.captures("https://maps.apple.com/?address=1+Infinite+Loop,+Cupertino,+CA").unwrap();
+        let raw_addr = caps_addr.get(1).unwrap().as_str();
+        let unencoded = urlencoding::decode(raw_addr).unwrap();
+        let clean = unencoded.replace('+', " ");
+        assert_eq!(clean, "1 Infinite Loop, Cupertino, CA");
+    }
+
+    #[test]
+    fn test_google_maps_scraper_can_handle_and_url_patterns() {
+        let scraper = GoogleMapsScraper;
+        assert!(scraper.can_handle("https://maps.google.com/?q=Paris"));
+        assert!(scraper.can_handle("https://www.google.com/maps/place/Tokyo+Tower/@35.6586,139.7454,17z"));
+        assert!(scraper.can_handle("https://goo.gl/maps/xyz123"));
+        assert!(scraper.can_handle("https://maps.app.goo.gl/abc456"));
+        assert!(scraper.can_handle("https://www.google.com/maps/search/Sushi+Dai+Tokyo"));
+        assert!(!scraper.can_handle("https://maps.apple.com/?q=Tokyo"));
+        assert!(!scraper.can_handle("https://example.com/map"));
+
+        // Test !3d and !4d coordinate regex
+        let re_3d4d = Regex::new(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)").unwrap();
+        let url = "https://www.google.com/maps/place/Tokyo+Tower/@35.6585805,139.7454329,17z/data=!4m6!3m5!1s0x60188bbd9009a093:0x39a04a79d60f90e5!8m2!3d35.6585805!4d139.7454329";
+        let caps = re_3d4d.captures(url).unwrap();
+        assert_eq!(caps.get(1).unwrap().as_str(), "35.6585805");
+        assert_eq!(caps.get(2).unwrap().as_str(), "139.7454329");
+
+        // Test place path regex
+        let re_place = Regex::new(r"/maps/place/([^/@?]+)").unwrap();
+        let caps_place = re_place.captures("https://www.google.com/maps/place/Grand+Canyon+National+Park/@36.0544,-112.1401").unwrap();
+        let place_raw = caps_place.get(1).unwrap().as_str();
+        let place_clean = urlencoding::decode(place_raw).unwrap().replace('+', " ");
+        assert_eq!(place_clean, "Grand Canyon National Park");
+
+        // Test search path regex
+        let re_search = Regex::new(r"/maps/search/([^/@?]+)").unwrap();
+        let caps_search = re_search.captures("https://www.google.com/maps/search/Best+Croissants+Paris").unwrap();
+        let search_raw = caps_search.get(1).unwrap().as_str();
+        let search_clean = urlencoding::decode(search_raw).unwrap().replace('+', " ");
+        assert_eq!(search_clean, "Best Croissants Paris");
+    }
+
+    #[test]
+    fn test_social_and_directory_scrapers_can_handle() {
+        assert!(InstagramScraper.can_handle("https://www.instagram.com/p/C_abc123/"));
+        assert!(InstagramScraper.can_handle("https://instagr.am/reel/xyz789/"));
+        assert!(!InstagramScraper.can_handle("https://twitter.com/post/123"));
+
+        assert!(TikTokScraper.can_handle("https://www.tiktok.com/@foodie/video/123456789"));
+        assert!(TripAdvisorScraper.can_handle("https://www.tripadvisor.com/Restaurant_Review-g60763-d12345"));
+        assert!(YelpScraper.can_handle("https://www.yelp.com/biz/tartine-bakery-san-francisco"));
+        assert!(AllTrailsScraper.can_handle("https://www.alltrails.com/trail/us/california/yosemite-falls"));
+        assert!(GenericHtmlScraper.can_handle("https://anytravelblog.com/top-10-spots-rome"));
+    }
+
+    #[test]
+    fn test_html_extraction_helpers() {
+        let html = r#"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Central Park, NYC</title>
+            <meta property="og:title" content="Central Park Iconic Green Space" />
+            <meta property="og:description" content="5th Ave, New York, NY 10022" />
+            <meta property="og:image" content="https://example.com/centralpark.jpg" />
+            <meta itemprop="latitude" content="40.785091" />
+            <meta itemprop="longitude" content="-73.968285" />
+        </head>
+        <body>
+            <p>Welcome to NYC</p>
+        </body>
+        </html>"#;
+
+        let doc = Html::parse_document(html);
+        assert_eq!(
+            extract_meta_content(&doc, "meta[property='og:title']"),
+            Some("Central Park Iconic Green Space".to_string())
+        );
+        assert_eq!(
+            extract_meta_content(&doc, "meta[property='og:description']"),
+            Some("5th Ave, New York, NY 10022".to_string())
+        );
+        assert_eq!(
+            extract_meta_content(&doc, "meta[property='og:image']"),
+            Some("https://example.com/centralpark.jpg".to_string())
+        );
+        assert_eq!(
+            extract_tag_text(&doc, "title"),
+            Some("Central Park, NYC".to_string())
+        );
+        assert_eq!(
+            extract_meta_content(&doc, "meta[itemprop='latitude']").and_then(|s| s.parse::<f64>().ok()),
+            Some(40.785091)
+        );
+        assert_eq!(
+            extract_meta_content(&doc, "meta[itemprop='longitude']").and_then(|s| s.parse::<f64>().ok()),
+            Some(-73.968285)
+        );
+    }
+
 }

@@ -844,4 +844,56 @@ mod tests {
         assert!(geocoder.reverse_geocode(f64::NAN, 0.0).await.is_err());
         assert!(geocoder.reverse_geocode(0.0, f64::INFINITY).await.is_err());
     }
+
+    #[test]
+    fn test_geocoder_negative_caching() {
+        let cache = GeocoderCache::new();
+        // Insert negative cache entry (None)
+        cache.insert_forward("Nonexistent Place Atlantis", None);
+        assert_eq!(cache.get_forward("Nonexistent Place Atlantis"), Some(None));
+        assert_eq!(cache.get_forward("  nonexistent place atlantis  "), Some(None));
+
+        cache.insert_reverse(0.0, 0.0, None);
+        assert_eq!(cache.get_reverse(0.0, 0.0), Some(None));
+    }
+
+    #[tokio::test]
+    async fn test_mock_geocoder_multiple_locations_and_reverse() {
+        let mock = Arc::new(MockGeocoder::new());
+        mock.add_location(
+            "Tokyo Skytree",
+            GeoLocation {
+                latitude: 35.7100,
+                longitude: 139.8107,
+                display_name: "Tokyo Skytree, Sumida, Tokyo, Japan".to_string(),
+            },
+        );
+        mock.add_location(
+            "Colosseum",
+            GeoLocation {
+                latitude: 41.8902,
+                longitude: 12.4922,
+                display_name: "Colosseum, Piazza del Colosseo, Rome, Italy".to_string(),
+            },
+        );
+
+        let geocoder = Geocoder::with_provider(mock);
+
+        // Forward geocode Tokyo
+        let tokyo = geocoder.geocode("Tokyo Skytree").await.unwrap().expect("found tokyo");
+        assert!((tokyo.latitude - 35.7100).abs() < 1e-4);
+        assert!((tokyo.longitude - 139.8107).abs() < 1e-4);
+
+        // Forward geocode Rome
+        let rome = geocoder.geocode("  COLOSSEUM  ").await.unwrap().expect("found rome");
+        assert!((rome.latitude - 41.8902).abs() < 1e-4);
+
+        // Reverse geocode
+        let rev_tokyo = geocoder.reverse_geocode(35.7100, 139.8107).await.unwrap();
+        assert_eq!(rev_tokyo, Some("Tokyo Skytree, Sumida, Tokyo, Japan".to_string()));
+
+        let rev_rome = geocoder.reverse_geocode(41.8902, 12.4922).await.unwrap();
+        assert_eq!(rev_rome, Some("Colosseum, Piazza del Colosseo, Rome, Italy".to_string()));
+    }
+
 }

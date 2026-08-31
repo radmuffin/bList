@@ -1958,4 +1958,210 @@ mod tests {
         .is_none());
         assert!(toggle_visited(&conn, 9999).expect("toggle visited").is_none());
     }
+
+    #[test]
+    fn test_multi_device_sync_and_collaboration() {
+        let repo = SqliteRepository::open(":memory:").expect("open memory repo");
+
+        let token_a = "device_token_alice_123";
+        let token_b = "device_token_bob_456";
+        let token_c = "device_token_charlie_789";
+
+        // Auto-associate device A
+        repo.auto_associate_device(token_a).expect("associate A");
+        let lists_a = repo.list_lists(token_a).expect("list A");
+        assert_eq!(lists_a.len(), 1);
+        assert_eq!(lists_a[0].id, 1);
+
+        // Device A creates a new trip collection
+        let trip_a = repo
+            .create_list(
+                &CreateListRequest {
+                    name: "Kyoto Autumn Trip".to_string(),
+                    icon: Some("🍁".to_string()),
+                },
+                token_a,
+            )
+            .expect("create trip");
+
+        assert_eq!(trip_a.name, "Kyoto Autumn Trip");
+        assert_eq!(trip_a.icon, "🍁");
+        assert!(!trip_a.share_token.is_empty());
+
+        // Device A has permission, Device B and C do not yet
+        assert!(repo.check_permission(token_a, trip_a.id).expect("check perm A"));
+        assert!(!repo.check_permission(token_b, trip_a.id).expect("check perm B"));
+        assert!(!repo.check_permission(token_c, trip_a.id).expect("check perm C"));
+
+        // Device B joins list using the share token
+        let joined = repo
+            .join_list(&trip_a.share_token, token_b)
+            .expect("join list")
+            .expect("found list");
+        assert_eq!(joined.id, trip_a.id);
+        assert_eq!(joined.name, "Kyoto Autumn Trip");
+
+        // Device B now has permission
+        assert!(repo.check_permission(token_b, trip_a.id).expect("check perm B after join"));
+        // Device C still has no permission
+        assert!(!repo.check_permission(token_c, trip_a.id).expect("check perm C"));
+
+        // Both Device A and Device B see the list in list_lists
+        let lists_b = repo.list_lists(token_b).expect("list B");
+        assert_eq!(lists_b.len(), 1); // Only the joined Kyoto trip
+        assert!(lists_b.iter().any(|l| l.id == trip_a.id));
+
+        // Device B adds a pin to the shared list
+        let pin = repo
+            .create_pin(&CreatePinRequest {
+                list_id: Some(trip_a.id),
+                title: "Fushimi Inari Taisha".to_string(),
+                description: Some("Thousands of vermilion torii gates".to_string()),
+                latitude: 34.9671,
+                longitude: 135.7727,
+                category: Some("Sightseeing".to_string()),
+                source_url: None,
+                image_url: None,
+                address: Some("Kyoto, Japan".to_string()),
+                notes: Some("Hike to the summit".to_string()),
+                visited: Some(false),
+            })
+            .expect("create pin B");
+
+        // Device A fetches pins for the shared list and sees Device B's pin
+        let pins_a = repo
+            .list_pins(
+                &ListPinsQuery {
+                    list_id: Some(trip_a.id),
+                    category: None,
+                    visited: None,
+                    search: None,
+                },
+                token_a,
+            )
+            .expect("list pins A");
+        assert_eq!(pins_a.len(), 1);
+        assert_eq!(pins_a[0].id, pin.id);
+        assert_eq!(pins_a[0].title, "Fushimi Inari Taisha");
+
+        // Device A toggles visited status
+        let updated_pin = repo.toggle_visited(pin.id).expect("toggle visited").expect("pin exists");
+        assert!(updated_pin.visited);
+
+        // Device B sees the updated visited status
+        let pins_b = repo
+            .list_pins(
+                &ListPinsQuery {
+                    list_id: Some(trip_a.id),
+                    category: None,
+                    visited: None,
+                    search: None,
+                },
+                token_b,
+            )
+            .expect("list pins B");
+        assert_eq!(pins_b.len(), 1);
+        assert!(pins_b[0].visited);
+    }
+
+    #[test]
+    fn test_quota_counts_and_pin_filtering_edge_cases() {
+        let repo = SqliteRepository::open(":memory:").expect("open memory repo");
+        let token = "user_quota_tester";
+
+        assert_eq!(repo.count_user_lists(token).expect("count lists"), 1); // default list
+        assert_eq!(repo.count_user_pins(token).expect("count user pins"), 0);
+
+        let list2 = repo
+            .create_list(
+                &CreateListRequest {
+                    name: "Food Trip".to_string(),
+                    icon: Some("🍜".to_string()),
+                },
+                token,
+            )
+            .expect("create list 2");
+
+        assert_eq!(repo.count_user_lists(token).expect("count lists"), 2);
+
+        // Add pins
+        repo.create_pin(&CreatePinRequest {
+            list_id: Some(list2.id),
+            title: "Ramen Street".to_string(),
+            description: Some("Tokyo Station subterranean dining".to_string()),
+            latitude: 35.6812,
+            longitude: 139.7671,
+            category: Some("Food & Drink".to_string()),
+            source_url: None,
+            image_url: None,
+            address: Some("Tokyo Station, Tokyo, Japan".to_string()),
+            notes: Some("Try Rokurinsha tsukemen".to_string()),
+            visited: Some(true),
+        })
+        .expect("pin 1");
+
+        repo.create_pin(&CreatePinRequest {
+            list_id: Some(list2.id),
+            title: "Udon Shin".to_string(),
+            description: Some("Freshly made handmade noodles".to_string()),
+            latitude: 35.6865,
+            longitude: 139.6975,
+            category: Some("Food & Drink".to_string()),
+            source_url: None,
+            image_url: None,
+            address: Some("Shinjuku, Tokyo, Japan".to_string()),
+            notes: Some("Expect a queue".to_string()),
+            visited: Some(false),
+        })
+        .expect("pin 2");
+
+        assert_eq!(repo.count_list_pins(list2.id).expect("count list 2 pins"), 2);
+        assert_eq!(repo.count_user_pins(token).expect("count user pins"), 2);
+
+        // Search by description case-insensitive
+        let search_desc = repo
+            .list_pins(
+                &ListPinsQuery {
+                    list_id: Some(list2.id),
+                    category: None,
+                    visited: None,
+                    search: Some("SUBTERRANEAN".to_string()),
+                },
+                token,
+            )
+            .expect("search desc");
+        assert_eq!(search_desc.len(), 1);
+        assert_eq!(search_desc[0].title, "Ramen Street");
+
+        // Search by notes case-insensitive
+        let search_notes = repo
+            .list_pins(
+                &ListPinsQuery {
+                    list_id: Some(list2.id),
+                    category: None,
+                    visited: None,
+                    search: Some("rokurinsha".to_string()),
+                },
+                token,
+            )
+            .expect("search notes");
+        assert_eq!(search_notes.len(), 1);
+        assert_eq!(search_notes[0].title, "Ramen Street");
+
+        // Filter visited = false (bucket list)
+        let unvisited = repo
+            .list_pins(
+                &ListPinsQuery {
+                    list_id: Some(list2.id),
+                    category: None,
+                    visited: Some(false),
+                    search: None,
+                },
+                token,
+            )
+            .expect("unvisited");
+        assert_eq!(unvisited.len(), 1);
+        assert_eq!(unvisited[0].title, "Udon Shin");
+    }
+
 }

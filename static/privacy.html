@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - bList</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --primary: #2563eb;
+      --border: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --card-bg: #1e293b;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --primary: #3b82f6;
+        --border: #334155;
+      }
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 2.5rem;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+    .header {
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--primary);
+      text-decoration: none;
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 0.5rem;
+    }
+    .effective-date {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-top: 1.75rem;
+      margin-bottom: 0.75rem;
+      color: var(--text-main);
+    }
+    p, ul {
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+      font-size: 0.975rem;
+    }
+    ul {
+      padding-left: 1.5rem;
+    }
+    li {
+      margin-bottom: 0.5rem;
+    }
+    strong {
+      color: var(--text-main);
+    }
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .back-btn {
+      display: inline-block;
+      margin-top: 1.5rem;
+      padding: 0.6rem 1.25rem;
+      background: var(--primary);
+      color: #ffffff;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .back-btn:hover {
+      opacity: 0.9;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <a href="/" class="brand">
+        <span>🗺️</span> bList
+      </a>
+      <h1>Privacy Policy</h1>
+      <p class="effective-date">Last Updated: August 30, 2026</p>
+    </div>
+
+    <h2>1. Overview</h2>
+    <p>
+      bList ("we", "our", or "the app") is a lightweight visual map bucket list and trip planner. We believe strongly in privacy and minimalism: we do not sell your personal data, we do not track you across other apps or websites, and we do not display third-party advertisements.
+    </p>
+
+    <h2>2. Information We Collect and How We Use It</h2>
+    <ul>
+      <li>
+        <strong>Location Data:</strong> When you tap the "Locate Me" button, the app requests access to your device's approximate or precise location. This location is processed locally in real-time solely to display your position on the map, calculate distances to your saved places, and sort pins by proximity. We do not track your background location or store your GPS history.
+      </li>
+      <li>
+        <strong>Saved Places and Lists:</strong> Places (titles, coordinates, notes, categories, visited status) and collections you create are saved to your personal storage session. When you share links (e.g. Google Maps or Instagram URLs), the app extracts publicly available place information so you can organize your trips.
+      </li>
+      <li>
+        <strong>Device Identifier &amp; Sync Tokens:</strong> To allow you to sync lists across devices without requiring password-based accounts or email tracking, bList uses an anonymous pseudorandom device token stored in your device's local storage.
+      </li>
+      <li>
+        <strong>Weather Information:</strong> When viewing saved places, the app requests current weather approximations from Open-Meteo based on the latitude and longitude of the pin.
+      </li>
+    </ul>
+
+    <h2>3. Data Sharing &amp; Third Parties</h2>
+    <p>
+      We do not sell, rent, or monetize your information. We interact with third-party service APIs only to fulfill direct features requested by you:
+    </p>
+    <ul>
+      <li><strong>OpenStreetMap &amp; Esri:</strong> For map tile rendering and geocoding searches.</li>
+      <li><strong>Open-Meteo:</strong> For real-time weather forecasts.</li>
+    </ul>
+
+    <h2>4. Data Retention &amp; Deletion</h2>
+    <p>
+      You have full control over your saved places. You can edit or delete any saved pin or collection at any time within the app. Deleting a pin permanently removes it from your collection.
+    </p>
+
+    <h2>5. Children's Privacy</h2>
+    <p>
+      bList does not knowingly collect or solicit personal information from children under the age of 13.
+    </p>
+
+    <h2>6. Changes to This Policy</h2>
+    <p>
+      We may update our Privacy Policy periodically. Any changes will be posted on this page with an updated "Last Updated" date.
+    </p>
+
+    <h2>7. Contact Us</h2>
+    <p>
+      If you have questions about this Privacy Policy or bList data practices, please visit our open-source repository at <a href="https://github.com/radmuffin/bList" target="_blank" rel="noopener">github.com/radmuffin/bList</a>.
+    </p>
+
+    <a href="/" class="back-btn">← Back to bList</a>
+  </div>
+</body>
+</html>
