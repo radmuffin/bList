@@ -15,7 +15,8 @@
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
     "cap:build:ios": "npx cap sync ios && npx cap open ios",
-    "cap:build:android": "npx cap sync android && npx cap open android",
+    "test:unit": "node --test tests/*.test.js",
+    "test:e2e": "playwright test",
     "test": "node --test tests/*.test.js"
   },
   "keywords": [
@@ -42,6 +43,7 @@
   "devDependencies": {
     "@capacitor/android": "^6.0.0",
     "@capacitor/cli": "^6.0.0",
-    "@capacitor/ios": "^6.0.0"
+    "@capacitor/ios": "^6.0.0",
+    "@playwright/test": "^1.62.1"
   }
 }

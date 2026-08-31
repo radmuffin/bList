@@ -27,5 +27,34 @@ jobs:
       - name: Check code
         run: cargo check --verbose
 
-      - name: Build Release
+      - name: Run Backend Unit & Integration Tests
+        run: cargo test --verbose
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run Frontend Unit & Accessibility Tests
+        run: npm test
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E & Visual Tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright Artifacts on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Build Release Binary
         run: cargo build --release --verbose
