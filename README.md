@@ -13,15 +13,19 @@ Designed as a Mobile-First PWA (Progressive Web App) that integrates directly in
 - **Apple Maps**: Extracts coordinates from URL queries (`ll=lat,lng`), addresses, and search parameters.
 - **Instagram**: Scrapes location signals, post text, and media images.
 - **General Articles**: Extracts OpenGraph, schema itemprops, or reverse-geocodes post titles.
+- **SSRF Hardened**: All outbound requests are validated against private IP ranges, cloud metadata endpoints, and malicious redirects.
 
-### 2. 📱 Native Mobile PWA & iOS/Android wrappers
+### 2. 📱 Native Mobile PWA & Multi-Device Sync
 - **Web Share Target API**: Installed on iOS or Android, **bList appears directly in your phone's native Share Sheet**. Select "Share" inside Google Maps or Safari, and save links instantly!
-- **Offline Map Tile Caching**: service workers automatically cache browsed regions so the map continues working offline.
-- **Touch-Friendly Drawer Layout**: Sleek bottom drawer sheet with quick view switcher (`[ 🗺️ Map ] [ 📋 List ]`).
+- **Instant Device Sync**: Link your phone and desktop via QR Code or Sync Key—no passwords or personal accounts required.
+- **Trip Sharing & Collaboration**: Share custom trips with a unique collaboration link (`/lists/join`).
+- **Offline Map Tile Caching**: Service workers automatically cache browsed regions so the map continues working offline.
 
 ### 3. 🎯 Location-Aware & Delightful UX
 - **Locate Me**: Single tap GPS lookup displaying your position with a pulsing radar marker.
 - **Live Distance Calculations**: Displays real-time distances (`1.4 mi away` / `800 m away`) on cards and marker popups.
+- **Multi-Stop Route Navigation**: Calculate total trip route distances and open turn-by-turn multi-stop routes directly in Google Maps.
+- **Plus Codes (Open Location Codes)**: Automatic Plus Code generation and copy tools for precise geolocation without street addresses.
 - **Sort by Nearest**: Sort your active trip list by proximity to your current location.
 - **Dark Mode**: Supports system default theme matching (`prefers-color-scheme: dark`) and manual override toggling (☀️/🌙/💻). Map layer automatically adapts to Esri Dark Canvas.
 - **Surprise Me 🎲**: Randomly picks an unvisited spot on your list, flies the map there, and opens the popup.
@@ -33,8 +37,14 @@ Designed as a Mobile-First PWA (Progressive Web App) that integrates directly in
 
 ### Local Development
 ```bash
-# Run tests
+# Run backend tests
 cargo test
+
+# Run frontend unit & accessibility tests
+npm test
+
+# Run Playwright E2E tests
+npm run test:e2e
 
 # Run Axum dev server
 cargo run
@@ -45,14 +55,19 @@ Open **`http://localhost:3000`** in your browser.
 
 ## ☁️ Deployment & CI/CD
 
-### 1. Production (Fly.io)
-The production application is set up for automatic deployments. Every push to the `main` branch compiles and deploys to:
+### 1. Unified CI/CD Pipeline
+GitHub Actions automatically runs a unified testing and deployment pipeline on push to `main` ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+- **Parallel Testing**: `backend` (Rust tests & checks) and `frontend-e2e` (Playwright & unit tests) run concurrently.
+- **Gated Deployments**: The Fly.io deployment step is strictly conditional on all tests passing.
+- **Caching**: Docker builds use `cargo-chef` multi-stage dependency caching and cached Playwright browser binaries.
+
+### 2. Production (Fly.io)
 👉 **[https://blist-radmuffin.fly.dev](https://blist-radmuffin.fly.dev)**
 
 - **Configuration**: Managed via [`fly.toml`](fly.toml) with a persistent NVMe volume (`blist_data` on `/data`) ensuring SQLite files are retained across deploys.
-- **Setup**: Added your `FLY_API_TOKEN` to GitHub Secrets.
+- **Local CLI Deployment**: `fly deploy --local-only` builds on your local Docker engine and pushes the container image directly to Fly.
 
-### 2. Staging (Manual Deploy)
+### 3. Staging (Manual Deploy)
 To test feature branches on staging:
 1. Go to the **Actions** tab on your GitHub repository.
 2. Select **"CD - Deploy to Staging"** in the sidebar.
