@@ -1362,6 +1362,11 @@ body {
   background: var(--bg-main);
 }
 
+/* Zero-API-key Dark Map Tiles Filter */
+.dark-map-tiles .leaflet-tile {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%) saturate(60%);
+}
+
 /* Leaflet Zoom & Controls Dark/Light Overrides */
 .leaflet-bar {
   border: 1px solid var(--border-color) !important;
