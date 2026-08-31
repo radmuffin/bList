@@ -23,6 +23,6 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy to Staging App
-        run: flyctl deploy --app blist-staging-radmuffin --remote-only
+        run: flyctl deploy --app blist-staging-radmuffin --remote-only --depot=false
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
