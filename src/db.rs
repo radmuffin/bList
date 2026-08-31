@@ -285,15 +285,40 @@ impl ListRepository for SqliteRepository {
             .conn
             .lock()
             .map_err(|e| StorageError::Lock(e.to_string()))?;
-        let count: i64 = conn.query_row("SELECT COUNT(*) FROM device_lists", [], |r| r.get(0))?;
-        if count == 0 {
-            let mut stmt = conn.prepare("SELECT id FROM lists")?;
-            let list_ids = stmt.query_map([], |row| row.get::<_, i64>(0))?
-                .collect::<Result<Vec<i64>, rusqlite::Error>>()?;
-            for lid in list_ids {
+        let user_list_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM device_lists WHERE user_token = ?",
+            params![user_token],
+            |r| r.get(0),
+        )?;
+        if user_list_count == 0 {
+            // Check if there is an unassociated/unclaimed list #1
+            let unassociated_list1: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM lists l WHERE l.id = 1 AND (l.owner_token = '' OR l.owner_token IS NULL) AND NOT EXISTS (SELECT 1 FROM device_lists dl WHERE dl.list_id = 1)",
+                [],
+                |r| r.get(0),
+            ).unwrap_or(0);
+
+            if unassociated_list1 > 0 {
                 conn.execute(
-                    "INSERT OR IGNORE INTO device_lists (user_token, list_id) VALUES (?, ?)",
-                    params![user_token, lid],
+                    "UPDATE lists SET owner_token = ? WHERE id = 1 AND (owner_token = '' OR owner_token IS NULL)",
+                    params![user_token],
+                )?;
+                conn.execute(
+                    "INSERT OR IGNORE INTO device_lists (user_token, list_id) VALUES (?, 1)",
+                    params![user_token],
+                )?;
+            } else {
+                // Auto-provision a default "My Bucket List" for this new user
+                let created_at = Utc::now().to_rfc3339();
+                let share_token = uuid::Uuid::new_v4().to_string();
+                conn.execute(
+                    "INSERT INTO lists (name, icon, created_at, owner_token, share_token) VALUES ('My Bucket List', '📍', ?, ?, ?)",
+                    params![created_at, user_token, share_token],
+                )?;
+                let new_list_id = conn.last_insert_rowid();
+                conn.execute(
+                    "INSERT INTO device_lists (user_token, list_id) VALUES (?, ?)",
+                    params![user_token, new_list_id],
                 )?;
             }
         }
@@ -540,11 +565,30 @@ impl ListRepository for InMemoryStorage {
 
     fn auto_associate_device(&self, user_token: &str) -> Result<(), StorageError> {
         let mut device_lists = self.device_lists.write().unwrap();
-        if device_lists.is_empty() {
-            let lists = self.lists.read().unwrap();
-            for &id in lists.keys() {
-                device_lists.push((user_token.to_string(), id));
+        let has_lists = device_lists.iter().any(|(tok, _)| tok == user_token);
+        if !has_lists {
+            let mut lists = self.lists.write().unwrap();
+            let list1_claimed = device_lists.iter().any(|(_, lid)| *lid == 1);
+            if let Some(list1) = lists.get_mut(&1) {
+                if list1.owner_token.is_empty() && !list1_claimed {
+                    list1.owner_token = user_token.to_string();
+                    device_lists.push((user_token.to_string(), 1));
+                    return Ok(());
+                }
             }
+            let mut next_id = self.next_list_id.write().unwrap();
+            let id = *next_id;
+            *next_id += 1;
+            let list = List {
+                id,
+                name: "My Bucket List".to_string(),
+                icon: "📍".to_string(),
+                created_at: Utc::now().to_rfc3339(),
+                owner_token: user_token.to_string(),
+                share_token: uuid::Uuid::new_v4().to_string(),
+            };
+            lists.insert(id, list);
+            device_lists.push((user_token.to_string(), id));
         }
         Ok(())
     }
@@ -2008,7 +2052,7 @@ mod tests {
 
         // Both Device A and Device B see the list in list_lists
         let lists_b = repo.list_lists(token_b).expect("list B");
-        assert_eq!(lists_b.len(), 1); // Only the joined Kyoto trip
+        assert_eq!(lists_b.len(), 2); // Bob's default list + joined Kyoto trip
         assert!(lists_b.iter().any(|l| l.id == trip_a.id));
 
         // Device B adds a pin to the shared list

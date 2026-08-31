@@ -346,10 +346,24 @@ pub async fn create_pin(
         );
     }
 
-    let list_id = req.list_id.unwrap_or(1);
-    if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, list_id) {
-        return err;
-    }
+    let list_id = match req.list_id {
+        Some(id) if id > 0 => {
+            if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, id) {
+                return err;
+            }
+            id
+        }
+        _ => {
+            let user_lists = state.storage.list_lists(&user_token.0).unwrap_or_default();
+            if let Some(first_list) = user_lists.first() {
+                first_list.id
+            } else {
+                1
+            }
+        }
+    };
+    let mut resolved_req = req;
+    resolved_req.list_id = Some(list_id);
 
     match state.storage.count_list_pins(list_id) {
         Ok(count) if count >= crate::db::MAX_PINS_PER_LIST => {
@@ -389,7 +403,7 @@ pub async fn create_pin(
         _ => {}
     }
 
-    match state.storage.create_pin(&req) {
+    match state.storage.create_pin(&resolved_req) {
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -511,10 +525,22 @@ pub async fn ingest_link(
         );
     }
 
-    let list_id = req.list_id.unwrap_or(1);
-    if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, list_id) {
-        return err;
-    }
+    let list_id = match req.list_id {
+        Some(id) if id > 0 => {
+            if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, id) {
+                return err;
+            }
+            id
+        }
+        _ => {
+            let user_lists = state.storage.list_lists(&user_token.0).unwrap_or_default();
+            if let Some(first_list) = user_lists.first() {
+                first_list.id
+            } else {
+                1
+            }
+        }
+    };
 
     match state.storage.count_list_pins(list_id) {
         Ok(count) if count >= crate::db::MAX_PINS_PER_LIST => {
@@ -1565,6 +1591,102 @@ mod tests {
             }),
         ).await;
         assert_eq!(res.data.unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_auto_onboarding_multi_user_isolation_and_pin_creation() {
+        let state = setup_test_sqlite_state();
+        let user_a = UserToken("user-a-token-111".to_string());
+        let user_b = UserToken("user-b-token-222".to_string());
+
+        // User A fetches lists -> gets auto-onboarded default list
+        let (status_a, Json(res_a)) = list_lists(State(state.clone()), user_a.clone()).await;
+        assert_eq!(status_a, StatusCode::OK);
+        let lists_a = res_a.data.unwrap();
+        assert_eq!(lists_a.len(), 1);
+        let list_a_id = lists_a[0].id;
+
+        // User B fetches lists -> gets their own auto-onboarded default list
+        let (status_b, Json(res_b)) = list_lists(State(state.clone()), user_b.clone()).await;
+        assert_eq!(status_b, StatusCode::OK);
+        let lists_b = res_b.data.unwrap();
+        assert_eq!(lists_b.len(), 1);
+        let list_b_id = lists_b[0].id;
+
+        // Both users should have valid, distinct lists
+        assert_ne!(list_a_id, list_b_id);
+
+        // User A creates a pin without explicitly specifying list_id
+        let (status_pin_a, Json(res_pin_a)) = create_pin(
+            State(state.clone()),
+            user_a.clone(),
+            Json(CreatePinRequest {
+                title: "User A Tower".to_string(),
+                description: None,
+                latitude: 48.8584,
+                longitude: 2.2945,
+                category: Some("Sightseeing".to_string()),
+                source_url: None,
+                image_url: None,
+                address: None,
+                notes: None,
+                visited: Some(false),
+                list_id: None,
+            }),
+        ).await;
+        assert_eq!(status_pin_a, StatusCode::CREATED);
+        assert_eq!(res_pin_a.data.unwrap().list_id, list_a_id);
+
+        // User B creates a pin without explicitly specifying list_id
+        let (status_pin_b, Json(res_pin_b)) = create_pin(
+            State(state.clone()),
+            user_b.clone(),
+            Json(CreatePinRequest {
+                title: "User B Garden".to_string(),
+                description: None,
+                latitude: 35.6586,
+                longitude: 139.7454,
+                category: Some("Nature".to_string()),
+                source_url: None,
+                image_url: None,
+                address: None,
+                notes: None,
+                visited: Some(false),
+                list_id: None,
+            }),
+        ).await;
+        assert_eq!(status_pin_b, StatusCode::CREATED);
+        assert_eq!(res_pin_b.data.unwrap().list_id, list_b_id);
+
+        // User A listing pins only sees their own pin
+        let (_, Json(pins_a_res)) = list_pins(
+            State(state.clone()),
+            user_a.clone(),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: None,
+            }),
+        ).await;
+        let pins_a = pins_a_res.data.unwrap();
+        assert_eq!(pins_a.len(), 1);
+        assert_eq!(pins_a[0].title, "User A Tower");
+
+        // User B listing pins only sees their own pin
+        let (_, Json(pins_b_res)) = list_pins(
+            State(state.clone()),
+            user_b.clone(),
+            Query(ListPinsQuery {
+                list_id: None,
+                category: None,
+                visited: None,
+                search: None,
+            }),
+        ).await;
+        let pins_b = pins_b_res.data.unwrap();
+        assert_eq!(pins_b.len(), 1);
+        assert_eq!(pins_b[0].title, "User B Garden");
     }
 
 }

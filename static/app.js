@@ -554,11 +554,13 @@
       });
     },
 
-    async ingestPin(url, listId = 1) {
+    async ingestPin(url, listId = null) {
+      const payload = { url };
+      if (listId) payload.list_id = listId;
       return this.request('/api/pins/ingest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, list_id: listId })
+        body: JSON.stringify(payload)
       });
     },
 
@@ -1913,13 +1915,13 @@
       const overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.classList.remove('hidden');
 
-      let targetListId = 1;
+      let targetListId = (State.lists && State.lists.length > 0) ? State.lists[0].id : null;
       if (
         State.currentListFilter !== 'all' &&
         State.currentListFilter !== 'bucket' &&
         State.currentListFilter !== 'visited'
       ) {
-        targetListId = parseInt(State.currentListFilter, 10) || 1;
+        targetListId = parseInt(State.currentListFilter, 10) || targetListId;
       }
 
       try {
