@@ -1765,34 +1765,43 @@ body {
 }
 
 .pin-popup {
-  width: 270px;
+  width: 320px;
+  max-width: min(340px, calc(100vw - 32px));
 }
 
 .popup-img {
   width: 100%;
-  height: 120px;
+  height: 130px;
   object-fit: cover;
   border-bottom: 1px solid var(--border-color);
+  display: block;
 }
 
 .popup-body {
-  padding: 12px;
+  padding: 12px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
+}
+
+.popup-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 
 .popup-title {
-  font-size: 14.5px;
+  font-size: 15.5px;
   font-weight: 700;
   color: var(--text-main);
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 .popup-address {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-main);
+  color: var(--text-muted);
   display: flex;
   align-items: flex-start;
   gap: 5px;
@@ -1802,8 +1811,8 @@ body {
 
 .popup-address svg {
   color: var(--primary);
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
   margin-top: 1px;
 }
@@ -1813,62 +1822,21 @@ body {
   background-color: var(--bg-main);
   color: var(--text-main);
   border: 1px solid var(--border-color);
-  padding: 6px 8px;
+  padding: 7px 9px;
   border-radius: var(--radius-sm);
   font-style: italic;
-}
-
-.popup-actions-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 5px;
-  margin: 4px 0;
-}
-
-.btn-popup-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: var(--radius-sm);
-  background: var(--bg-main);
-  border: 1px solid var(--border-color);
-  color: var(--text-main);
-  text-decoration: none;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-popup-action svg {
-  width: 12px;
-  height: 12px;
-}
-
-.btn-popup-action:hover {
-  background-color: var(--bg-card-hover);
-  border-color: var(--border-hover);
-}
-
-.btn-popup-action.primary-action {
-  background-color: var(--primary);
-  border-color: var(--primary);
-  color: white;
-}
-
-.btn-popup-action.primary-action:hover {
-  background-color: var(--primary-hover);
+  line-height: 1.35;
 }
 
 .popup-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 6px;
+  padding-top: 8px;
   border-top: 1px solid var(--border-color);
+  margin-top: 2px;
   font-size: 11px;
+  gap: 6px;
 }
 
 /* ==========================================================================

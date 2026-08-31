@@ -886,7 +886,7 @@
 
       const popupHtml = UIManager.renderPopupHtml(pin, { distanceStr, weather, assignedList });
 
-      marker.bindPopup(popupHtml).openPopup();
+      marker.bindPopup(popupHtml, { maxWidth: 340, minWidth: 280 }).openPopup();
       if (window.lucide) window.lucide.createIcons();
     },
 
@@ -1283,42 +1283,8 @@
       const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${pin.latitude},${pin.longitude}`;
       const safeSourceUrl = pin.source_url ? Utils.sanitizeUrl(pin.source_url) : '';
 
-      if (isPopup) {
-        return `
-          <div class="popup-actions-grid">
-            <a href="${directionsUrl}" target="_blank" rel="noopener noreferrer" class="btn-popup-action primary-action">
-              <i data-lucide="navigation"></i> Directions
-            </a>
-            <button class="btn-popup-action" onclick="sharePin(${pin.id})">
-              <i data-lucide="share-2"></i> Share
-            </button>
-            ${
-              safeSourceUrl
-                ? `<a href="${Utils.escapeHtml(safeSourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn-popup-action">
-                    <i data-lucide="external-link"></i> Link
-                   </a>`
-                : ''
-            }
-          </div>
-          <div class="popup-footer">
-            <label class="status-toggle">
-              <input type="checkbox" ${pin.visited ? 'checked' : ''} onchange="toggleVisited(${pin.id})">
-              <span>${pin.visited ? 'Visited' : 'Mark Visited'}</span>
-            </label>
-            <div class="card-action-btns">
-              <button class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit Place">
-                <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
-              </button>
-              <button class="btn-icon-sm delete-btn" onclick="deletePin(${pin.id})" title="Delete Place">
-                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-              </button>
-            </div>
-          </div>
-        `;
-      }
-
       return `
-        <div class="pin-card-footer" onclick="event.stopPropagation()">
+        <div class="${isPopup ? 'popup-footer' : 'pin-card-footer'}" onclick="event.stopPropagation()">
           <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
             <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
             <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
@@ -1329,6 +1295,16 @@
               <i data-lucide="navigation"></i>
               <span>Directions</span>
             </a>
+            ${
+              safeSourceUrl
+                ? `<a href="${Utils.escapeHtml(safeSourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn-icon-sm" title="Original Link">
+                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                   </a>`
+                : ''
+            }
+            <button type="button" class="btn-icon-sm" onclick="sharePin(${pin.id})" title="Share Place">
+              <i data-lucide="share-2" style="width: 14px; height: 14px;"></i>
+            </button>
             <button type="button" class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit Place">
               <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
             </button>
