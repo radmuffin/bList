@@ -16,6 +16,9 @@ terraform.tfvars
 # Node & Capacitor
 node_modules/
 package-lock.json
+# Playwright & Testing
+test-results/
+playwright-report/
 
 # Android Build & Keystores
 android/.gradle/

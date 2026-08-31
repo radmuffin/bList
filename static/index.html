@@ -103,7 +103,11 @@
             <i data-lucide="sparkles" class="btn-icon"></i>
             <span class="btn-text desktop-only">Surprise Me</span>
           </button>
-          <button class="btn btn-primary header-add-btn" id="add-place-btn-header" onclick="handleHeaderAddClick()" title="Add place or paste link" aria-label="Add Place">
+          <button class="btn btn-primary header-add-btn desktop-only" id="btn-add-place" onclick="openManualPinModal()" title="Add place manually" aria-label="Add Place">
+            <i data-lucide="plus" class="btn-icon"></i>
+            <span class="btn-text">Add</span>
+          </button>
+          <button class="btn btn-primary header-add-btn mobile-only" id="mobile-add-btn" onclick="openManualPinModal()" title="Add place" aria-label="Add Place">
             <i data-lucide="plus" class="btn-icon"></i>
             <span class="btn-text">Add</span>
           </button>
@@ -111,7 +115,7 @@
             <i data-lucide="download" class="btn-icon"></i>
             <span class="btn-text">Export</span>
           </button>
-          <button class="btn btn-ghost desktop-only" id="about-btn-header" onclick="openAboutModal()" title="About bList" aria-label="About bList">
+          <button class="btn btn-ghost desktop-only" id="btn-about" onclick="openAboutModal()" title="About bList" aria-label="About bList">
             <i data-lucide="info" class="btn-icon"></i>
             <span class="btn-text">About</span>
           </button>
@@ -265,12 +269,14 @@
           <div class="categories-bar" id="categories-bar"></div>
         </div>
 
-        <!-- Pin Cards List -->
-        <div class="pin-list" id="pin-list">
-          <div class="empty-state" id="empty-state">
-            <div class="empty-icon">📍</div>
-            <h3>No places saved yet</h3>
-            <p>Paste a Google Maps, Instagram, or travel link above to add your first destination!</p>
+        <!-- Pin Cards List View Container -->
+        <div id="pin-list-view" class="pin-list-view-container">
+          <div class="pin-list" id="pin-list">
+            <div class="empty-state" id="empty-state">
+              <div class="empty-icon">📍</div>
+              <h3>No places saved yet</h3>
+              <p>Paste a Google Maps, Instagram, or travel link above to add your first destination!</p>
+            </div>
           </div>
         </div>
 
