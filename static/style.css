@@ -1744,6 +1744,7 @@ body {
 .leaflet-popup-content {
   margin: 0 !important;
   line-height: 1.4;
+  width: auto !important;
 }
 
 .leaflet-popup-tip {
