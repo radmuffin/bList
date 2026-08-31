@@ -485,20 +485,37 @@
       .trim()
       .replace(/\b\d{5}(-\d{4})?\b/g, '')
       .replace(/\b[A-Z]\d[A-Z]\s?\d[A-Z]\d\b/g, '')
+      .replace(/\b\d{4,6}\b/g, '')
       .trim();
-    const parts = clean
+
+    let parts = clean
       .split(',')
       .map(p => p.trim())
       .filter(Boolean);
-    if (parts.length === 0) return '';
-    if (parts.length === 1) return parts[0];
 
-    // Filter out trailing country code if preceding parts are descriptive
-    let filtered = parts;
-    if (filtered.length > 2 && /^(USA|United States|US)$/i.test(filtered[filtered.length - 1])) {
-      filtered = filtered.slice(0, -1);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) {
+      return parts[0].replace(/\s*\b(County|Parish|Borough|District)\b/gi, '').trim();
     }
-    const locParts = filtered.slice(-2);
+
+    // Filter out standalone "USA", "United States", "US"
+    if (parts.length > 2 && /^(USA|United States|United States of America|US)$/i.test(parts[parts.length - 1])) {
+      parts = parts.slice(0, -1);
+    }
+
+    // Filter out intermediate "County", "Parish", "District" segments
+    if (parts.length > 2) {
+      parts = parts.filter((part, idx) => {
+        if (/\b(County|Parish|Borough|District)\b/i.test(part) && idx < parts.length - 1) {
+          return false;
+        }
+        return true;
+      });
+    }
+
+    let locParts = parts.slice(-2);
+    locParts = locParts.map(p => p.replace(/\s*\b(County|Parish)\b/gi, '').trim()).filter(Boolean);
+
     return locParts.join(', ').replace(/\s+,/g, ',').trim();
   }
 

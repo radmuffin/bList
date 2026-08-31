@@ -1154,9 +1154,9 @@
                 ? `<div class="popup-plus-code-row" onclick="event.stopPropagation(); copyPlusCode('${Utils.escapeHtml(
                     displayPlusCode
                   )}')" title="Click to copy Plus Code (${Utils.escapeHtml(displayPlusCode)})">
-                    <span class="plus-code-label"><i data-lucide="compass"></i> Plus Code:</span>
+                    <span class="plus-code-label"><i data-lucide="compass"></i></span>
                     <code class="plus-code-val">${Utils.escapeHtml(displayPlusCode)}</code>
-                    <span class="plus-code-copy-btn">Copy</span>
+                    <span class="plus-code-copy-btn"><i data-lucide="copy"></i></span>
                   </div>`
                 : ''
             }
