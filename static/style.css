@@ -20,6 +20,7 @@
   --border-color: #e2e8f0;
   --border-hover: #cbd5e1;
   --border-focus: #2563eb;
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.35);
 
   --text-main: #0f172a;
   --text-muted: #64748b;
