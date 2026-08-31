@@ -1198,7 +1198,14 @@
       const container = document.getElementById('categories-bar');
       if (!container) return;
 
-      const categories = ['All', ...new Set(State.allPins.map((p) => p.category).filter(Boolean))];
+      const rawCategories = [...new Set(State.allPins.map((p) => p.category).filter(Boolean))];
+      if (rawCategories.length <= 1) {
+        container.style.display = 'none';
+        return;
+      }
+      container.style.display = 'flex';
+
+      const categories = ['All', ...rawCategories];
 
       container.innerHTML = categories
         .map(
@@ -1349,18 +1356,49 @@
     showMobileView(view) {
       State.currentMobileView = view;
       const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
       const btnMap = document.getElementById('btn-show-map');
       const btnList = document.getElementById('btn-show-list');
 
       if (view === 'list') {
         if (sidebar) sidebar.classList.add('mobile-open');
+        if (backdrop) backdrop.classList.add('active');
         if (btnMap) btnMap.classList.remove('active');
         if (btnList) btnList.classList.add('active');
       } else {
         if (sidebar) sidebar.classList.remove('mobile-open');
+        if (backdrop) backdrop.classList.remove('active');
         if (btnMap) btnMap.classList.add('active');
         if (btnList) btnList.classList.remove('active');
         setTimeout(() => State.map && State.map.invalidateSize(), 150);
+      }
+    },
+
+    toggleMobileQuickAdd(forceOpen) {
+      const bar = document.getElementById('header-mobile-bar');
+      if (!bar) return;
+      const shouldOpen = forceOpen !== undefined ? forceOpen : !bar.classList.contains('expanded');
+      if (shouldOpen) {
+        bar.classList.add('expanded');
+        const input = document.getElementById('save-url-input-mobile');
+        if (input) {
+          setTimeout(() => input.focus(), 150);
+        }
+      } else {
+        bar.classList.remove('expanded');
+      }
+    },
+
+    closeMobileQuickAdd() {
+      const bar = document.getElementById('header-mobile-bar');
+      if (bar) bar.classList.remove('expanded');
+    },
+
+    handleHeaderAddClick() {
+      if (window.innerWidth <= 768) {
+        this.toggleMobileQuickAdd();
+      } else {
+        ModalManager.openManualPinModal();
       }
     }
   };
@@ -1370,6 +1408,7 @@
   // ==========================================================================
   const ModalManager = {
     async openManualPinModal(lat = '', lon = '') {
+      UIManager.closeMobileQuickAdd();
       document.getElementById('modal-title').innerText = 'Add Place';
       document.getElementById('form-pin-id').value = '';
       document.getElementById('form-title').value = '';
@@ -1936,6 +1975,7 @@
 
         if (json.success && json.data) {
           input.value = '';
+          UIManager.closeMobileQuickAdd();
           State.allPins.unshift(json.data);
 
           UIManager.renderAll();
@@ -2072,6 +2112,19 @@
       if (moreWrapper && !moreWrapper.contains(e.target) && moreMenu) {
         moreMenu.classList.add('hidden');
       }
+
+      // Close Mobile Quick-Add bar if clicking outside
+      const quickAddBar = document.getElementById('header-mobile-bar');
+      const addHeaderBtn = document.getElementById('add-place-btn-header');
+      if (
+        quickAddBar &&
+        quickAddBar.classList.contains('expanded') &&
+        !quickAddBar.contains(e.target) &&
+        addHeaderBtn &&
+        !addHeaderBtn.contains(e.target)
+      ) {
+        quickAddBar.classList.remove('expanded');
+      }
     });
 
     // Close any open modals or menus on Escape key
@@ -2083,6 +2136,8 @@
         if (themeMenu) themeMenu.classList.add('hidden');
         const layerMenu = document.getElementById('layer-menu');
         if (layerMenu) layerMenu.classList.add('hidden');
+        const quickAddBar = document.getElementById('header-mobile-bar');
+        if (quickAddBar) quickAddBar.classList.remove('expanded');
 
         const openModals = document.querySelectorAll('.modal-overlay:not(.hidden)');
         openModals.forEach((m) => {
@@ -2355,6 +2410,9 @@
     }
     MapController.flyToPin(id);
   };
+  window.handleHeaderAddClick = () => UIManager.handleHeaderAddClick();
+  window.toggleMobileQuickAdd = (forceOpen) => UIManager.toggleMobileQuickAdd(forceOpen);
+  window.closeMobileQuickAdd = () => UIManager.closeMobileQuickAdd();
   window.openManualPinModal = (lat, lon) => ModalManager.openManualPinModal(lat, lon);
   window.openEditPinModal = (id) => ModalManager.openEditPinModal(id);
   window.closePinModal = () => ModalManager.closePinModal();

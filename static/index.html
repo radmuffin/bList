@@ -103,7 +103,7 @@
             <i data-lucide="sparkles" class="btn-icon"></i>
             <span class="btn-text desktop-only">Surprise Me</span>
           </button>
-          <button class="btn btn-primary header-add-btn" id="add-place-btn-header" onclick="openManualPinModal()" title="Add place manually" aria-label="Add Place">
+          <button class="btn btn-primary header-add-btn" id="add-place-btn-header" onclick="handleHeaderAddClick()" title="Add place or paste link" aria-label="Add Place">
             <i data-lucide="plus" class="btn-icon"></i>
             <span class="btn-text">Add</span>
           </button>
@@ -141,6 +141,10 @@
                 </div>
               </div>
               <div class="more-menu-divider"></div>
+              <button type="button" class="more-menu-item" onclick="openManualPinModal(); closeMobileMoreMenu();" role="menuitem">
+                <i data-lucide="plus-circle"></i>
+                <span>✏️ Add Place Manually</span>
+              </button>
               <button type="button" class="more-menu-item" onclick="openSyncModal(); closeMobileMoreMenu();" role="menuitem">
                 <i data-lucide="smartphone"></i>
                 <span>📱 Device Sync</span>
@@ -162,21 +166,31 @@
         </div>
       </div>
 
-      <!-- Mobile Omni Bar -->
-      <div class="header-mobile-bar mobile-only">
+      <!-- Collapsible Mobile Quick-Add Bar -->
+      <div class="header-mobile-bar mobile-only" id="header-mobile-bar">
         <form id="save-link-form-mobile" class="save-link-bar-mobile" onsubmit="handleSaveLinkSubmit(event, 'save-url-input-mobile')">
           <div class="input-wrapper input-wrapper-mobile">
             <i data-lucide="link" class="input-icon"></i>
             <input 
               type="url" 
               id="save-url-input-mobile" 
-              placeholder="Paste place or article link..." 
+              placeholder="Paste Google Maps, IG, travel link..." 
               required
               autocomplete="off"
             />
-            <button type="submit" class="btn-inline-save">
+            <button type="submit" class="btn-inline-save" title="Save Place">
               <i data-lucide="plus"></i>
               <span>Save</span>
+            </button>
+          </div>
+          <div class="quick-add-subactions">
+            <button type="button" class="btn-quick-manual" onclick="openManualPinModal(); closeMobileQuickAdd();">
+              <i data-lucide="edit-3"></i>
+              <span>Or Add Manually</span>
+            </button>
+            <button type="button" class="btn-quick-close" onclick="closeMobileQuickAdd()" aria-label="Close quick add bar">
+              <i data-lucide="x"></i>
+              <span>Cancel</span>
             </button>
           </div>
         </form>
@@ -185,11 +199,16 @@
 
     <!-- Main Container: Sidebar + Map -->
     <div class="main-content">
-      <!-- Sidebar Drawer -->
+      <!-- Sidebar Drawer (Slide-over Left Drawer on Mobile) -->
       <aside class="sidebar" id="sidebar">
-        <!-- Drawer Drag Handle for Mobile -->
-        <div class="drawer-handle-bar mobile-only" onclick="toggleSidebar()">
-          <div class="drawer-handle"></div>
+        <div class="drawer-mobile-header mobile-only">
+          <div class="drawer-mobile-title-wrap">
+            <span class="drawer-mobile-icon">📍</span>
+            <span class="drawer-mobile-title">Places & Lists</span>
+          </div>
+          <button type="button" class="btn-close-drawer" onclick="toggleSidebar()" aria-label="Close drawer" title="Close">
+            <i data-lucide="x"></i>
+          </button>
         </div>
 
         <div class="sidebar-header">
@@ -276,6 +295,9 @@
           </div>
         </div>
       </aside>
+
+      <!-- Backdrop for Mobile Left Sidebar Drawer -->
+      <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()" aria-hidden="true"></div>
 
       <!-- Interactive Map -->
       <main class="map-container">
