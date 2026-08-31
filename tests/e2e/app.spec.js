@@ -149,7 +149,9 @@ test.describe('bList Visual & E2E Suite', () => {
     // Route info badge should appear with Google Maps navigation link
     const routeBadge = page.locator('#route-info-badge');
     await expect(routeBadge).toBeVisible();
-    const gmapsBtn = routeBadge.locator('.btn-route-action');
+    const gmapsBtn = routeBadge.getByRole('button', { name: 'Google Maps' });
     await expect(gmapsBtn).toBeVisible();
+    const optimizeBtn = routeBadge.getByRole('button', { name: 'Optimize' });
+    await expect(optimizeBtn).toBeVisible();
   });
 });
