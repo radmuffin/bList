@@ -107,6 +107,10 @@
             <i data-lucide="plus" class="btn-icon"></i>
             <span class="btn-text">Add</span>
           </button>
+          <button class="btn btn-ghost desktop-only" id="btn-import-header" onclick="openImportModal()" title="Import Takeout, KML, CSV" aria-label="Import Places">
+            <i data-lucide="upload-cloud" class="btn-icon"></i>
+            <span class="btn-text">Import</span>
+          </button>
           <button class="btn btn-ghost desktop-only" onclick="exportData('geojson')" title="Export GeoJSON" aria-label="Export Places GeoJSON">
             <i data-lucide="download" class="btn-icon"></i>
             <span class="btn-text">Export</span>
@@ -144,6 +148,10 @@
               <button type="button" class="more-menu-item" onclick="openManualPinModal(); closeMobileMoreMenu();">
                 <i data-lucide="plus-circle"></i>
                 <span>✏️ Add Place Manually</span>
+              </button>
+              <button type="button" class="more-menu-item" onclick="openImportModal(); closeMobileMoreMenu();">
+                <i data-lucide="upload-cloud"></i>
+                <span>📥 Import Places (Takeout/CSV)</span>
               </button>
               <button type="button" class="more-menu-item" onclick="openSyncModal(); closeMobileMoreMenu();">
                 <i data-lucide="smartphone"></i>
@@ -217,6 +225,7 @@
             <div class="list-selector-header">
               <span class="section-label">TRIP / COLLECTION</span>
               <div class="list-actions-group">
+                <button class="btn-link-action" onclick="openImportModal()" title="Import places from Google Takeout, CSV, KML">📥 Import</button>
                 <button class="btn-link-action" id="share-list-btn" onclick="openShareListModal()" title="Share / Collaborate on this list">🔗 Share</button>
                 <button class="btn-link-action" onclick="openNewListModal()" title="Create New List">+ New</button>
               </div>
@@ -245,7 +254,7 @@
           <div class="search-and-sort-row">
             <div class="search-box">
               <i data-lucide="search" class="search-icon"></i>
-              <input type="text" id="search-input" placeholder="Search places, notes..." oninput="handleSearch(event)">
+              <input type="text" id="search-input" placeholder="Search places, tags, notes..." oninput="handleSearch(event)">
             </div>
             <select id="sort-select" class="sort-select" onchange="handleSortChange(event)">
               <option value="newest">✨ Newest</option>
@@ -254,15 +263,23 @@
             </select>
           </div>
 
-          <!-- Status Filters -->
+          <!-- Status & Priority Filters -->
           <div class="filter-tabs">
             <button class="filter-tab active" data-status="all" onclick="setStatusFilter('all')">All (<span id="count-all">0</span>)</button>
             <button class="filter-tab" data-status="bucket" onclick="setStatusFilter('bucket')">🎯 Want to Go (<span id="count-bucket">0</span>)</button>
             <button class="filter-tab" data-status="visited" onclick="setStatusFilter('visited')">✅ Visited (<span id="count-visited">0</span>)</button>
+            <button class="filter-tab filter-tab-priority" id="tab-priority-filter" onclick="togglePriorityFilter()" title="Filter Must-See places">⭐ Must-See</button>
+            <button class="filter-tab open-now-tab" id="tab-open-now-filter" onclick="toggleOpenNowFilter()" title="Filter places open right now">🟢 Open Now</button>
           </div>
+
+          <!-- Day-by-Day Grouping Filter Pills -->
+          <div class="days-bar hidden" id="days-bar"></div>
 
           <!-- Category Tags -->
           <div class="categories-bar" id="categories-bar"></div>
+
+          <!-- Multi-Tag Chips Cloud -->
+          <div class="tags-bar hidden" id="tags-bar"></div>
         </div>
 
         <!-- Pin Cards List View Container -->
@@ -309,6 +326,9 @@
         <div class="route-info-badge hidden" id="route-info-badge">
           <i data-lucide="route"></i>
           <span id="route-distance-text">Route: 0 mi total</span>
+          <button type="button" class="btn-route-action btn-route-optimize" onclick="optimizeCurrentRoute()" title="Optimize Stop Sequence (1-Click TSP)">
+            <i data-lucide="zap"></i> Optimize
+          </button>
           <button type="button" class="btn-route-action" onclick="openGoogleMapsRoute()" title="Open multi-stop route directions in Google Maps">
             <i data-lucide="navigation"></i> Google Maps
           </button>
@@ -384,7 +404,7 @@
   </div>
 
   <!-- Add / Edit Place Modal -->
-  <div id="pin-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'pin-modal')">
+  <div id="pin-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title" onclick="handleModalBackdropClick(event, 'pin-modal')">
     <div class="modal-card">
       <div class="modal-header">
         <h2 id="modal-title">Add Place</h2>
@@ -394,9 +414,15 @@
         <input type="hidden" id="form-pin-id">
         
         <!-- Primary Essential Fields -->
-        <div class="form-group">
-          <label for="form-title">Place Name *</label>
-          <input type="text" id="form-title" required placeholder="e.g. Chicken Boy, Eiffel Tower, Joe's Pizza">
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="form-title">Place Name *</label>
+            <input type="text" id="form-title" required placeholder="e.g. Shibuya Sky, Joe's Pizza, Sensoji">
+          </div>
+          <div class="form-group" style="max-width: 90px;">
+            <label for="form-emoji">Emoji</label>
+            <input type="text" id="form-emoji" maxlength="4" placeholder="✨" style="text-align: center; font-size: 1.15rem;">
+          </div>
         </div>
 
         <div class="form-row">
@@ -419,17 +445,45 @@
           </div>
         </div>
 
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="form-tags">Tags (Multi-Tagging)</label>
+            <input type="text" id="form-tags" placeholder="e.g. #view #sunset #coffee">
+          </div>
+          <div class="form-group flex-1">
+            <label for="form-day-group">Day Planner</label>
+            <select id="form-day-group">
+              <option value="0">Unassigned</option>
+              <option value="1">Day 1</option>
+              <option value="2">Day 2</option>
+              <option value="3">Day 3</option>
+              <option value="4">Day 4</option>
+              <option value="5">Day 5</option>
+              <option value="6">Day 6</option>
+              <option value="7">Day 7</option>
+            </select>
+          </div>
+        </div>
+
         <div class="form-group">
           <label for="form-address">Address or City</label>
           <input type="text" id="form-address" placeholder="e.g. Highland Park, Los Angeles, CA">
         </div>
 
-        <div class="form-group">
-          <label for="form-visited">Status</label>
-          <select id="form-visited">
-            <option value="false">🎯 Want to Go</option>
-            <option value="true">✅ Visited</option>
-          </select>
+        <div class="form-row" style="align-items: center; justify-content: space-between; margin-top: 0.25rem;">
+          <div class="form-group flex-1">
+            <label for="form-visited">Status</label>
+            <select id="form-visited">
+              <option value="false">🎯 Want to Go</option>
+              <option value="true">✅ Visited</option>
+            </select>
+          </div>
+          <div class="form-group" style="padding-top: 1.25rem; padding-left: 0.75rem;">
+            <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 600; font-size: 0.9rem;">
+              <input type="checkbox" id="form-priority" style="width: 18px; height: 18px; accent-color: var(--warning);">
+              <span>⭐ Must-See</span>
+            </label>
+          </div>
         </div>
 
         <!-- Collapsible More Options -->
@@ -453,6 +507,11 @@
               <span class="plus-code-label">🧭 Plus Code:</span>
               <code id="form-plus-code-val"></code>
               <button type="button" class="btn-copy-code-sm" onclick="copyFormPlusCode()">Copy</button>
+            </div>
+
+            <div class="form-group">
+              <label for="form-opening-hours">Opening Hours (Open Now / Closed indicator)</label>
+              <input type="text" id="form-opening-hours" placeholder="e.g. Daily 08:00-22:00, Mon-Fri 09:00-18:00, or 24/7">
             </div>
 
             <div class="form-group">
@@ -481,10 +540,10 @@
   </div>
 
   <!-- Create New List Modal -->
-  <div id="new-list-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'new-list-modal')">
+  <div id="new-list-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="new-list-title" onclick="handleModalBackdropClick(event, 'new-list-modal')">
     <div class="modal-card modal-sm">
       <div class="modal-header">
-        <h2>Create New Trip / List</h2>
+        <h2 id="new-list-title">Create New Trip / List</h2>
         <button class="btn-close" onclick="closeNewListModal()" aria-label="Close modal">&times;</button>
       </div>
       <form id="new-list-form" onsubmit="handleCreateListSubmit(event)">
@@ -519,7 +578,7 @@
   </div>
 
   <!-- Share / Collaborate List Modal -->
-  <div id="share-list-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'share-list-modal')">
+  <div id="share-list-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="share-modal-title" onclick="handleModalBackdropClick(event, 'share-list-modal')">
     <div class="modal-card modal-sm">
       <div class="modal-header">
         <h2 id="share-modal-title">Share Trip Collection</h2>
@@ -544,10 +603,10 @@
   </div>
 
   <!-- Multi-Device Sync Modal -->
-  <div id="sync-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'sync-modal')">
+  <div id="sync-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sync-modal-title" onclick="handleModalBackdropClick(event, 'sync-modal')">
     <div class="modal-card modal-sm">
       <div class="modal-header">
-        <h2>📱 Link & Sync Devices</h2>
+        <h2 id="sync-modal-title">📱 Link & Sync Devices</h2>
         <button class="btn-close" onclick="closeSyncModal()" aria-label="Close modal">&times;</button>
       </div>
       <div class="sync-modal-body" style="padding: 1rem 0;">
@@ -586,12 +645,12 @@
   </div>
 
   <!-- About Modal -->
-  <div id="about-modal" class="modal-overlay hidden" onclick="handleModalBackdropClick(event, 'about-modal')">
+  <div id="about-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="about-modal-title" onclick="handleModalBackdropClick(event, 'about-modal')">
     <div class="modal-card modal-about">
       <div class="modal-header">
         <div class="about-header-title">
           <span class="about-logo-icon">🗺️</span>
-          <h2>About bList</h2>
+          <h2 id="about-modal-title">About bList</h2>
         </div>
         <button class="btn-close" onclick="closeAboutModal()" aria-label="Close modal">&times;</button>
       </div>
@@ -678,8 +737,89 @@
         </div>
       </div>
 
-      <div class="modal-actions" style="margin-top: 1.25rem;">
+      <div class="modal-actions" style="margin-top: 1rem;">
         <button type="button" class="btn btn-secondary" onclick="closeAboutModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Universal Importer Modal -->
+  <div id="import-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="import-modal-title" onclick="handleModalBackdropClick(event, 'import-modal')">
+    <div class="modal-card modal-md">
+      <div class="modal-header">
+        <div class="import-header-title">
+          <span class="import-logo-icon">📥</span>
+          <h2 id="import-modal-title">Import Saved Places</h2>
+        </div>
+        <button class="btn-close" onclick="closeImportModal()" aria-label="Close modal">&times;</button>
+      </div>
+
+      <div class="import-modal-body">
+        <p class="import-modal-intro">
+          Seamlessly bring your saved pins into bList from <strong>Google Takeout (Saved Places JSON/CSV)</strong>, <strong>KML (My Maps)</strong>, or <strong>GeoJSON</strong>.
+        </p>
+
+        <!-- Dropzone -->
+        <div class="import-dropzone" id="import-dropzone" tabindex="0" role="button" aria-label="Upload file dropzone. Click or drag and drop file here" onclick="document.getElementById('import-file-input').click()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('import-file-input').click();}">
+          <input type="file" id="import-file-input" accept=".json,.geojson,.csv,.kml,.txt" style="display: none;" onchange="handleImportFileSelect(event)">
+          <div class="dropzone-content" id="dropzone-content">
+            <div class="dropzone-icon">📁</div>
+            <p class="dropzone-main-text"><strong>Click to browse</strong> or drag &amp; drop file here</p>
+            <p class="dropzone-sub-text">Saved Places.json, Saved Places.csv, .kml, .geojson</p>
+          </div>
+          <div class="dropzone-file-info hidden" id="dropzone-file-info">
+            <span class="file-name" id="selected-file-name">filename.json</span>
+            <span class="file-size" id="selected-file-size">12 KB</span>
+            <button type="button" class="btn-remove-file" onclick="clearImportFile(event)" aria-label="Remove selected file">✕</button>
+          </div>
+        </div>
+
+        <!-- Destination List Options -->
+        <div class="form-group" style="margin-top: 1rem;">
+          <label for="import-dest-list">Import Into Collection / Trip</label>
+          <select id="import-dest-list" onchange="handleImportDestListChange(event)">
+            <option value="current">Current List</option>
+            <option value="new">+ Create New Trip Collection...</option>
+          </select>
+        </div>
+
+        <div class="form-group hidden" id="import-new-list-group">
+          <label for="import-new-list-name">New Collection Name *</label>
+          <input type="text" id="import-new-list-name" placeholder="e.g. Google Maps Export 2026, Japan Trip">
+        </div>
+
+        <div class="form-group">
+          <label for="import-default-category">Default Category (for unclassified pins)</label>
+          <select id="import-default-category">
+            <option value="Place" selected>📍 Place / Landmark</option>
+            <option value="Food & Drink">🍔 Food & Drink</option>
+            <option value="Cafe">☕ Cafe</option>
+            <option value="Sightseeing">🏛️ Sightseeing</option>
+            <option value="Nature & Outdoors">🏞️ Nature & Outdoors</option>
+            <option value="Hotel & Stay">🏨 Hotel & Stay</option>
+            <option value="Shopping">🛍️ Shopping</option>
+            <option value="General">📌 General</option>
+          </select>
+        </div>
+
+        <!-- Progress Tracker -->
+        <div class="import-progress-container hidden" id="import-progress-container">
+          <div class="import-progress-label" id="import-progress-label">Processing places...</div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill progress-bar-animated" id="import-progress-bar" style="width: 30%;"></div>
+          </div>
+        </div>
+
+        <!-- Results Summary Box -->
+        <div class="import-summary-box hidden" id="import-summary-box"></div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 1.25rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-start-import" onclick="executeImport()" disabled>
+          <i data-lucide="upload" class="btn-icon"></i>
+          <span>Start Import</span>
+        </button>
       </div>
     </div>
   </div>

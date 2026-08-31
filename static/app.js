@@ -60,6 +60,30 @@
       'Place': 'map-pin'
     },
 
+    CATEGORY_EMOJIS: {
+      'Food & Drink': '🍔',
+      'Cafe': '☕',
+      'Sightseeing': '🏛️',
+      'Nature & Outdoors': '🏞️',
+      'Hotel & Stay': '🏨',
+      'Shopping': '🛍️',
+      'General': '📍',
+      'Social': '📸',
+      'Place': '📍'
+    },
+
+    CATEGORY_COLORS: {
+      'Food & Drink': '#ea580c',
+      'Cafe': '#854d0e',
+      'Sightseeing': '#7c3aed',
+      'Nature & Outdoors': '#16a34a',
+      'Hotel & Stay': '#0284c7',
+      'Shopping': '#db2777',
+      'General': '#2563eb',
+      'Social': '#e11d48',
+      'Place': '#2563eb'
+    },
+
     WEATHER_CODE_MAP: {
       0: { icon: '☀️', text: 'Clear' },
       1: { icon: '🌤️', text: 'Mainly Clear' },
@@ -76,8 +100,9 @@
       71: { icon: '🌨️', text: 'Light Snow' },
       73: { icon: '🌨️', text: 'Snow' },
       75: { icon: '❄️', text: 'Heavy Snow' },
-      80: { icon: '🌦️', text: 'Rain Showers' },
-      81: { icon: '🌧️', text: 'Showers' },
+      79: { icon: '🌦️', text: 'Rain Showers' },
+      80: { icon: '🌧️', text: 'Showers' },
+      81: { icon: '⛈️', text: 'Heavy Showers' },
       82: { icon: '⛈️', text: 'Heavy Showers' },
       85: { icon: '🌨️', text: 'Snow Showers' },
       86: { icon: '❄️', text: 'Heavy Snow Showers' },
@@ -95,6 +120,7 @@
     currentTileLayer: null,
     currentLayerName: 'osm',
     markers: {},
+    markerLayer: null,
     routePolyline: null,
     isRouteActive: false,
     allPins: [],
@@ -102,6 +128,10 @@
     currentListFilter: 'all', // 'all', 'bucket', 'visited', or list_id as string
     selectedCategory: 'All',
     selectedStatus: 'all', // 'all', 'bucket', 'visited'
+    selectedTag: null,
+    priorityOnly: false,
+    openNowOnly: false,
+    selectedDay: null,
     searchQuery: '',
     currentSort: 'newest', // 'newest', 'nearest', 'az', 'category'
     currentMobileView: 'map', // 'map' or 'list'
@@ -123,6 +153,12 @@
         '"': '&quot;',
         "'": '&#39;'
       })[m]);
+    },
+
+    formatFileSize(bytes) {
+      if (!bytes || bytes < 1024) return (bytes || 0) + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
     },
 
     calculateDistance(lat1, lon1, lat2, lon2) {
@@ -571,6 +607,14 @@
       });
     },
 
+    async importPlaces(payload) {
+      return this.request('/api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    },
+
     async fetchWeather(lat, lon) {
       const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
       if (State.weatherCache[key]) {
@@ -643,6 +687,8 @@
         tap: true
       }).setView([20.0, 0.0], 2);
 
+      State.markerLayer = L.layerGroup().addTo(State.map);
+
       this.applyLayer(State.currentLayerName, false);
 
       // Click on map to add place manually with reverse-geocoding
@@ -711,38 +757,47 @@
     renderMarkers() {
       if (!State.map) return;
 
-      Object.values(State.markers).forEach((m) => State.map.removeLayer(m));
+      if (!State.markerLayer) {
+        State.markerLayer = L.layerGroup().addTo(State.map);
+      }
+      State.markerLayer.clearLayers();
       State.markers = {};
 
       const filtered = FilterManager.getFilteredPins();
+      const markersToAdd = [];
 
       filtered.forEach((pin) => {
-        const iconName = CONFIG.CATEGORY_ICONS[pin.category] || 'map-pin';
+        const emoji = pin.emoji || CONFIG.CATEGORY_EMOJIS[pin.category] || '📍';
+        const pinColor = CONFIG.CATEGORY_COLORS[pin.category] || '#2563eb';
+        const isPriority = !!pin.priority;
+        const isVisited = !!pin.visited;
+
         const customIcon = L.divIcon({
           className: 'custom-pin-container',
           html: `
-            <div class="custom-pin-marker ${pin.visited ? 'visited-pin' : ''}" id="marker-elem-${pin.id}">
-              <i data-lucide="${iconName}"></i>
+            <div class="custom-pin-marker ${isVisited ? 'visited-pin' : ''} ${isPriority ? 'is-priority' : ''}" 
+                 style="--pin-color: ${pinColor};" 
+                 id="marker-elem-${pin.id}">
+              <span class="pin-emoji-inner">${Utils.escapeHtml(emoji)}</span>
             </div>
           `,
-          iconSize: [32, 32],
-          iconAnchor: [16, 32],
-          popupAnchor: [0, -32]
+          iconSize: [34, 34],
+          iconAnchor: [17, 34],
+          popupAnchor: [0, -34]
         });
 
-        const marker = L.marker([pin.latitude, pin.longitude], { icon: customIcon }).addTo(
-          State.map
-        );
+        const marker = L.marker([pin.latitude, pin.longitude], { icon: customIcon });
 
         marker.on('click', () => {
           this.loadAndRenderPopup(marker, pin);
         });
 
         State.markers[pin.id] = marker;
+        markersToAdd.push(marker);
       });
 
+      markersToAdd.forEach((m) => State.markerLayer.addLayer(m));
       this.updateRouteLine();
-      if (window.lucide) window.lucide.createIcons();
     },
 
     toggleRouteLine() {
@@ -907,6 +962,30 @@
           if (State.selectedStatus === 'bucket' && pin.visited) return false;
           if (State.selectedStatus === 'visited' && !pin.visited) return false;
 
+          // Priority Filter
+          if (State.priorityOnly && !pin.priority) return false;
+
+          // Open Now Filter
+          if (State.openNowOnly) {
+            if (!pin.opening_hours) return false;
+            const getStatusFn = (window.bListHelpers && window.bListHelpers.getOpeningStatus) ||
+                                (window.Helpers && window.Helpers.getOpeningStatus);
+            const op = getStatusFn ? getStatusFn(pin.opening_hours) : null;
+            if (!op || !op.isOpen) return false;
+          }
+
+          // Tag Filter
+          if (State.selectedTag) {
+            if (!pin.tags || !pin.tags.toLowerCase().includes(State.selectedTag.toLowerCase())) {
+              return false;
+            }
+          }
+
+          // Day Planner Filter
+          if (State.selectedDay !== null && pin.day_group !== State.selectedDay) {
+            return false;
+          }
+
           // Category Chip Filter
           if (State.selectedCategory !== 'All' && pin.category !== State.selectedCategory) {
             return false;
@@ -919,7 +998,8 @@
             const matchAddress = pin.address && pin.address.toLowerCase().includes(q);
             const matchNotes = pin.notes && pin.notes.toLowerCase().includes(q);
             const matchCategory = pin.category && pin.category.toLowerCase().includes(q);
-            if (!matchTitle && !matchAddress && !matchNotes && !matchCategory) return false;
+            const matchTags = pin.tags && pin.tags.toLowerCase().includes(q);
+            if (!matchTitle && !matchAddress && !matchNotes && !matchCategory && !matchTags) return false;
           }
 
           return true;
@@ -944,6 +1024,10 @@
           } else if (State.currentSort === 'category') {
             return (a.category || '').localeCompare(b.category || '');
           } else {
+            // Respect custom sequence if defined, else newest first
+            const orderA = a.custom_order !== undefined ? a.custom_order : 0;
+            const orderB = b.custom_order !== undefined ? b.custom_order : 0;
+            if (orderA !== orderB) return orderA - orderB;
             return (b.id || 0) - (a.id || 0);
           }
         });
@@ -957,9 +1041,47 @@
 
     setStatusFilter(status) {
       State.selectedStatus = status;
-      document.querySelectorAll('.filter-tab').forEach((tab) => {
+      document.querySelectorAll('.filter-tab[data-status]').forEach((tab) => {
         tab.classList.toggle('active', tab.dataset.status === status);
       });
+      UIManager.renderPinList();
+      MapController.renderMarkers();
+      UIManager.updateCounts();
+      if (window.lucide) window.lucide.createIcons();
+    },
+
+    togglePriorityFilter() {
+      State.priorityOnly = !State.priorityOnly;
+      const tab = document.getElementById('tab-priority-filter');
+      if (tab) tab.classList.toggle('active', State.priorityOnly);
+      UIManager.renderPinList();
+      MapController.renderMarkers();
+      UIManager.updateCounts();
+      if (window.lucide) window.lucide.createIcons();
+    },
+
+    toggleOpenNowFilter() {
+      State.openNowOnly = !State.openNowOnly;
+      const tab = document.getElementById('tab-open-now-filter');
+      if (tab) tab.classList.toggle('active', State.openNowOnly);
+      UIManager.renderPinList();
+      MapController.renderMarkers();
+      UIManager.updateCounts();
+      if (window.lucide) window.lucide.createIcons();
+    },
+
+    setTagFilter(tag) {
+      State.selectedTag = State.selectedTag === tag ? null : tag;
+      UIManager.renderTagsBar();
+      UIManager.renderPinList();
+      MapController.renderMarkers();
+      UIManager.updateCounts();
+      if (window.lucide) window.lucide.createIcons();
+    },
+
+    setDayFilter(day) {
+      State.selectedDay = State.selectedDay === day ? null : day;
+      UIManager.renderDaysBar();
       UIManager.renderPinList();
       MapController.renderMarkers();
       UIManager.updateCounts();
@@ -1000,11 +1122,77 @@
     renderAll() {
       this.renderListsUI();
       this.renderCategories();
+      this.renderTagsBar();
+      this.renderDaysBar();
       this.renderPinList();
       MapController.renderMarkers();
       this.updateCounts();
       this.updateTripProgress();
       if (window.lucide) window.lucide.createIcons();
+    },
+
+    renderTagsBar() {
+      const container = document.getElementById('tags-bar');
+      if (!container) return;
+
+      const tagsSet = new Set();
+      State.allPins.forEach((pin) => {
+        if (pin.tags) {
+          const parts = pin.tags.split(/[\s,]+/);
+          parts.forEach((t) => {
+            const clean = t.trim().replace(/^#/, '');
+            if (clean) tagsSet.add(clean);
+          });
+        }
+      });
+
+      if (tagsSet.size === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.classList.remove('hidden');
+      const tags = Array.from(tagsSet).sort();
+
+      container.innerHTML = `
+        <button class="tag-chip ${!State.selectedTag ? 'active' : ''}" onclick="setTagFilter(null)">#all</button>
+        ${tags
+          .map(
+            (tag) => `
+          <button class="tag-chip ${State.selectedTag === tag ? 'active' : ''}" data-tag="${Utils.escapeHtml(tag)}" onclick="setTagFilter(this.dataset.tag)">
+            #${Utils.escapeHtml(tag)}
+          </button>
+        `
+          )
+          .join('')}
+      `;
+    },
+
+    renderDaysBar() {
+      const container = document.getElementById('days-bar');
+      if (!container) return;
+
+      const hasDays = State.allPins.some((p) => p.day_group && p.day_group > 0);
+      if (!hasDays) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.classList.remove('hidden');
+      const activeDays = [1, 2, 3, 4, 5, 6, 7].filter((d) => State.allPins.some((p) => p.day_group === d));
+
+      container.innerHTML = `
+        <button class="day-pill ${State.selectedDay === null ? 'active' : ''}" onclick="setDayFilter(null)">All Days</button>
+        ${activeDays
+          .map(
+            (day) => `
+          <button class="day-pill ${State.selectedDay === day ? 'active' : ''}" onclick="setDayFilter(${day})">
+            Day ${day}
+          </button>
+        `
+          )
+          .join('')}
+      `;
     },
 
     updateTripProgress() {
@@ -1042,9 +1230,37 @@
     },
 
     renderBadgesHtml(pin, { distanceStr, weather, assignedList }) {
+      const emoji = pin.emoji || CONFIG.CATEGORY_EMOJIS[pin.category] || '';
+      let tagsHtml = '';
+      if (pin.tags) {
+        const parts = pin.tags.split(/[\s,]+/);
+        tagsHtml = parts
+          .filter((t) => t.trim().length > 0)
+          .map((t) => {
+            const clean = t.trim().replace(/^#/, '');
+            return `<span class="pin-badge badge-tag" data-tag="${Utils.escapeHtml(clean)}" onclick="event.stopPropagation(); setTagFilter(this.dataset.tag)">#${Utils.escapeHtml(clean)}</span>`;
+          })
+          .join('');
+      }
+
+      let hoursHtml = '';
+      if (pin.opening_hours) {
+        const getStatusFn = (window.bListHelpers && window.bListHelpers.getOpeningStatus) ||
+                            (window.Helpers && window.Helpers.getOpeningStatus);
+        if (getStatusFn) {
+          const op = getStatusFn(pin.opening_hours);
+          if (op && op.label) {
+            hoursHtml = `<span class="hours-status-badge ${op.badgeClass}" title="${Utils.escapeHtml(op.details)}"><span class="hours-status-dot"></span>${Utils.escapeHtml(op.label)}</span>`;
+          }
+        }
+      }
+
       return `
+        ${pin.priority ? '<span class="pin-badge badge-priority">⭐ Must-See</span>' : ''}
+        ${pin.day_group && pin.day_group > 0 ? `<span class="pin-badge badge-day">📅 Day ${pin.day_group}</span>` : ''}
+        ${hoursHtml}
         <span class="pin-badge ${pin.visited ? 'badge-visited' : ''}">
-          ${pin.visited ? '✅ Visited' : Utils.escapeHtml(pin.category || 'Place')}
+          ${pin.visited ? '✅ Visited' : `${emoji} ${Utils.escapeHtml(pin.category || 'Place')}`}
         </span>
         ${
           assignedList
@@ -1053,6 +1269,7 @@
               )}</span>`
             : ''
         }
+        ${tagsHtml}
         ${distanceStr ? `<span class="pin-badge badge-distance">📍 ${distanceStr}</span>` : ''}
         <span class="pin-badge badge-weather ${weather ? '' : 'hidden'}" id="weather-badge-${pin.id}">
           ${weather ? `${weather.icon} ${weather.tempF}°F` : ''}
@@ -1062,7 +1279,7 @@
 
     renderActionsHtml(pin, isPopup = false) {
       const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${pin.latitude},${pin.longitude}`;
-      const sourceUrl = pin.source_url ? Utils.escapeHtml(pin.source_url) : '';
+      const safeSourceUrl = pin.source_url ? Utils.sanitizeUrl(pin.source_url) : '';
 
       if (isPopup) {
         return `
@@ -1074,8 +1291,8 @@
               <i data-lucide="share-2"></i> Share
             </button>
             ${
-              sourceUrl
-                ? `<a href="${sourceUrl}" target="_blank" rel="noopener noreferrer" class="btn-popup-action">
+              safeSourceUrl
+                ? `<a href="${Utils.escapeHtml(safeSourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn-popup-action">
                     <i data-lucide="external-link"></i> Link
                    </a>`
                 : ''
@@ -1151,9 +1368,9 @@
             }
             ${
               displayPlusCode
-                ? `<div class="popup-plus-code-row" onclick="event.stopPropagation(); copyPlusCode('${Utils.escapeHtml(
+                ? `<div class="popup-plus-code-row" data-plus-code="${Utils.escapeHtml(
                     displayPlusCode
-                  )}')" title="Click to copy Plus Code (${Utils.escapeHtml(displayPlusCode)})">
+                  )}" onclick="event.stopPropagation(); copyPlusCode(this.dataset.plusCode)" title="Click to copy Plus Code (${Utils.escapeHtml(displayPlusCode)})">
                     <span class="plus-code-label"><i data-lucide="compass"></i></span>
                     <code class="plus-code-val">${Utils.escapeHtml(displayPlusCode)}</code>
                     <span class="plus-code-copy-btn"><i data-lucide="copy"></i></span>
@@ -1235,7 +1452,7 @@
         container.addEventListener('click', (e) => {
           const btn = e.target.closest('.cat-chip');
           if (btn && btn.dataset.category) {
-            FilterManager.setCategory(btn.dataset.category);
+            FilterManager.setCategoryFilter(btn.dataset.category);
           }
         });
         container._hasCategoryListener = true;
@@ -1424,6 +1641,11 @@
       document.getElementById('modal-title').innerText = 'Add Place';
       document.getElementById('form-pin-id').value = '';
       document.getElementById('form-title').value = '';
+      document.getElementById('form-emoji').value = '';
+      document.getElementById('form-tags').value = '';
+      document.getElementById('form-priority').checked = false;
+      document.getElementById('form-day-group').value = '0';
+      document.getElementById('form-opening-hours').value = '';
       document.getElementById('form-lat').value = lat;
       document.getElementById('form-lon').value = lon;
       document.getElementById('form-category').value = 'Place';
@@ -1477,6 +1699,11 @@
       document.getElementById('modal-title').innerText = 'Edit Place';
       document.getElementById('form-pin-id').value = pin.id;
       document.getElementById('form-title').value = pin.title;
+      document.getElementById('form-emoji').value = pin.emoji || '';
+      document.getElementById('form-tags').value = pin.tags || '';
+      document.getElementById('form-priority').checked = Boolean(pin.priority);
+      document.getElementById('form-day-group').value = String(pin.day_group || 0);
+      document.getElementById('form-opening-hours').value = pin.opening_hours || '';
       document.getElementById('form-lat').value = pin.latitude;
       document.getElementById('form-lon').value = pin.longitude;
       document.getElementById('form-category').value = pin.category || 'Place';
@@ -1488,7 +1715,7 @@
 
       const moreOptions = document.getElementById('pin-more-options');
       if (moreOptions) {
-        moreOptions.open = Boolean(pin.notes || pin.image_url || pin.source_url);
+        moreOptions.open = Boolean(pin.notes || pin.image_url || pin.source_url || pin.opening_hours);
       }
 
       const submitBtn = document.getElementById('btn-submit-pin');
@@ -1594,6 +1821,11 @@
       const payload = {
         list_id: selectedListId,
         title,
+        emoji: document.getElementById('form-emoji')?.value.trim() || null,
+        tags: document.getElementById('form-tags')?.value.trim() || null,
+        priority: document.getElementById('form-priority')?.checked || false,
+        day_group: parseInt(document.getElementById('form-day-group')?.value, 10) || 0,
+        opening_hours: document.getElementById('form-opening-hours')?.value.trim() || null,
         latitude: lat,
         longitude: lon,
         category: document.getElementById('form-category').value,
@@ -2283,6 +2515,328 @@
   }
 
   // ==========================================================================
+  // 12. Universal Importer & Route Optimizer Engines
+  // ==========================================================================
+  const ImportModalController = {
+    selectedFile: null,
+    fileContent: null,
+
+    openModal() {
+      UIManager.closeMobileQuickAdd();
+      this.clearFile();
+      const select = document.getElementById('import-dest-list');
+      if (select) {
+        select.innerHTML = '';
+        if (State.lists && State.lists.length > 0) {
+          State.lists.forEach((l) => {
+            const opt = document.createElement('option');
+            opt.value = String(l.id);
+            opt.textContent = `${l.icon || '📁'} ${l.name}`;
+            select.appendChild(opt);
+          });
+        } else {
+          const opt = document.createElement('option');
+          opt.value = '1';
+          opt.textContent = '📍 My Bucket List';
+          select.appendChild(opt);
+        }
+        const newOpt = document.createElement('option');
+        newOpt.value = 'new';
+        newOpt.textContent = '✨ + Create New Trip Collection...';
+        select.appendChild(newOpt);
+
+        if (
+          State.currentListFilter !== 'all' &&
+          State.currentListFilter !== 'bucket' &&
+          State.currentListFilter !== 'visited'
+        ) {
+          select.value = State.currentListFilter;
+        }
+      }
+      this.handleDestListChange();
+
+      const summaryBox = document.getElementById('import-summary-box');
+      if (summaryBox) {
+        summaryBox.className = 'import-summary-box hidden';
+        summaryBox.innerHTML = '';
+      }
+      const progressContainer = document.getElementById('import-progress-container');
+      if (progressContainer) progressContainer.classList.add('hidden');
+
+      const modal = document.getElementById('import-modal');
+      if (modal) modal.classList.remove('hidden');
+      if (window.lucide) window.lucide.createIcons();
+    },
+
+    closeModal() {
+      const modal = document.getElementById('import-modal');
+      if (modal) modal.classList.add('hidden');
+    },
+
+    handleDestListChange() {
+      const select = document.getElementById('import-dest-list');
+      const newGroup = document.getElementById('import-new-list-group');
+      if (select && newGroup) {
+        if (select.value === 'new') {
+          newGroup.classList.remove('hidden');
+        } else {
+          newGroup.classList.add('hidden');
+        }
+      }
+    },
+
+    handleFileSelect(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      this.loadFile(file);
+    },
+
+    loadFile(file) {
+      if (!file) return;
+
+      if (file.size > 25 * 1024 * 1024) {
+        ToastManager.show('Selected file is too large (25 MB max limit).', 'error');
+        this.clearFile();
+        return;
+      }
+
+      this.selectedFile = file;
+      const dropContent = document.getElementById('dropzone-content');
+      const fileInfo = document.getElementById('dropzone-file-info');
+      const nameEl = document.getElementById('selected-file-name');
+      const sizeEl = document.getElementById('selected-file-size');
+      const startBtn = document.getElementById('btn-start-import');
+
+      if (nameEl) nameEl.textContent = file.name;
+      if (sizeEl) sizeEl.textContent = Utils.formatFileSize(file.size);
+
+      if (dropContent) dropContent.classList.add('hidden');
+      if (fileInfo) fileInfo.classList.remove('hidden');
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        this.fileContent = event.target.result;
+        if (startBtn) {
+          startBtn.disabled = false;
+          startBtn.innerHTML = '<i data-lucide="upload" class="btn-icon"></i><span>Start Import</span>';
+          startBtn.onclick = () => this.executeImport();
+          if (window.lucide) window.lucide.createIcons();
+        }
+      };
+      reader.onerror = () => {
+        ToastManager.show('Failed to read selected file. Please try another file.', 'error');
+        this.clearFile();
+      };
+      reader.onabort = () => {
+        this.clearFile();
+      };
+      reader.readAsText(file);
+    },
+
+    clearFile(e) {
+      if (e) e.stopPropagation();
+      this.selectedFile = null;
+      this.fileContent = null;
+      const input = document.getElementById('import-file-input');
+      if (input) input.value = '';
+      const dropContent = document.getElementById('dropzone-content');
+      const fileInfo = document.getElementById('dropzone-file-info');
+      const startBtn = document.getElementById('btn-start-import');
+
+      if (dropContent) dropContent.classList.remove('hidden');
+      if (fileInfo) fileInfo.classList.add('hidden');
+      if (startBtn) startBtn.disabled = true;
+    },
+
+    setupDropzoneListeners() {
+      const dropzone = document.getElementById('import-dropzone');
+      if (!dropzone || dropzone._hasDropListeners) return;
+
+      ['dragenter', 'dragover'].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('dragover');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('dragover');
+        });
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files && files.length > 0) {
+          ImportModalController.loadFile(files[0]);
+        }
+      });
+
+      dropzone._hasDropListeners = true;
+    },
+
+    async executeImport() {
+      if (!this.fileContent) {
+        ToastManager.show('Please select a file to import.', 'error');
+        return;
+      }
+
+      const destSelect = document.getElementById('import-dest-list');
+      const newNameInput = document.getElementById('import-new-list-name');
+      const catSelect = document.getElementById('import-default-category');
+      const startBtn = document.getElementById('btn-start-import');
+      const progressContainer = document.getElementById('import-progress-container');
+      const progressLabel = document.getElementById('import-progress-label');
+      const progressBar = document.getElementById('import-progress-bar');
+      const summaryBox = document.getElementById('import-summary-box');
+
+      let listId = null;
+      let newListName = null;
+
+      if (destSelect.value === 'new') {
+        newListName = newNameInput ? newNameInput.value.trim() : '';
+        if (!newListName) {
+          ToastManager.show('Please enter a name for the new collection.', 'error');
+          if (newNameInput) newNameInput.focus();
+          return;
+        }
+      } else {
+        listId = parseInt(destSelect.value, 10);
+      }
+
+      const defaultCategory = catSelect ? catSelect.value : 'General';
+
+      if (startBtn) {
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<span class="spinner-sm"></span> Importing...';
+      }
+      if (progressContainer) progressContainer.classList.remove('hidden');
+      if (progressLabel) progressLabel.textContent = 'Parsing places and resolving GPS coordinates...';
+      if (progressBar) progressBar.style.width = '60%';
+
+      try {
+        const payload = {
+          list_id: listId,
+          new_list_name: newListName,
+          default_category: defaultCategory,
+          raw_data: this.fileContent
+        };
+
+        const res = await ApiClient.importPlaces(payload);
+        if (progressBar) progressBar.style.width = '100%';
+
+        if (res && res.success && res.data) {
+          const summary = res.data;
+          ToastManager.show(`🎉 Successfully imported ${summary.imported_count} places into "${summary.list_name}"!`, 'success');
+
+          if (summaryBox) {
+            summaryBox.className = 'import-summary-box success';
+            summaryBox.classList.remove('hidden');
+            let warningsHtml = '';
+            if (summary.warnings && summary.warnings.length > 0) {
+              warningsHtml = `
+                <div style="margin-top: 8px; font-weight: 600; color: var(--warning-text);">Warnings (${summary.warnings.length}):</div>
+                <ul class="import-warnings-list">
+                  ${summary.warnings.map((w) => `<li>${Utils.escapeHtml(w)}</li>`).join('')}
+                </ul>
+              `;
+            }
+
+            summaryBox.innerHTML = `
+              <div class="import-summary-title">✅ Import Completed</div>
+              <div class="import-summary-stats">
+                Processed <strong>${summary.total_processed}</strong> places &bull; 
+                Imported <strong>${summary.imported_count}</strong> &bull; 
+                Skipped <strong>${summary.skipped_count}</strong>
+              </div>
+              ${warningsHtml}
+            `;
+          }
+
+          // Refresh state and switch to active list
+          await App.loadData();
+          if (summary.list_id) {
+            FilterManager.selectList(summary.list_id);
+          }
+          if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<span>Done</span>';
+            startBtn.onclick = () => this.closeModal();
+          }
+        } else {
+          throw new Error((res && res.error) || 'Import failed');
+        }
+      } catch (err) {
+        ToastManager.show(err.message || 'Import failed. Please check file format.', 'error');
+        if (progressContainer) progressContainer.classList.add('hidden');
+        if (startBtn) {
+          startBtn.disabled = false;
+          startBtn.innerHTML = '<i data-lucide="upload" class="btn-icon"></i><span>Start Import</span>';
+        }
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }
+  };
+
+  const RouteOptimizer = {
+    async optimizeCurrentRoute() {
+      const pins = FilterManager.getFilteredPins();
+      if (pins.length < 3) {
+        ToastManager.show('Need at least 3 places to optimize a route.', 'info');
+        return;
+      }
+
+      ToastManager.show('⚡ Calculating shortest sequence (2-Opt TSP)...', 'info');
+
+      // Solve TSP with nearest neighbor + 2-opt
+      const optimizeFn = (window.bListHelpers && window.bListHelpers.optimizeTour2Opt) ||
+                         (window.Helpers && window.Helpers.optimizeTour2Opt);
+      const tour = optimizeFn ? optimizeFn(pins) : pins;
+
+      // Update custom_order in local state and persist
+      for (let idx = 0; idx < tour.length; idx++) {
+        const pin = tour[idx];
+        pin.custom_order = idx;
+        const statePin = State.allPins.find((p) => p.id === pin.id);
+        if (statePin) statePin.custom_order = idx;
+        ApiClient.updatePin(pin.id, { custom_order: idx }).catch(() => {});
+      }
+
+      if (!State.isRouteActive) {
+        MapController.toggleRouteLine();
+      } else {
+        MapController.updateRouteLine();
+      }
+      UIManager.renderPinList();
+
+      ToastManager.show('✨ Route optimized! Places ordered for the fastest itinerary.', 'success');
+    }
+  };
+
+  const App = {
+    async loadData() {
+      try {
+        const lists = await ApiClient.fetchLists();
+        State.lists = lists.length > 0 ? lists : [{ id: 1, name: 'My Bucket List', icon: '📍', created_at: '' }];
+      } catch (_) {
+        State.lists = [{ id: 1, name: 'My Bucket List', icon: '📍', created_at: '' }];
+      }
+
+      try {
+        State.allPins = await ApiClient.fetchPins();
+        UIManager.renderAll();
+        UIManager.preloadWeatherForVisiblePins();
+      } catch (err) {
+        ToastManager.show('Failed to load saved places', 'error');
+      }
+    }
+  };
+
+  // ==========================================================================
   // 13. Application Lifecycle Initialization
   // ==========================================================================
   document.addEventListener('DOMContentLoaded', async () => {
@@ -2294,20 +2848,8 @@
     await handleIncomingJoinLink();
     await handleIncomingShareTarget();
 
-    try {
-      const lists = await ApiClient.fetchLists();
-      State.lists = lists.length > 0 ? lists : [{ id: 1, name: 'My Bucket List', icon: '📍', created_at: '' }];
-    } catch (_) {
-      State.lists = [{ id: 1, name: 'My Bucket List', icon: '📍', created_at: '' }];
-    }
-
-    try {
-      State.allPins = await ApiClient.fetchPins();
-      UIManager.renderAll();
-      UIManager.preloadWeatherForVisiblePins();
-    } catch (err) {
-      ToastManager.show('Failed to load saved places', 'error');
-    }
+    await App.loadData();
+    ImportModalController.setupDropzoneListeners();
 
     const initialParams = new URLSearchParams(window.location.search);
     if (initialParams.get('view') === 'list' || window.location.hash === '#list') {
@@ -2346,13 +2888,15 @@
     FilterManager,
     UIManager,
     ModalManager,
-    FeatureActions
+    FeatureActions,
+    ImportModalController,
+    RouteOptimizer
   };
 
   // Theme
   window.setTheme = (theme) => ThemeManager.set(theme);
   window.toggleTheme = () => ThemeManager.toggle();
-  window.toggleThemeMenu = () => ThemeManager.toggle();
+  window.toggleThemeMenu = () => ThemeManager.toggleMenu();
   window.toggleMobileMoreMenu = (e) => {
     if (e && e.stopPropagation) e.stopPropagation();
     const menu = document.getElementById('mobile-more-menu');
@@ -2374,10 +2918,19 @@
   window.toggleLayerSwitcher = window.toggleLayerMenu;
   window.switchMapLayer = (layerKey) => MapController.switchLayer(layerKey);
   window.toggleRouteLine = () => MapController.toggleRouteLine();
+  window.optimizeCurrentRoute = () => RouteOptimizer.optimizeCurrentRoute();
 
   // About & Info
   window.openAboutModal = () => ModalManager.openAboutModal();
   window.closeAboutModal = () => ModalManager.closeAboutModal();
+
+  // Import
+  window.openImportModal = () => ImportModalController.openModal();
+  window.closeImportModal = () => ImportModalController.closeModal();
+  window.handleImportFileSelect = (e) => ImportModalController.handleFileSelect(e);
+  window.handleImportDestListChange = () => ImportModalController.handleDestListChange();
+  window.clearImportFile = (e) => ImportModalController.clearFile(e);
+  window.executeImport = () => ImportModalController.executeImport();
 
   // Features
   window.surpriseMe = () => FeatureActions.surpriseMe();
@@ -2427,6 +2980,10 @@
 
   // Filter & Search
   window.setStatusFilter = (status) => FilterManager.setStatusFilter(status);
+  window.togglePriorityFilter = () => FilterManager.togglePriorityFilter();
+  window.toggleOpenNowFilter = () => FilterManager.toggleOpenNowFilter();
+  window.setTagFilter = (tag) => FilterManager.setTagFilter(tag);
+  window.setDayFilter = (day) => FilterManager.setDayFilter(day);
   window.setCategoryFilter = (cat) => FilterManager.setCategoryFilter(cat);
   window.handleSearch = (e) => FilterManager.handleSearch(e.target.value);
   window.handleSortChange = (e) => FilterManager.handleSortChange(e.target.value);

@@ -6,6 +6,20 @@ Designed as a Mobile-First PWA (Progressive Web App) that integrates directly in
 
 ---
 
+## 📸 App Preview
+
+<div align="center">
+  <img src="./screenshots/desktop-light.jpg" alt="bList Desktop Light Mode" width="85%" />
+  <p><em>Desktop Experience: Interactive Map with Custom Pins, Progress Tracking & Omni-Link Ingestion</em></p>
+</div>
+
+<p align="center">
+  <img src="./screenshots/desktop-dark.jpg" alt="bList Desktop Dark Mode" width="48%" />
+  <img src="./screenshots/mobile-view.jpg" alt="bList Mobile PWA" width="48%" />
+</p>
+
+---
+
 ## ⚡ Features
 
 ### 1. 📥 Omni-Link Saving (Deterministic Scraping)

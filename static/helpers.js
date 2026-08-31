@@ -348,7 +348,7 @@
   }
 
   /**
-   * Filters a list of pins based on trip list, status, category, and search query.
+   * Filters a list of pins based on trip list, status, category, tag, priority, day group, and search query.
    */
   function filterPins(pins, options = {}) {
     if (!Array.isArray(pins)) return [];
@@ -357,6 +357,10 @@
       listFilter = 'all',
       status = 'all',
       category = 'All',
+      tag = null,
+      priorityOnly = false,
+      dayGroup = null,
+      openNowOnly = false,
       search = ''
     } = options;
 
@@ -381,12 +385,41 @@
       result = result.filter(p => p.visited);
     }
 
-    // 3. Category filter
+    // 3. Priority filter
+    if (priorityOnly) {
+      result = result.filter(p => Boolean(p.priority));
+    }
+
+    // 4. Tag filter
+    if (tag) {
+      const targetTag = tag.trim().toLowerCase().replace(/^#/, '');
+      result = result.filter(p => {
+        if (!p.tags) return false;
+        const pinTags = p.tags.toLowerCase().split(/[\s,]+/).map(t => t.replace(/^#/, ''));
+        return pinTags.includes(targetTag);
+      });
+    }
+
+    // 5. Day Planner Group
+    if (dayGroup !== null && dayGroup !== undefined) {
+      result = result.filter(p => p.day_group === dayGroup);
+    }
+
+    // 6. Open Now Filter
+    if (openNowOnly) {
+      result = result.filter(p => {
+        if (!p.opening_hours) return false;
+        const op = getOpeningStatus(p.opening_hours);
+        return Boolean(op.isOpen);
+      });
+    }
+
+    // 7. Category filter
     if (category && category !== 'All') {
       result = result.filter(p => p.category === category);
     }
 
-    // 4. Search query filter
+    // 8. Search query filter
     const query = (search || '').trim().toLowerCase();
     if (query) {
       result = result.filter(pin => {
@@ -395,11 +428,96 @@
         const matchNotes = pin.notes && pin.notes.toLowerCase().includes(query);
         const matchDesc = pin.description && pin.description.toLowerCase().includes(query);
         const matchCategory = pin.category && pin.category.toLowerCase().includes(query);
-        return matchTitle || matchAddress || matchNotes || matchDesc || matchCategory;
+        const matchTags = pin.tags && pin.tags.toLowerCase().includes(query);
+        return matchTitle || matchAddress || matchNotes || matchDesc || matchCategory || matchTags;
       });
     }
 
     return result;
+  }
+
+  /**
+   * Solves TSP sequence optimization using Nearest Neighbor + 2-Opt heuristic.
+   */
+  function optimizeTour2Opt(pins) {
+    if (!Array.isArray(pins) || pins.length <= 2) return Array.isArray(pins) ? [...pins] : [];
+
+    const validPins = pins.filter((p) => p && validateCoordinates(p.latitude, p.longitude));
+    if (validPins.length <= 2) return [...pins];
+
+    const unvisited = [...validPins];
+    const tour = [unvisited.shift()];
+
+    while (unvisited.length > 0) {
+      const current = tour[tour.length - 1];
+      let nearestIdx = 0;
+      let minDistance = Infinity;
+
+      for (let i = 0; i < unvisited.length; i++) {
+        const d = calculateDistance(
+          current.latitude,
+          current.longitude,
+          unvisited[i].latitude,
+          unvisited[i].longitude
+        );
+        if (d < minDistance) {
+          minDistance = d;
+          nearestIdx = i;
+        }
+      }
+      tour.push(unvisited.splice(nearestIdx, 1)[0]);
+    }
+
+    // 2-Opt heuristic passes
+    let improved = true;
+    let iterations = 0;
+    while (improved && iterations < 50) {
+      improved = false;
+      iterations++;
+      for (let i = 0; i < tour.length - 1; i++) {
+        for (let k = i + 1; k < tour.length; k++) {
+          const d1 = calculateDistance(
+            tour[i].latitude,
+            tour[i].longitude,
+            tour[i + 1] ? tour[i + 1].latitude : tour[i].latitude,
+            tour[i + 1] ? tour[i + 1].longitude : tour[i].longitude
+          );
+          const d2 = k + 1 < tour.length ? calculateDistance(
+            tour[k].latitude,
+            tour[k].longitude,
+            tour[k + 1].latitude,
+            tour[k + 1].longitude
+          ) : 0;
+
+          const d3 = calculateDistance(
+            tour[i].latitude,
+            tour[i].longitude,
+            tour[k].latitude,
+            tour[k].longitude
+          );
+          const d4 = k + 1 < tour.length ? calculateDistance(
+            tour[i + 1].latitude,
+            tour[i + 1].longitude,
+            tour[k + 1].latitude,
+            tour[k + 1].longitude
+          ) : 0;
+
+          if (d3 + d4 < d1 + d2 - 0.0001) {
+            const reversed = tour.slice(i + 1, k + 1).reverse();
+            tour.splice(i + 1, reversed.length, ...reversed);
+            improved = true;
+          }
+        }
+      }
+    }
+
+    return tour;
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes || bytes < 1024) return (bytes || 0) + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
   }
 
   /**
@@ -540,6 +658,284 @@
   }
 
   /**
+   * Parses a time string (e.g. "08:00", "8:00 AM", "8pm", "20:30", "24:00") into minutes from midnight (0..1440).
+   */
+  function parseTimeToMinutes(str) {
+    if (!str || typeof str !== 'string') return null;
+    const s = str.trim().toLowerCase();
+    if (s === '24:00' || s === '24.00' || s === '24h' || s === '24:00:00') {
+      return 1440;
+    }
+    const match = s.match(/^(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?$/);
+    if (!match) return null;
+
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2] ? parseInt(match[2], 10) : 0;
+    const meridiem = match[3];
+
+    if (hours === 24 && minutes === 0) return 1440;
+
+    if (meridiem === 'pm' && hours < 12) hours += 12;
+    if (meridiem === 'am' && hours === 12) hours = 0;
+
+    if (hours < 0 || hours > 24 || minutes < 0 || minutes > 59) return null;
+    if (hours === 24 && minutes > 0) return null;
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Formats minutes from midnight into 12-hour AM/PM time (e.g. 600 -> "10:00 AM", 1260 -> "9:00 PM", 1440 -> "12:00 AM").
+   */
+  function formatMinutesToTime(mins) {
+    let m = mins % (24 * 60);
+    if (m < 0) m += 24 * 60;
+    const h24 = Math.floor(m / 60);
+    const min = m % 60;
+    const ampm = h24 >= 12 ? 'PM' : 'AM';
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    const minStr = min < 10 ? `0${min}` : `${min}`;
+    return min === 0 ? `${h12}:00 ${ampm}` : `${h12}:${minStr} ${ampm}`;
+  }
+
+  const DAY_ALIASES = {
+    su: 0, sun: 0, sunday: 0,
+    mo: 1, mon: 1, monday: 1,
+    tu: 2, tue: 2, tues: 2, tuesday: 2,
+    we: 3, wed: 3, weds: 3, wednesday: 3,
+    th: 4, thu: 4, thur: 4, thurs: 4, thursday: 4,
+    fr: 5, fri: 5, friday: 5,
+    sa: 6, sat: 6, saturday: 6
+  };
+
+  /**
+   * Deterministically evaluates whether a location is Open Now, Closing Soon, or Closed based on opening_hours string.
+   */
+  function getOpeningStatus(openingHoursStr, currentDateTime = new Date()) {
+    if (!openingHoursStr || typeof openingHoursStr !== 'string' || !openingHoursStr.trim()) {
+      return {
+        status: 'unknown',
+        isOpen: null,
+        label: '',
+        details: '',
+        badgeClass: ''
+      };
+    }
+
+    const clean = openingHoursStr.trim();
+    const lower = clean.toLowerCase();
+
+    if (lower === '24/7' || lower === 'open 24 hours' || lower === '24 hours' || lower === 'open 24/7') {
+      return {
+        status: 'open',
+        isOpen: true,
+        label: 'Open 24/7',
+        details: 'Open 24 hours daily',
+        badgeClass: 'badge-open'
+      };
+    }
+
+    if (lower === 'closed' || lower === 'temporarily closed' || lower === 'permanently closed') {
+      return {
+        status: 'closed',
+        isOpen: false,
+        label: 'Closed',
+        details: clean,
+        badgeClass: 'badge-closed'
+      };
+    }
+
+    const currentDay = currentDateTime.getDay(); // 0: Sun, 1: Mon, ...
+    const prevDay = (currentDay + 6) % 7;
+    const currentMins = currentDateTime.getHours() * 60 + currentDateTime.getMinutes();
+
+    function matchesDay(daySpec, targetDay) {
+      if (daySpec === 'daily' || daySpec === 'everyday') return true;
+      const parts = daySpec.split(',').map(d => d.trim());
+      for (const part of parts) {
+        const rangeMatch = part.match(/^([a-z]{2,9})\s*-\s*([a-z]{2,9})$/);
+        if (rangeMatch) {
+          const startDay = DAY_ALIASES[rangeMatch[1]];
+          const endDay = DAY_ALIASES[rangeMatch[2]];
+          if (startDay !== undefined && endDay !== undefined) {
+            if (startDay <= endDay) {
+              if (targetDay >= startDay && targetDay <= endDay) return true;
+            } else {
+              if (targetDay >= startDay || targetDay <= endDay) return true;
+            }
+          }
+        } else {
+          const singleDay = DAY_ALIASES[part];
+          if (singleDay !== undefined && singleDay === targetDay) return true;
+        }
+      }
+      return false;
+    }
+
+    const segments = clean.split(/;|\n|\|/).map(s => s.trim()).filter(Boolean);
+    let todayIntervals = [];
+    let prevDayOvernightIntervals = [];
+    let fallbackIntervals = [];
+    let isExplicitlyClosedToday = false;
+
+    for (const seg of segments) {
+      const segLower = seg.toLowerCase();
+      const dayMatch = segLower.match(/^([a-z]{2,9}(?:\s*-\s*[a-z]{2,9})?(?:,\s*[a-z]{2,9})*|daily|everyday)\s*[:]?\s*(.*)$/);
+
+      let timePart = seg;
+      let hasDaySpec = false;
+      let appliesToday = true;
+      let appliesPrevDay = false;
+
+      if (dayMatch) {
+        hasDaySpec = true;
+        const daySpec = dayMatch[1].trim();
+        timePart = dayMatch[2].trim();
+        appliesToday = matchesDay(daySpec, currentDay);
+        appliesPrevDay = matchesDay(daySpec, prevDay);
+      }
+
+      if (timePart.toLowerCase().includes('off') || timePart.toLowerCase().includes('closed')) {
+        if (appliesToday && hasDaySpec) {
+          isExplicitlyClosedToday = true;
+        }
+        continue;
+      }
+
+      const timeRanges = timePart.split(/,|&/).map(t => t.trim()).filter(Boolean);
+      for (const tr of timeRanges) {
+        const rangeParts = tr.split(/\s*(?:-|–|—|to)\s*/i);
+        if (rangeParts.length === 2) {
+          const start = parseTimeToMinutes(rangeParts[0]);
+          const end = parseTimeToMinutes(rangeParts[1]);
+          if (start !== null && end !== null) {
+            const isOvernight = end <= start;
+            const interval = { start, end, isOvernight };
+            if (hasDaySpec) {
+              if (appliesToday) {
+                todayIntervals.push(interval);
+              }
+              if (appliesPrevDay && isOvernight) {
+                prevDayOvernightIntervals.push(interval);
+              }
+            } else {
+              fallbackIntervals.push(interval);
+            }
+          }
+        }
+      }
+    }
+
+    // 1. Check if we are currently inside an overnight shift from yesterday (e.g. Friday 20:00 - 02:00 at Saturday 01:00)
+    for (const item of prevDayOvernightIntervals) {
+      if (currentMins < item.end) {
+        const minsUntilClose = item.end - currentMins;
+        if (minsUntilClose <= 45 && minsUntilClose > 0) {
+          return {
+            status: 'closing_soon',
+            isOpen: true,
+            label: `Closing Soon (${minsUntilClose}m)`,
+            details: `Closes at ${formatMinutesToTime(item.end)}`,
+            badgeClass: 'badge-closing-soon'
+          };
+        }
+        return {
+          status: 'open',
+          isOpen: true,
+          label: `Open until ${formatMinutesToTime(item.end)}`,
+          details: `Open now • Closes at ${formatMinutesToTime(item.end)}`,
+          badgeClass: 'badge-open'
+        };
+      }
+    }
+
+    // 2. Check today's intervals or fallback intervals
+    const intervalsToEval = todayIntervals.length > 0 ? todayIntervals : fallbackIntervals;
+
+    if (isExplicitlyClosedToday && todayIntervals.length === 0) {
+      return {
+        status: 'closed',
+        isOpen: false,
+        label: 'Closed Today',
+        details: clean,
+        badgeClass: 'badge-closed'
+      };
+    }
+
+    if (intervalsToEval.length === 0) {
+      return {
+        status: 'unknown',
+        isOpen: null,
+        label: clean,
+        details: clean,
+        badgeClass: ''
+      };
+    }
+
+    for (const item of intervalsToEval) {
+      let isOpenNow = false;
+      let minsUntilClose = 0;
+
+      if (!item.isOvernight) {
+        if (currentMins >= item.start && currentMins < item.end) {
+          isOpenNow = true;
+          minsUntilClose = item.end - currentMins;
+        }
+      } else {
+        if (currentMins >= item.start) {
+          isOpenNow = true;
+          minsUntilClose = (24 * 60 - currentMins) + item.end;
+        } else if (todayIntervals.length === 0 && currentMins < item.end) {
+          // General daily fallback overnight early morning
+          isOpenNow = true;
+          minsUntilClose = item.end - currentMins;
+        }
+      }
+
+      if (isOpenNow) {
+        if (minsUntilClose <= 45 && minsUntilClose > 0) {
+          return {
+            status: 'closing_soon',
+            isOpen: true,
+            label: `Closing Soon (${minsUntilClose}m)`,
+            details: `Closes at ${formatMinutesToTime(item.end)}`,
+            badgeClass: 'badge-closing-soon'
+          };
+        }
+        return {
+          status: 'open',
+          isOpen: true,
+          label: `Open until ${formatMinutesToTime(item.end)}`,
+          details: `Open now • Closes at ${formatMinutesToTime(item.end)}`,
+          badgeClass: 'badge-open'
+        };
+      }
+    }
+
+    // Next upcoming interval today
+    const upcoming = intervalsToEval
+      .filter(i => i.start > currentMins)
+      .sort((a, b) => a.start - b.start)[0];
+
+    if (upcoming) {
+      return {
+        status: 'closed',
+        isOpen: false,
+        label: `Closed • Opens ${formatMinutesToTime(upcoming.start)}`,
+        details: `Closed now • Opens at ${formatMinutesToTime(upcoming.start)}`,
+        badgeClass: 'badge-closed'
+      };
+    }
+
+    return {
+      status: 'closed',
+      isOpen: false,
+      label: 'Closed',
+      details: clean,
+      badgeClass: 'badge-closed'
+    };
+  }
+
+  /**
    * Application metadata, version, and repository/support links.
    */
   const APP_INFO = Object.freeze({
@@ -577,6 +973,11 @@
     getEffectiveTheme,
     encodePlusCode,
     extractLocality,
-    formatDisplayPlusCode
+    formatDisplayPlusCode,
+    optimizeTour2Opt,
+    formatFileSize,
+    parseTimeToMinutes,
+    formatMinutesToTime,
+    getOpeningStatus
   };
 });

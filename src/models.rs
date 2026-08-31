@@ -36,6 +36,18 @@ pub struct Pin {
     pub latitude: f64,
     pub longitude: f64,
     pub category: String,
+    #[serde(default)]
+    pub emoji: Option<String>,
+    #[serde(default)]
+    pub tags: Option<String>,
+    #[serde(default)]
+    pub priority: bool,
+    #[serde(default)]
+    pub day_group: i64,
+    #[serde(default)]
+    pub custom_order: i64,
+    #[serde(default)]
+    pub opening_hours: Option<String>,
     pub source_url: Option<String>,
     pub image_url: Option<String>,
     pub address: Option<String>,
@@ -44,7 +56,7 @@ pub struct Pin {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CreatePinRequest {
     pub list_id: Option<i64>,
     pub title: String,
@@ -52,6 +64,12 @@ pub struct CreatePinRequest {
     pub latitude: f64,
     pub longitude: f64,
     pub category: Option<String>,
+    pub emoji: Option<String>,
+    pub tags: Option<String>,
+    pub priority: Option<bool>,
+    pub day_group: Option<i64>,
+    pub custom_order: Option<i64>,
+    pub opening_hours: Option<String>,
     pub source_url: Option<String>,
     pub image_url: Option<String>,
     pub address: Option<String>,
@@ -59,7 +77,7 @@ pub struct CreatePinRequest {
     pub visited: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UpdatePinRequest {
     pub list_id: Option<i64>,
     pub title: Option<String>,
@@ -67,6 +85,12 @@ pub struct UpdatePinRequest {
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
     pub category: Option<String>,
+    pub emoji: Option<String>,
+    pub tags: Option<String>,
+    pub priority: Option<bool>,
+    pub day_group: Option<i64>,
+    pub custom_order: Option<i64>,
+    pub opening_hours: Option<String>,
     pub source_url: Option<String>,
     pub image_url: Option<String>,
     pub address: Option<String>,
@@ -74,12 +98,57 @@ pub struct UpdatePinRequest {
     pub visited: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IngestRequest {
     pub url: String,
     pub list_id: Option<i64>,
     pub category: Option<String>,
+    pub emoji: Option<String>,
+    pub tags: Option<String>,
+    pub priority: Option<bool>,
+    pub day_group: Option<i64>,
+    pub opening_hours: Option<String>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ImportItem {
+    pub title: String,
+    pub description: Option<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub category: Option<String>,
+    pub emoji: Option<String>,
+    pub tags: Option<String>,
+    pub priority: Option<bool>,
+    pub day_group: Option<i64>,
+    pub opening_hours: Option<String>,
+    pub source_url: Option<String>,
+    pub image_url: Option<String>,
+    pub address: Option<String>,
+    pub notes: Option<String>,
+    pub visited: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ImportPayload {
+    pub list_id: Option<i64>,
+    pub new_list_name: Option<String>,
+    pub default_category: Option<String>,
+    pub items: Option<Vec<ImportItem>>,
+    pub raw_data: Option<String>,
+    pub format: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportSummary {
+    pub list_id: i64,
+    pub list_name: String,
+    pub total_processed: usize,
+    pub imported_count: usize,
+    pub skipped_count: usize,
+    pub warnings: Vec<String>,
+    pub created_pins: Vec<Pin>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
@@ -90,6 +159,7 @@ pub struct ScrapedMetadata {
     pub longitude: Option<f64>,
     pub address: Option<String>,
     pub image_url: Option<String>,
+    pub opening_hours: Option<String>,
     pub source_url: String,
     pub source_type: String,
 }
@@ -101,11 +171,14 @@ pub struct GeoLocation {
     pub display_name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ListPinsQuery {
     pub list_id: Option<i64>,
     pub category: Option<String>,
     pub visited: Option<bool>,
+    pub priority: Option<bool>,
+    pub tag: Option<String>,
+    pub day_group: Option<i64>,
     pub search: Option<String>,
 }
 
@@ -215,6 +288,12 @@ mod tests {
             latitude: 35.3606,
             longitude: 138.7274,
             category: "Nature & Outdoors".to_string(),
+            emoji: Some("🏔️".to_string()),
+            tags: Some("volcano,japan,hiking".to_string()),
+            priority: true,
+            day_group: 1,
+            custom_order: 0,
+            opening_hours: Some("Daily 06:00-18:00".to_string()),
             source_url: Some("https://example.com/fuji".to_string()),
             image_url: Some("https://example.com/fuji.jpg".to_string()),
             address: Some("Kitayama, Fujinomiya, Shizuoka".to_string()),
@@ -229,6 +308,7 @@ mod tests {
         assert_eq!(deserialized.list_id, 10);
         assert_eq!(deserialized.title, "Mount Fuji");
         assert_eq!(deserialized.latitude, 35.3606);
+        assert_eq!(deserialized.opening_hours, Some("Daily 06:00-18:00".to_string()));
         assert!(deserialized.visited);
 
         // CreatePinRequest partial JSON deserialization
@@ -254,12 +334,18 @@ mod tests {
             url: "https://www.instagram.com/p/ABC123xyz/".to_string(),
             list_id: Some(2),
             category: Some("Social".to_string()),
+            emoji: Some("📸".to_string()),
+            tags: Some("instagram,cafe".to_string()),
+            priority: Some(true),
+            day_group: Some(1),
+            opening_hours: Some("09:00-21:00".to_string()),
             notes: Some("Saved from reel".to_string()),
         };
         let ingest_json = serde_json::to_string(&ingest).expect("serialize ingest");
         let ingest_de: IngestRequest = serde_json::from_str(&ingest_json).expect("deserialize ingest");
         assert_eq!(ingest_de.url, "https://www.instagram.com/p/ABC123xyz/");
         assert_eq!(ingest_de.list_id, Some(2));
+        assert_eq!(ingest_de.opening_hours, Some("09:00-21:00".to_string()));
 
         let meta = ScrapedMetadata {
             title: "Cozy Coffee Roasters".to_string(),
@@ -268,6 +354,7 @@ mod tests {
             longitude: Some(-74.0060),
             address: Some("New York, NY".to_string()),
             image_url: Some("https://example.com/img.jpg".to_string()),
+            opening_hours: Some("Mon-Sun 07:00-19:00".to_string()),
             source_url: "https://maps.google.com/?q=coffee".to_string(),
             source_type: "google_maps".to_string(),
         };
@@ -275,6 +362,7 @@ mod tests {
         let meta_de: ScrapedMetadata = serde_json::from_str(&meta_json).expect("deserialize meta");
         assert_eq!(meta_de.title, "Cozy Coffee Roasters");
         assert_eq!(meta_de.latitude, Some(40.7128));
+        assert_eq!(meta_de.opening_hours, Some("Mon-Sun 07:00-19:00".to_string()));
         assert_eq!(meta_de.source_type, "google_maps");
 
         // ScrapedMetadata default
@@ -301,6 +389,7 @@ mod tests {
             category: Some("Cafe".to_string()),
             visited: Some(false),
             search: Some("espresso".to_string()),
+            ..Default::default()
         };
         let query_json = serde_json::to_string(&query).expect("serialize query");
         let query_de: ListPinsQuery = serde_json::from_str(&query_json).expect("deserialize query");

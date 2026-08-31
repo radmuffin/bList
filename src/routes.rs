@@ -429,6 +429,15 @@ pub async fn update_pin(
             if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, new_list_id) {
                 return err;
             }
+            if state.storage.count_list_pins(new_list_id).unwrap_or(0) >= crate::db::MAX_PINS_PER_LIST {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::err(format!(
+                        "Quota exceeded: Target list #{} already has maximum {} places.",
+                        new_list_id, crate::db::MAX_PINS_PER_LIST
+                    ))),
+                );
+            }
         }
     }
 
@@ -627,6 +636,12 @@ pub async fn ingest_link(
         latitude: lat,
         longitude: lon,
         category: Some(category),
+        emoji: req.emoji,
+        tags: req.tags,
+        priority: req.priority,
+        day_group: req.day_group,
+        custom_order: None,
+        opening_hours: req.opening_hours.or(meta.opening_hours),
         source_url: Some(meta.source_url),
         image_url: meta.image_url,
         address: meta.address,
@@ -641,6 +656,178 @@ pub async fn ingest_link(
             Json(ApiResponse::err(format!("Failed to save ingested pin: {}", e))),
         ),
     }
+}
+
+#[debug_handler]
+pub async fn import_places(
+    State(state): State<AppState>,
+    user_token: UserToken,
+    Json(payload): Json<crate::models::ImportPayload>,
+) -> (StatusCode, Json<ApiResponse<crate::models::ImportSummary>>) {
+    let list_id = if let Some(ref new_name) = payload.new_list_name {
+        if !new_name.trim().is_empty() {
+            if state.storage.count_user_lists(&user_token.0).unwrap_or(0) >= crate::db::MAX_LISTS_PER_USER {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::err(format!(
+                        "Quota exceeded: Maximum {} lists allowed per account.",
+                        crate::db::MAX_LISTS_PER_USER
+                    ))),
+                );
+            }
+            let create_list_req = CreateListRequest {
+                name: new_name.trim().to_string(),
+                icon: Some("📁".to_string()),
+            };
+            match state.storage.create_list(&create_list_req, &user_token.0) {
+                Ok(new_list) => new_list.id,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ApiResponse::err(format!("Failed to create list: {}", e))),
+                    );
+                }
+            }
+        } else {
+            1
+        }
+    } else {
+        match payload.list_id {
+            Some(id) if id > 0 => {
+                if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, id) {
+                    return err;
+                }
+                id
+            }
+            _ => {
+                let user_lists = state.storage.list_lists(&user_token.0).unwrap_or_default();
+                if let Some(first) = user_lists.first() {
+                    first.id
+                } else {
+                    1
+                }
+            }
+        }
+    };
+
+    let list_name = state.storage.get_list(list_id)
+        .ok()
+        .flatten()
+        .map(|l| l.name)
+        .unwrap_or_else(|| "My Bucket List".to_string());
+
+    let mut raw_items = if let Some(items) = payload.items {
+        items
+    } else if let Some(ref raw) = payload.raw_data {
+        match crate::importer::parse_import_data(raw, payload.format.as_deref()) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::err(format!("Failed to parse import data: {}", e))),
+                );
+            }
+        }
+    } else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::err("No items or raw_data provided for import")),
+        );
+    };
+
+    if raw_items.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::err("Import payload contains 0 items")),
+        );
+    }
+
+    let default_cat = payload.default_category.as_deref().unwrap_or("General");
+    let total_processed = raw_items.len();
+    let mut warnings = Vec::new();
+    let mut valid_create_requests = Vec::new();
+
+    for item in raw_items.iter_mut() {
+        if item.latitude.is_none() || item.longitude.is_none() {
+            let query = item.address.as_ref().or(Some(&item.title));
+            if let Some(q) = query {
+                if !q.trim().is_empty() {
+                    if let Ok(Some(geo)) = state.geocoder.geocode(q).await {
+                        item.latitude = Some(geo.latitude);
+                        item.longitude = Some(geo.longitude);
+                    }
+                }
+            }
+        }
+
+        if let (Some(lat), Some(lon)) = (item.latitude, item.longitude) {
+            if (-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon) {
+                valid_create_requests.push(CreatePinRequest {
+                    list_id: Some(list_id),
+                    title: item.title.trim().to_string(),
+                    description: item.description.clone(),
+                    latitude: lat,
+                    longitude: lon,
+                    category: item.category.clone().or_else(|| Some(default_cat.to_string())),
+                    emoji: item.emoji.clone(),
+                    tags: item.tags.clone(),
+                    priority: item.priority,
+                    day_group: item.day_group,
+                    custom_order: None,
+                    opening_hours: item.opening_hours.clone(),
+                    source_url: item.source_url.clone(),
+                    image_url: item.image_url.clone(),
+                    address: item.address.clone(),
+                    notes: item.notes.clone(),
+                    visited: item.visited,
+                });
+            } else {
+                warnings.push(format!("Skipped '{}': Coordinates ({}, {}) out of bounds", item.title, lat, lon));
+            }
+        } else {
+            warnings.push(format!("Skipped '{}': Missing GPS coordinates and geocoding failed", item.title));
+        }
+    }
+
+    let current_list_count = state.storage.count_list_pins(list_id).unwrap_or(0);
+    let space_left_in_list = crate::db::MAX_PINS_PER_LIST.saturating_sub(current_list_count);
+
+    let current_user_pin_count = state.storage.count_user_pins(&user_token.0).unwrap_or(0);
+    let space_left_in_user = crate::db::MAX_PINS_PER_USER.saturating_sub(current_user_pin_count);
+
+    let allowed_count = space_left_in_list.min(space_left_in_user);
+    if valid_create_requests.len() > allowed_count {
+        warnings.push(format!(
+            "Quota limit reached. Only the first {} places were imported (List limit: {}, Account limit: {}).",
+            allowed_count, crate::db::MAX_PINS_PER_LIST, crate::db::MAX_PINS_PER_USER
+        ));
+        valid_create_requests.truncate(allowed_count);
+    }
+
+    let created_pins = match state.storage.create_pins_batch(list_id, &valid_create_requests) {
+        Ok(pins) => pins,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(format!("Batch insert failed: {}", e))),
+            );
+        }
+    };
+
+    let imported_count = created_pins.len();
+    let skipped_count = total_processed.saturating_sub(imported_count);
+
+    let summary = crate::models::ImportSummary {
+        list_id,
+        list_name,
+        total_processed,
+        imported_count,
+        skipped_count,
+        warnings,
+        created_pins,
+    };
+
+    (StatusCode::OK, Json(ApiResponse::ok(summary)))
 }
 
 #[debug_handler]
@@ -768,6 +955,11 @@ pub async fn export_geojson(
                     "title": pin.title,
                     "description": pin.description,
                     "category": pin.category,
+                    "emoji": pin.emoji,
+                    "tags": pin.tags,
+                    "priority": pin.priority,
+                    "day_group": pin.day_group,
+                    "custom_order": pin.custom_order,
                     "source_url": pin.source_url,
                     "image_url": pin.image_url,
                     "address": pin.address,
@@ -927,7 +1119,7 @@ mod tests {
             image_url: Some("https://example.com/colosseum.jpg".to_string()),
             address: Some("Piazza del Colosseo, 1, Roma".to_string()),
             notes: Some("Book tickets early".to_string()),
-            visited: Some(false),
+            visited: Some(false), ..Default::default()
         };
         let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(pin_req)).await;
         assert_eq!(status, StatusCode::CREATED);
@@ -949,7 +1141,7 @@ mod tests {
             image_url: None,
             address: None,
             notes: None,
-            visited: None,
+            visited: None, ..Default::default()
         };
         let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(empty_title_req)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -976,7 +1168,7 @@ mod tests {
             image_url: None,
             address: None,
             notes: Some("Night tour booked".to_string()),
-            visited: None,
+            visited: None, ..Default::default()
         };
         let (status, Json(res)) =
             update_pin(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id), Json(update_req)).await;
@@ -1029,6 +1221,7 @@ mod tests {
                 address: Some("Barcelona, Spain".to_string()),
                 notes: None,
                 visited: Some(visited),
+                ..Default::default()
             };
             let _ = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(req)).await;
         }
@@ -1038,7 +1231,7 @@ mod tests {
             list_id: Some(1),
             category: Some("Sightseeing".to_string()),
             visited: None,
-            search: None,
+            search: None, ..Default::default()
         };
         let (status, Json(res)) = list_pins(State(state.clone()), UserToken("test-token".to_string()), Query(query)).await;
         assert_eq!(status, StatusCode::OK);
@@ -1049,7 +1242,7 @@ mod tests {
             list_id: Some(1),
             category: None,
             visited: Some(true),
-            search: None,
+            search: None, ..Default::default()
         };
         let (status, Json(res)) = list_pins(State(state.clone()), UserToken("test-token".to_string()), Query(query)).await;
         assert_eq!(status, StatusCode::OK);
@@ -1060,7 +1253,7 @@ mod tests {
             list_id: Some(1),
             category: None,
             visited: None,
-            search: Some("Sagrada".to_string()),
+            search: Some("Sagrada".to_string()), ..Default::default()
         };
         let (status, Json(res)) = list_pins(State(state.clone()), UserToken("test-token".to_string()), Query(query)).await;
         assert_eq!(status, StatusCode::OK);
@@ -1078,7 +1271,7 @@ mod tests {
             url: "   ".to_string(),
             list_id: Some(1),
             category: None,
-            notes: None,
+            notes: None, ..Default::default()
         };
         let (status, Json(res)) = ingest_link(State(state.clone()), UserToken("test-token".to_string()), Json(empty_ingest)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -1089,7 +1282,7 @@ mod tests {
             url: "".to_string(),
             list_id: None,
             category: None,
-            notes: None,
+            notes: None, ..Default::default()
         };
         let (status, Json(res)) = preview_scrape(State(state.clone()), Json(empty_preview)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -1103,7 +1296,7 @@ mod tests {
                 list_id: Some(1),
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }),
         )
         .await;
@@ -1118,7 +1311,7 @@ mod tests {
                 list_id: Some(1),
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }),
         )
         .await;
@@ -1133,7 +1326,7 @@ mod tests {
                 list_id: Some(1),
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }),
         )
         .await
@@ -1160,7 +1353,7 @@ mod tests {
                 url: url.to_string(),
                 list_id: Some(1),
                 category: None,
-                notes: None,
+                notes: None, ..Default::default()
             };
             let (status, Json(res)) = ingest_link(State(state.clone()), UserToken("test-token".to_string()), Json(ingest_req)).await;
             assert_eq!(status, StatusCode::BAD_REQUEST, "Ingest should block SSRF URL: {}", url);
@@ -1175,7 +1368,7 @@ mod tests {
                 url: url.to_string(),
                 list_id: None,
                 category: None,
-                notes: None,
+                notes: None, ..Default::default()
             };
             let (status, Json(res)) = preview_scrape(State(state.clone()), Json(preview_req)).await;
             assert_eq!(status, StatusCode::BAD_REQUEST, "Preview should block SSRF URL: {}", url);
@@ -1198,7 +1391,7 @@ mod tests {
             image_url: None,
             address: None,
             notes: None,
-            visited: None,
+            visited: None, ..Default::default()
         };
         let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(invalid_pin_req)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -1216,7 +1409,7 @@ mod tests {
             image_url: None,
             address: None,
             notes: None,
-            visited: None,
+            visited: None, ..Default::default()
         };
         let (status, Json(_res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(nan_pin_req)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -1233,7 +1426,7 @@ mod tests {
             image_url: None,
             address: None,
             notes: None,
-            visited: None,
+            visited: None, ..Default::default()
         };
         let (_, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(valid_req)).await;
         let pin = res.data.unwrap();
@@ -1249,7 +1442,7 @@ mod tests {
             image_url: None,
             address: None,
             notes: None,
-            visited: None,
+            visited: None, ..Default::default()
         };
         let (status, Json(res)) = update_pin(State(state.clone()), UserToken("test-token".to_string()), Path(pin.id), Json(invalid_update)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -1280,7 +1473,7 @@ mod tests {
             image_url: None,
             address: Some("Fushimi Ward, Kyoto".to_string()),
             notes: None,
-            visited: Some(false),
+            visited: Some(false), ..Default::default()
         };
         let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(pin_req)).await;
         assert_eq!(status, StatusCode::CREATED);
@@ -1334,7 +1527,7 @@ mod tests {
                 image_url: None,
                 address: None,
                 notes: None,
-                visited: Some(false),
+                visited: Some(false), ..Default::default()
             }),
         ).await;
         assert_eq!(status, StatusCode::CREATED);
@@ -1454,7 +1647,7 @@ mod tests {
                 image_url: None,
                 address: Some("Saint-Germain-des-Prés, Paris".to_string()),
                 notes: Some("Famous hot chocolate".to_string()),
-                visited: Some(true),
+                visited: Some(true), ..Default::default()
             }),
         ).await;
 
@@ -1473,7 +1666,7 @@ mod tests {
                 image_url: None,
                 address: Some("Paris, France".to_string()),
                 notes: Some("Visit at golden hour".to_string()),
-                visited: Some(false),
+                visited: Some(false), ..Default::default()
             }),
         ).await;
 
@@ -1492,7 +1685,7 @@ mod tests {
                 image_url: None,
                 address: Some("Piazza San Marco, Venice, Italy".to_string()),
                 notes: Some("Live orchestral music outside".to_string()),
-                visited: Some(false),
+                visited: Some(false), ..Default::default()
             }),
         ).await;
 
@@ -1504,7 +1697,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }),
         ).await;
         assert_eq!(status, StatusCode::OK);
@@ -1518,7 +1711,7 @@ mod tests {
                 list_id: Some(1),
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }),
         ).await;
         assert_eq!(res.data.unwrap().len(), 2);
@@ -1531,7 +1724,7 @@ mod tests {
                 list_id: None,
                 category: Some("Cafe".to_string()),
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }),
         ).await;
         assert_eq!(res.data.unwrap().len(), 2);
@@ -1544,7 +1737,7 @@ mod tests {
                 list_id: Some(1),
                 category: Some("Cafe".to_string()),
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }),
         ).await;
         let pins = res.data.unwrap();
@@ -1559,7 +1752,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: Some(true),
-                search: None,
+                search: None, ..Default::default()
             }),
         ).await;
         assert_eq!(res.data.unwrap().len(), 1);
@@ -1572,7 +1765,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: None,
-                search: Some("orchestral".to_string()),
+                search: Some("orchestral".to_string()), ..Default::default()
             }),
         ).await;
         let search_res = res.data.unwrap();
@@ -1587,7 +1780,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: None,
-                search: Some("UnmatchedKeyword12345".to_string()),
+                search: Some("UnmatchedKeyword12345".to_string()), ..Default::default()
             }),
         ).await;
         assert_eq!(res.data.unwrap().len(), 0);
@@ -1631,7 +1824,7 @@ mod tests {
                 address: None,
                 notes: None,
                 visited: Some(false),
-                list_id: None,
+                list_id: None, ..Default::default()
             }),
         ).await;
         assert_eq!(status_pin_a, StatusCode::CREATED);
@@ -1652,7 +1845,7 @@ mod tests {
                 address: None,
                 notes: None,
                 visited: Some(false),
-                list_id: None,
+                list_id: None, ..Default::default()
             }),
         ).await;
         assert_eq!(status_pin_b, StatusCode::CREATED);
@@ -1666,7 +1859,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }),
         ).await;
         let pins_a = pins_a_res.data.unwrap();
@@ -1681,7 +1874,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }),
         ).await;
         let pins_b = pins_b_res.data.unwrap();
@@ -1689,4 +1882,64 @@ mod tests {
         assert_eq!(pins_b[0].title, "User B Garden");
     }
 
+    #[tokio::test]
+    async fn test_routes_import_places_and_batch_processing() {
+        let storage = Arc::new(InMemoryStorage::new());
+        let geocoder = Arc::new(Geocoder::new());
+        let scraper = Arc::new(Scraper::with_geocoder(geocoder.clone()));
+        let state = AppState { storage, scraper, geocoder };
+        let user = UserToken("import-user-token".to_string());
+
+        let json_data = r##"{
+            "features": [
+                {
+                    "geometry": { "coordinates": [139.7004, 35.6595] },
+                    "properties": {
+                        "Title": "Shibuya Sky",
+                        "Location": { "Address": "Tokyo, Japan" },
+                        "Tags": "#view #tokyo",
+                        "Priority": true
+                    }
+                },
+                {
+                    "geometry": { "coordinates": [139.7745, 35.7148] },
+                    "properties": {
+                        "Title": "Ueno Park",
+                        "Location": { "Address": "Ueno, Tokyo" },
+                        "Tags": "#park #sakura"
+                    }
+                }
+            ]
+        }"##;
+
+        let payload = crate::models::ImportPayload {
+            list_id: None,
+            new_list_name: Some("Tokyo 2026 Trip".to_string()),
+            default_category: Some("Sightseeing".to_string()),
+            items: None,
+            raw_data: Some(json_data.to_string()),
+            format: Some("takeout_json".to_string()),
+        };
+
+        let (status, Json(res)) = import_places(State(state.clone()), user.clone(), Json(payload)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(res.success);
+        let summary = res.data.unwrap();
+        assert_eq!(summary.total_processed, 2);
+        assert_eq!(summary.imported_count, 2);
+        assert_eq!(summary.list_name, "Tokyo 2026 Trip");
+
+        // Verify tags filter works
+        let (_, Json(tag_res)) = list_pins(
+            State(state.clone()),
+            user.clone(),
+            Query(ListPinsQuery {
+                tag: Some("tokyo".to_string()),
+                ..Default::default()
+            }),
+        ).await;
+        let tag_pins = tag_res.data.unwrap();
+        assert_eq!(tag_pins.len(), 1);
+        assert_eq!(tag_pins[0].title, "Shibuya Sky");
+    }
 }

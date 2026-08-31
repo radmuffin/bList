@@ -18,6 +18,9 @@ const {
   encodePlusCode,
   extractLocality,
   formatDisplayPlusCode,
+  optimizeTour2Opt,
+  formatFileSize,
+  getOpeningStatus,
   APP_INFO,
   getAppInfo
 } = require('../static/helpers.js');
@@ -665,6 +668,247 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       const url = generateGoogleMapsRouteUrl(manyPins, 5);
       const parts = url.replace('https://www.google.com/maps/dir/', '').split('/');
       assert.strictEqual(parts.length, 5);
+    });
+  });
+
+  describe('Multi-Tagging, Priority & Day Grouping Filters (filterPins extensions)', () => {
+    const testPins = [
+      { id: 1, title: 'Shibuya Sky', category: 'Sightseeing', tags: '#sunset #view #tokyo', priority: 1, day_group: 1, visited: 0 },
+      { id: 2, title: 'Fuunji Ramen', category: 'Food & Drink', tags: '#must-eat #ramen #lunch', priority: 1, day_group: 1, visited: 1 },
+      { id: 3, title: 'Meiji Shrine', category: 'Sightseeing', tags: '#culture #nature', priority: 0, day_group: 2, visited: 0 },
+      { id: 4, title: 'TeamLab Planets', category: 'Sightseeing', tags: '#art #must-see #indoor', priority: 1, day_group: 2, visited: 0 },
+      { id: 5, title: 'Starbucks Reserve Roastery', category: 'Cafe', tags: '#coffee #view', priority: 0, day_group: 0, visited: 0 }
+    ];
+
+    it('should filter by specific tag chip', () => {
+      const sunsetPins = filterPins(testPins, { tag: 'sunset' });
+      assert.strictEqual(sunsetPins.length, 1);
+      assert.strictEqual(sunsetPins[0].title, 'Shibuya Sky');
+
+      const viewPins = filterPins(testPins, { tag: '#view' });
+      assert.strictEqual(viewPins.length, 2);
+    });
+
+    it('should filter by priority ⭐ Must-See places only', () => {
+      const priorityPins = filterPins(testPins, { priorityOnly: true });
+      assert.strictEqual(priorityPins.length, 3);
+      assert.ok(priorityPins.every(p => p.priority === 1));
+    });
+
+    it('should filter by day itinerary planner group', () => {
+      const day1Pins = filterPins(testPins, { dayGroup: 1 });
+      assert.strictEqual(day1Pins.length, 2);
+
+      const day2Pins = filterPins(testPins, { dayGroup: 2 });
+      assert.strictEqual(day2Pins.length, 2);
+
+      const unassignedPins = filterPins(testPins, { dayGroup: 0 });
+      assert.strictEqual(unassignedPins.length, 1);
+    });
+
+    it('should search by tag within search query', () => {
+      const searched = filterPins(testPins, { search: 'ramen' });
+      assert.strictEqual(searched.length, 1);
+      assert.strictEqual(searched[0].title, 'Fuunji Ramen');
+    });
+  });
+
+  describe('1-Click TSP 2-Opt Route Optimizer (optimizeTour2Opt)', () => {
+    it('should handle small pin arrays without mutation errors', () => {
+      assert.deepStrictEqual(optimizeTour2Opt([]), []);
+      assert.deepStrictEqual(optimizeTour2Opt(null), []);
+      const single = [{ latitude: 10, longitude: 10 }];
+      assert.deepStrictEqual(optimizeTour2Opt(single), single);
+    });
+
+    it('should produce an optimal or improved sequence for collinear or clustered points', () => {
+      // 4 points along a line out of order: A (0,0), D (0,30), B (0,10), C (0,20)
+      const disordered = [
+        { id: 'A', latitude: 0, longitude: 0 },
+        { id: 'D', latitude: 0, longitude: 30 },
+        { id: 'B', latitude: 0, longitude: 10 },
+        { id: 'C', latitude: 0, longitude: 20 }
+      ];
+
+      const tour = optimizeTour2Opt(disordered);
+      assert.strictEqual(tour.length, 4);
+      assert.strictEqual(tour[0].id, 'A');
+
+      // Calculate total route distance before and after
+      const dist = (arr) => {
+        let total = 0;
+        for (let i = 0; i < arr.length - 1; i++) {
+          total += calculateDistance(arr[i].latitude, arr[i].longitude, arr[i + 1].latitude, arr[i + 1].longitude);
+        }
+        return total;
+      };
+
+      const disorderedDist = dist(disordered);
+      const optimizedDist = dist(tour);
+      assert.ok(optimizedDist <= disorderedDist, `Optimized dist ${optimizedDist} should be <= disordered ${disorderedDist}`);
+    });
+
+    it('should handle edge cases: 0, 1, 2, identical coordinates, and invalid inputs', () => {
+      assert.deepStrictEqual(optimizeTour2Opt([]), []);
+      assert.deepStrictEqual(optimizeTour2Opt(null), []);
+      assert.deepStrictEqual(optimizeTour2Opt(undefined), []);
+
+      const single = [{ id: 1, latitude: 10, longitude: 10 }];
+      assert.strictEqual(optimizeTour2Opt(single).length, 1);
+
+      const pair = [
+        { id: 1, latitude: 10, longitude: 10 },
+        { id: 2, latitude: 20, longitude: 20 }
+      ];
+      assert.strictEqual(optimizeTour2Opt(pair).length, 2);
+
+      // Identical coordinates
+      const identical = [
+        { id: 1, latitude: 35.6895, longitude: 139.6917 },
+        { id: 2, latitude: 35.6895, longitude: 139.6917 },
+        { id: 3, latitude: 35.6895, longitude: 139.6917 }
+      ];
+      const resIdentical = optimizeTour2Opt(identical);
+      assert.strictEqual(resIdentical.length, 3);
+
+      // Collinear points: (0,0), (0,30), (0,10), (0,20) -> should be sorted sequentially
+      const collinear = [
+        { id: 'start', latitude: 0, longitude: 0 },
+        { id: 'end', latitude: 0, longitude: 30 },
+        { id: 'mid1', latitude: 0, longitude: 10 },
+        { id: 'mid2', latitude: 0, longitude: 20 }
+      ];
+      const resCollinear = optimizeTour2Opt(collinear);
+      assert.strictEqual(resCollinear.length, 4);
+      assert.strictEqual(resCollinear[0].id, 'start');
+      assert.strictEqual(resCollinear[1].id, 'mid1');
+      assert.strictEqual(resCollinear[2].id, 'mid2');
+      assert.strictEqual(resCollinear[3].id, 'end');
+    });
+  });
+
+  describe('File Size Formatting Helper (formatFileSize)', () => {
+    it('should format file sizes in bytes, KB, and MB accurately', () => {
+      assert.strictEqual(formatFileSize(0), '0 B');
+      assert.strictEqual(formatFileSize(500), '500 B');
+      assert.strictEqual(formatFileSize(1024), '1.0 KB');
+      assert.strictEqual(formatFileSize(2048), '2.0 KB');
+      assert.strictEqual(formatFileSize(1048576), '1.0 MB');
+      assert.strictEqual(formatFileSize(5242880), '5.0 MB');
+    });
+  });
+
+  describe('Opening Hours & Open Now / Closed Status Indicator (getOpeningStatus)', () => {
+    it('should evaluate 24/7 locations as Open 24/7', () => {
+      const res1 = getOpeningStatus('24/7');
+      assert.strictEqual(res1.status, 'open');
+      assert.strictEqual(res1.isOpen, true);
+      assert.strictEqual(res1.label, 'Open 24/7');
+      assert.strictEqual(res1.badgeClass, 'badge-open');
+
+      const res2 = getOpeningStatus('Open 24 hours');
+      assert.strictEqual(res2.status, 'open');
+      assert.strictEqual(res2.isOpen, true);
+    });
+
+    it('should evaluate permanently or temporarily closed places', () => {
+      const res = getOpeningStatus('Closed');
+      assert.strictEqual(res.status, 'closed');
+      assert.strictEqual(res.isOpen, false);
+      assert.strictEqual(res.label, 'Closed');
+      assert.strictEqual(res.badgeClass, 'badge-closed');
+    });
+
+    it('should accurately evaluate daily schedule with fixed times', () => {
+      // Create a test date: Monday at 14:30 (2:30 PM)
+      const mondayAfternoon = new Date('2026-08-31T14:30:00'); // Aug 31, 2026 is Monday
+      
+      const openSpot = getOpeningStatus('09:00 - 22:00', mondayAfternoon);
+      assert.strictEqual(openSpot.status, 'open');
+      assert.strictEqual(openSpot.isOpen, true);
+      assert.strictEqual(openSpot.badgeClass, 'badge-open');
+
+      const closedEarlySpot = getOpeningStatus('06:00 - 12:00', mondayAfternoon);
+      assert.strictEqual(closedEarlySpot.status, 'closed');
+      assert.strictEqual(closedEarlySpot.isOpen, false);
+      assert.strictEqual(closedEarlySpot.badgeClass, 'badge-closed');
+    });
+
+    it('should detect closing soon within 45 minutes', () => {
+      // Monday at 21:30 (9:30 PM) with closing time at 22:00 (10:00 PM) -> 30 mins left
+      const mondayNight = new Date('2026-08-31T21:30:00');
+      const closingSoon = getOpeningStatus('09:00 - 22:00', mondayNight);
+      assert.strictEqual(closingSoon.status, 'closing_soon');
+      assert.strictEqual(closingSoon.isOpen, true);
+      assert.strictEqual(closingSoon.badgeClass, 'badge-closing-soon');
+      assert.ok(closingSoon.label.includes('Closing Soon (30m)'));
+    });
+
+    it('should handle overnight hours (e.g. bars open 20:00 - 02:00)', () => {
+      // 11:30 PM on Monday night
+      const lateNight = new Date('2026-08-31T23:30:00');
+      const barOpen = getOpeningStatus('20:00 - 02:00', lateNight);
+      assert.strictEqual(barOpen.status, 'open');
+      assert.strictEqual(barOpen.isOpen, true);
+
+      // 3:30 AM on Monday morning (closed)
+      const earlyMorning = new Date('2026-08-31T03:30:00');
+      const barClosed = getOpeningStatus('20:00 - 02:00', earlyMorning);
+      assert.strictEqual(barClosed.status, 'closed');
+      assert.strictEqual(barClosed.isOpen, false);
+    });
+
+    it('should correctly evaluate overnight shifts on the following morning', () => {
+      // Friday overnight shift: Friday 20:00 - 02:00.
+      // Evaluated at Saturday 01:00 AM (2026-09-05T01:00:00 is Saturday 1 AM, preceding day was Friday Sept 4).
+      const saturdayEarlyMorning = new Date('2026-09-05T01:00:00');
+      const resNextMorning = getOpeningStatus('Fr 20:00-02:00; Sa Off; Su Off', saturdayEarlyMorning);
+      assert.strictEqual(resNextMorning.isOpen, true);
+      assert.strictEqual(resNextMorning.status, 'open');
+      assert.ok(resNextMorning.label.includes('Open until 2:00 AM'));
+
+      // Evaluated at Saturday 03:00 AM (after closing)
+      const saturdayAfterClose = new Date('2026-09-05T03:00:00');
+      const resClosed = getOpeningStatus('Fr 20:00-02:00; Sa Off; Su Off', saturdayAfterClose);
+      assert.strictEqual(resClosed.isOpen, false);
+      assert.strictEqual(resClosed.status, 'closed');
+    });
+
+    it('should handle 24:00 midnight closing format', () => {
+      const tuesdayNight = new Date('2026-09-01T22:00:00'); // Tuesday 10 PM
+      const res = getOpeningStatus('Mo-Fr 08:00-24:00; Sa-Su 10:00-20:00', tuesdayNight);
+      assert.strictEqual(res.isOpen, true);
+      assert.strictEqual(res.status, 'open');
+      assert.ok(res.label.includes('12:00 AM'));
+    });
+
+    it('should support Day-of-week schedules and extended aliases (e.g. Thurs, Tues, Weds)', () => {
+      const mondayNoon = new Date('2026-08-31T12:00:00'); // Monday
+      const resMonday = getOpeningStatus('Mo-Fr 08:00-18:00; Sa 09:00-15:00; Su closed', mondayNoon);
+      assert.strictEqual(resMonday.status, 'open');
+      assert.strictEqual(resMonday.isOpen, true);
+
+      const sundayNoon = new Date('2026-08-30T12:00:00'); // Sunday
+      const resSunday = getOpeningStatus('Mo-Fr 08:00-18:00; Sa 09:00-15:00; Su closed', sundayNoon);
+      assert.strictEqual(resSunday.status, 'closed');
+      assert.strictEqual(resSunday.isOpen, false);
+
+      const thursdayAfternoon = new Date('2026-09-03T15:00:00'); // Thursday
+      const resThurs = getOpeningStatus('Thurs 10:00-17:00; Fri 10:00-17:00', thursdayAfternoon);
+      assert.strictEqual(resThurs.isOpen, true);
+      assert.strictEqual(resThurs.status, 'open');
+    });
+
+    it('should filter pins by openNowOnly in filterPins', () => {
+      const pins = [
+        { id: 1, title: '24/7 Diner', opening_hours: '24/7' },
+        { id: 2, title: 'Night Club', opening_hours: 'Closed' },
+        { id: 3, title: 'Mystery Place' }
+      ];
+
+      const openPins = filterPins(pins, { openNowOnly: true });
+      assert.strictEqual(openPins.length, 1);
+      assert.strictEqual(openPins[0].title, '24/7 Diner');
     });
   });
 

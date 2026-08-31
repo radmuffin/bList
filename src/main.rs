@@ -1,5 +1,6 @@
 mod db;
 mod geocoder;
+mod importer;
 mod models;
 mod plus_code;
 mod routes;
@@ -68,6 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/pins/:id/visited", patch(routes::toggle_visited))
         .route("/pins/save", post(routes::ingest_link))
         .route("/pins/ingest", post(routes::ingest_link))
+        .route("/import", post(routes::import_places))
         .route("/scrape/preview", post(routes::preview_scrape))
         .route("/categories", get(routes::get_categories))
         .route("/geocode", get(routes::geocode))

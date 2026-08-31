@@ -1636,29 +1636,65 @@ body {
 }
 
 /* Custom Marker Styles */
+.custom-pin-container,
+.user-location-marker-container {
+  background: transparent !important;
+  border: none !important;
+}
+
 .custom-pin-marker {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
-  background: var(--primary);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
-  border: 2px solid white;
+  background: var(--pin-color, var(--primary));
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  border: 2.5px solid #ffffff;
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.custom-pin-marker:hover {
+  transform: rotate(-45deg) scale(1.15);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  z-index: 1000 !important;
+}
+
+.custom-pin-marker .pin-emoji-inner {
+  transform: rotate(45deg);
+  font-size: 15px;
+  line-height: 1;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-pin-marker.is-priority::after {
+  content: '⭐';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 13px;
+  transform: rotate(45deg);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
 }
 
 .custom-pin-marker.visited-pin {
-  background: var(--success);
+  opacity: 0.65;
+  filter: grayscale(0.25);
+  border-color: var(--success);
 }
 
 .custom-pin-marker i,
 .custom-pin-marker svg {
   transform: rotate(45deg);
   font-size: 13px;
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   color: white;
 }
 
@@ -2705,3 +2741,412 @@ label {
     padding: 6px 8px 8px 8px;
   }
 }
+
+/* ==========================================================================
+   Priority Star, Tags & Day Itinerary Badges
+   ========================================================================== */
+.filter-tab-priority {
+  color: var(--warning-text);
+  border: 1px solid transparent;
+}
+
+.filter-tab-priority.active {
+  background-color: var(--warning-light);
+  color: var(--warning-text);
+  border-color: #fde68a;
+}
+
+.pin-badge.badge-priority {
+  background-color: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .pin-badge.badge-priority,
+[data-resolved-theme="dark"] .pin-badge.badge-priority {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.pin-badge.badge-tag {
+  background-color: var(--bg-main);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pin-badge.badge-tag:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.pin-badge.badge-day {
+  background-color: rgba(99, 102, 241, 0.12);
+  color: #4f46e5;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  font-weight: 700;
+}
+
+[data-theme="dark"] .pin-badge.badge-day,
+[data-resolved-theme="dark"] .pin-badge.badge-day {
+  background-color: rgba(129, 140, 248, 0.18);
+  color: #a5b4fc;
+  border-color: rgba(129, 140, 248, 0.35);
+}
+
+/* Tags Bar Cloud */
+.tags-bar {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.tags-bar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.tag-chip {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 16px;
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.tag-chip:hover {
+  color: var(--text-main);
+  border-color: var(--primary);
+}
+
+.tag-chip.active {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+/* Day Planner Bar */
+.days-bar {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.days-bar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.day-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.day-pill:hover {
+  color: var(--text-main);
+  border-color: var(--border-hover);
+}
+
+.day-pill.active {
+  background-color: #4f46e5;
+  color: #ffffff;
+  border-color: #4f46e5;
+}
+
+/* Route Optimizer Button */
+.btn-route-optimize {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.35);
+}
+
+.btn-route-optimize:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.45);
+}
+
+/* Universal Importer Modal */
+.modal-md {
+  max-width: 540px;
+  width: 90%;
+}
+
+.import-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.import-logo-icon {
+  font-size: 24px;
+}
+
+.import-modal-intro {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.import-dropzone {
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 24px 16px;
+  text-align: center;
+  background-color: var(--bg-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.import-dropzone:hover,
+.import-dropzone.dragover {
+  border-color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.dropzone-icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+
+.dropzone-main-text {
+  font-size: 14px;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.dropzone-sub-text {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.dropzone-file-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.dropzone-file-info .file-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  word-break: break-all;
+}
+
+.dropzone-file-info .file-size {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.btn-remove-file {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-remove-file:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.import-progress-container {
+  margin-top: 14px;
+}
+
+.import-progress-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.progress-bar-animated {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.25) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.25) 50%,
+    rgba(255, 255, 255, 0.25) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 1rem 1rem;
+  animation: progressStripes 1s linear infinite;
+}
+
+@keyframes progressStripes {
+  from {
+    background-position: 1rem 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+.import-summary-box {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  font-size: 13px;
+}
+
+.import-summary-box.success {
+  border-color: var(--success-border);
+  background-color: var(--success-light);
+}
+
+.import-summary-title {
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.import-summary-stats {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.import-warnings-list {
+  margin-top: 8px;
+  padding-left: 16px;
+  font-size: 11.5px;
+  color: var(--warning-text);
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+/* ==========================================================================
+   Open Now / Closed Indicators & Status Badges
+   ========================================================================== */
+
+.hours-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  line-height: 1.3;
+  width: fit-content;
+  white-space: nowrap;
+}
+
+.hours-status-badge.badge-open {
+  background-color: var(--success-light);
+  color: #065f46;
+  border: 1px solid var(--success-border);
+}
+
+.hours-status-badge.badge-closing-soon {
+  background-color: var(--warning-light);
+  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.hours-status-badge.badge-closed {
+  background-color: var(--danger-light);
+  color: #991b1b;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.hours-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.badge-open .hours-status-dot {
+  background-color: var(--success);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.badge-closing-soon .hours-status-dot {
+  background-color: var(--warning);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+.badge-closed .hours-status-dot {
+  background-color: var(--danger);
+}
+
+.card-hours-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.popup-hours-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+}
+
+.filter-tab.open-now-tab.active {
+  background-color: #ecfdf5;
+  color: #065f46;
+  border-color: #10b981;
+}
+
+[data-theme="dark"] .hours-status-badge.badge-open {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .hours-status-badge.badge-closing-soon {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="dark"] .hours-status-badge.badge-closed {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+[data-theme="dark"] .filter-tab.open-now-tab.active {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border-color: #059669;
+}
+

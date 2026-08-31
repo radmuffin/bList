@@ -151,6 +151,7 @@ pub trait PinRepository: Send + Sync {
     fn list_pins(&self, query: &ListPinsQuery, user_token: &str) -> Result<Vec<Pin>, StorageError>;
     fn get_pin(&self, id: i64) -> Result<Option<Pin>, StorageError>;
     fn create_pin(&self, req: &CreatePinRequest) -> Result<Pin, StorageError>;
+    fn create_pins_batch(&self, list_id: i64, pins: &[CreatePinRequest]) -> Result<Vec<Pin>, StorageError>;
     fn update_pin(&self, id: i64, req: &UpdatePinRequest) -> Result<Option<Pin>, StorageError>;
     fn toggle_visited(&self, id: i64) -> Result<Option<Pin>, StorageError>;
     fn delete_pin(&self, id: i64) -> Result<bool, StorageError>;
@@ -364,6 +365,14 @@ impl PinRepository for SqliteRepository {
             .lock()
             .map_err(|e| StorageError::Lock(e.to_string()))?;
         create_pin(&conn, req).map_err(Into::into)
+    }
+
+    fn create_pins_batch(&self, list_id: i64, pins: &[CreatePinRequest]) -> Result<Vec<Pin>, StorageError> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Lock(e.to_string()))?;
+        create_pins_batch(&mut conn, list_id, pins).map_err(Into::into)
     }
 
     fn update_pin(&self, id: i64, req: &UpdatePinRequest) -> Result<Option<Pin>, StorageError> {
@@ -632,6 +641,25 @@ impl PinRepository for InMemoryStorage {
                         return false;
                     }
                 }
+                if let Some(priority) = query.priority {
+                    if p.priority != priority {
+                        return false;
+                    }
+                }
+                if let Some(day) = query.day_group {
+                    if p.day_group != day {
+                        return false;
+                    }
+                }
+                if let Some(ref tag) = query.tag {
+                    let trimmed = tag.trim().trim_start_matches('#');
+                    if !trimmed.is_empty() {
+                        let has_tag = p.tags.as_deref().unwrap_or("").contains(trimmed);
+                        if !has_tag {
+                            return false;
+                        }
+                    }
+                }
                 if let Some(ref search) = query.search {
                     let s = search.trim().to_lowercase();
                     if !s.is_empty() {
@@ -639,7 +667,8 @@ impl PinRepository for InMemoryStorage {
                         let desc_m = p.description.as_deref().unwrap_or("").to_lowercase().contains(&s);
                         let addr_m = p.address.as_deref().unwrap_or("").to_lowercase().contains(&s);
                         let notes_m = p.notes.as_deref().unwrap_or("").to_lowercase().contains(&s);
-                        if !title_m && !desc_m && !addr_m && !notes_m {
+                        let tags_m = p.tags.as_deref().unwrap_or("").to_lowercase().contains(&s);
+                        if !title_m && !desc_m && !addr_m && !notes_m && !tags_m {
                             return false;
                         }
                     }
@@ -649,7 +678,7 @@ impl PinRepository for InMemoryStorage {
             .cloned()
             .collect();
 
-        result.sort_by_key(|a| std::cmp::Reverse(a.id));
+        result.sort_by_key(|a| (a.custom_order, std::cmp::Reverse(a.id)));
         Ok(result)
     }
 
@@ -671,6 +700,12 @@ impl PinRepository for InMemoryStorage {
             latitude: req.latitude,
             longitude: req.longitude,
             category: req.category.clone().unwrap_or_else(|| "General".to_string()),
+            emoji: req.emoji.clone(),
+            tags: req.tags.clone(),
+            priority: req.priority.unwrap_or(false),
+            day_group: req.day_group.unwrap_or(0),
+            custom_order: req.custom_order.unwrap_or(0),
+            opening_hours: req.opening_hours.clone(),
             source_url: req.source_url.clone(),
             image_url: req.image_url.clone(),
             address: req.address.clone(),
@@ -681,6 +716,16 @@ impl PinRepository for InMemoryStorage {
 
         self.pins.write().unwrap().insert(id, pin.clone());
         Ok(pin)
+    }
+
+    fn create_pins_batch(&self, list_id: i64, pins: &[CreatePinRequest]) -> Result<Vec<Pin>, StorageError> {
+        let mut created = Vec::with_capacity(pins.len());
+        for req in pins {
+            let mut req_copy = req.clone();
+            req_copy.list_id = Some(list_id);
+            created.push(self.create_pin(&req_copy)?);
+        }
+        Ok(created)
     }
 
     fn update_pin(&self, id: i64, req: &UpdatePinRequest) -> Result<Option<Pin>, StorageError> {
@@ -703,6 +748,24 @@ impl PinRepository for InMemoryStorage {
             }
             if let Some(ref cat) = req.category {
                 pin.category = cat.clone();
+            }
+            if let Some(ref e) = req.emoji {
+                pin.emoji = Some(e.clone());
+            }
+            if let Some(ref t) = req.tags {
+                pin.tags = Some(t.clone());
+            }
+            if let Some(p) = req.priority {
+                pin.priority = p;
+            }
+            if let Some(d) = req.day_group {
+                pin.day_group = d;
+            }
+            if let Some(c) = req.custom_order {
+                pin.custom_order = c;
+            }
+            if req.opening_hours.is_some() {
+                pin.opening_hours = req.opening_hours.clone();
             }
             if req.source_url.is_some() {
                 pin.source_url = req.source_url.clone();
@@ -818,6 +881,12 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
             latitude REAL NOT NULL,
             longitude REAL NOT NULL,
             category TEXT NOT NULL DEFAULT 'General',
+            emoji TEXT,
+            tags TEXT,
+            priority INTEGER NOT NULL DEFAULT 0,
+            day_group INTEGER NOT NULL DEFAULT 0,
+            custom_order INTEGER NOT NULL DEFAULT 0,
+            opening_hours TEXT,
             source_url TEXT,
             image_url TEXT,
             address TEXT,
@@ -836,25 +905,35 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
         "#,
     )?;
 
-    // Migration check: verify list_id column exists in existing pins table
-    let has_list_id = {
+    // Migration check for pins table
+    let pin_columns = {
         let mut stmt = conn.prepare("PRAGMA table_info(pins)")?;
-        let columns = stmt.query_map([], |row| row.get::<_, String>(1))?;
-        let mut found = false;
-        for col in columns {
-            if col? == "list_id" {
-                found = true;
-                break;
-            }
-        }
-        found
+        let columns: Vec<String> = stmt.query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(|r| r.ok())
+            .collect();
+        columns
     };
 
-    if !has_list_id {
-        conn.execute(
-            "ALTER TABLE pins ADD COLUMN list_id INTEGER NOT NULL DEFAULT 1 REFERENCES lists(id) ON DELETE CASCADE",
-            [],
-        )?;
+    if !pin_columns.contains(&"list_id".to_string()) {
+        conn.execute("ALTER TABLE pins ADD COLUMN list_id INTEGER NOT NULL DEFAULT 1 REFERENCES lists(id) ON DELETE CASCADE", [])?;
+    }
+    if !pin_columns.contains(&"emoji".to_string()) {
+        conn.execute("ALTER TABLE pins ADD COLUMN emoji TEXT", [])?;
+    }
+    if !pin_columns.contains(&"tags".to_string()) {
+        conn.execute("ALTER TABLE pins ADD COLUMN tags TEXT", [])?;
+    }
+    if !pin_columns.contains(&"priority".to_string()) {
+        conn.execute("ALTER TABLE pins ADD COLUMN priority INTEGER NOT NULL DEFAULT 0", [])?;
+    }
+    if !pin_columns.contains(&"day_group".to_string()) {
+        conn.execute("ALTER TABLE pins ADD COLUMN day_group INTEGER NOT NULL DEFAULT 0", [])?;
+    }
+    if !pin_columns.contains(&"custom_order".to_string()) {
+        conn.execute("ALTER TABLE pins ADD COLUMN custom_order INTEGER NOT NULL DEFAULT 0", [])?;
+    }
+    if !pin_columns.contains(&"opening_hours".to_string()) {
+        conn.execute("ALTER TABLE pins ADD COLUMN opening_hours TEXT", [])?;
     }
 
     // Migration check for lists table (owner_token, share_token)
@@ -897,6 +976,8 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
         CREATE INDEX IF NOT EXISTS idx_pins_list_id ON pins(list_id);
         CREATE INDEX IF NOT EXISTS idx_pins_category ON pins(category);
         CREATE INDEX IF NOT EXISTS idx_pins_visited ON pins(visited);
+        CREATE INDEX IF NOT EXISTS idx_pins_priority ON pins(priority);
+        CREATE INDEX IF NOT EXISTS idx_pins_day_group ON pins(day_group);
         CREATE INDEX IF NOT EXISTS idx_pins_coords ON pins(latitude, longitude);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_share_token ON lists(share_token);
         "#,
@@ -1052,7 +1133,7 @@ pub fn delete_list(conn: &Connection, id: i64) -> Result<bool> {
 
 pub fn list_pins(conn: &Connection, query: &ListPinsQuery, user_token: Option<&str>) -> rusqlite::Result<Vec<Pin>> {
     let mut sql = String::from(
-        "SELECT p.id, p.list_id, p.title, p.description, p.latitude, p.longitude, p.category, p.source_url, p.image_url, p.address, p.notes, p.visited, p.created_at \
+        "SELECT p.id, p.list_id, p.title, p.description, p.latitude, p.longitude, p.category, p.emoji, p.tags, p.priority, p.day_group, p.custom_order, p.opening_hours, p.source_url, p.image_url, p.address, p.notes, p.visited, p.created_at \
          FROM pins p"
     );
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
@@ -1081,12 +1162,32 @@ pub fn list_pins(conn: &Connection, query: &ListPinsQuery, user_token: Option<&s
         params_vec.push(Box::new(if vis { 1 } else { 0 }));
     }
 
+    if let Some(prio) = query.priority {
+        sql.push_str(" AND p.priority = ?");
+        params_vec.push(Box::new(if prio { 1 } else { 0 }));
+    }
+
+    if let Some(day) = query.day_group {
+        sql.push_str(" AND p.day_group = ?");
+        params_vec.push(Box::new(day));
+    }
+
+    if let Some(ref tag) = query.tag {
+        let trimmed = tag.trim().trim_start_matches('#');
+        if !trimmed.is_empty() {
+            sql.push_str(" AND (p.tags LIKE ? OR p.tags = ?)");
+            params_vec.push(Box::new(format!("%{}%", trimmed)));
+            params_vec.push(Box::new(trimmed.to_string()));
+        }
+    }
+
     if let Some(ref search) = query.search {
         if !search.trim().is_empty() {
             sql.push_str(
-                " AND (p.title LIKE ? OR p.address LIKE ? OR p.notes LIKE ? OR p.description LIKE ?)",
+                " AND (p.title LIKE ? OR p.address LIKE ? OR p.notes LIKE ? OR p.description LIKE ? OR p.tags LIKE ?)",
             );
             let pattern = format!("%{}%", search.trim());
+            params_vec.push(Box::new(pattern.clone()));
             params_vec.push(Box::new(pattern.clone()));
             params_vec.push(Box::new(pattern.clone()));
             params_vec.push(Box::new(pattern.clone()));
@@ -1094,13 +1195,14 @@ pub fn list_pins(conn: &Connection, query: &ListPinsQuery, user_token: Option<&s
         }
     }
 
-    sql.push_str(" ORDER BY p.id DESC");
+    sql.push_str(" ORDER BY p.custom_order ASC, p.id DESC");
 
     let params_slice: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql)?;
 
     let pin_iter = stmt.query_map(params_slice.as_slice(), |row| {
-        let visited_int: i32 = row.get(11)?;
+        let priority_int: i32 = row.get(9).unwrap_or(0);
+        let visited_int: i32 = row.get(17)?;
         Ok(Pin {
             id: row.get(0)?,
             list_id: row.get(1)?,
@@ -1109,12 +1211,18 @@ pub fn list_pins(conn: &Connection, query: &ListPinsQuery, user_token: Option<&s
             latitude: row.get(4)?,
             longitude: row.get(5)?,
             category: row.get(6)?,
-            source_url: row.get(7)?,
-            image_url: row.get(8)?,
-            address: row.get(9)?,
-            notes: row.get(10)?,
+            emoji: row.get(7)?,
+            tags: row.get(8)?,
+            priority: priority_int != 0,
+            day_group: row.get(10).unwrap_or(0),
+            custom_order: row.get(11).unwrap_or(0),
+            opening_hours: row.get(12)?,
+            source_url: row.get(13)?,
+            image_url: row.get(14)?,
+            address: row.get(15)?,
+            notes: row.get(16)?,
             visited: visited_int != 0,
-            created_at: row.get(12)?,
+            created_at: row.get(18)?,
         })
     })?;
 
@@ -1127,12 +1235,13 @@ pub fn list_pins(conn: &Connection, query: &ListPinsQuery, user_token: Option<&s
 
 pub fn get_pin(conn: &Connection, id: i64) -> rusqlite::Result<Option<Pin>> {
     let mut stmt = conn.prepare(
-        "SELECT id, list_id, title, description, latitude, longitude, category, source_url, image_url, address, notes, visited, created_at FROM pins WHERE id = ?",
+        "SELECT id, list_id, title, description, latitude, longitude, category, emoji, tags, priority, day_group, custom_order, opening_hours, source_url, image_url, address, notes, visited, created_at FROM pins WHERE id = ?",
     )?;
 
     let mut rows = stmt.query(params![id])?;
     if let Some(row) = rows.next()? {
-        let visited_int: i32 = row.get(11)?;
+        let priority_int: i32 = row.get(9).unwrap_or(0);
+        let visited_int: i32 = row.get(17)?;
         Ok(Some(Pin {
             id: row.get(0)?,
             list_id: row.get(1)?,
@@ -1141,12 +1250,18 @@ pub fn get_pin(conn: &Connection, id: i64) -> rusqlite::Result<Option<Pin>> {
             latitude: row.get(4)?,
             longitude: row.get(5)?,
             category: row.get(6)?,
-            source_url: row.get(7)?,
-            image_url: row.get(8)?,
-            address: row.get(9)?,
-            notes: row.get(10)?,
+            emoji: row.get(7)?,
+            tags: row.get(8)?,
+            priority: priority_int != 0,
+            day_group: row.get(10).unwrap_or(0),
+            custom_order: row.get(11).unwrap_or(0),
+            opening_hours: row.get(12)?,
+            source_url: row.get(13)?,
+            image_url: row.get(14)?,
+            address: row.get(15)?,
+            notes: row.get(16)?,
             visited: visited_int != 0,
-            created_at: row.get(12)?,
+            created_at: row.get(18)?,
         }))
     } else {
         Ok(None)
@@ -1158,11 +1273,14 @@ pub fn create_pin(conn: &Connection, req: &CreatePinRequest) -> rusqlite::Result
     let list_id = req.list_id.unwrap_or(1);
     let category = req.category.clone().unwrap_or_else(|| "General".to_string());
     let visited_int = if req.visited.unwrap_or(false) { 1 } else { 0 };
+    let priority_int = if req.priority.unwrap_or(false) { 1 } else { 0 };
+    let day_group = req.day_group.unwrap_or(0);
+    let custom_order = req.custom_order.unwrap_or(0);
 
     conn.execute(
         r#"
-        INSERT INTO pins (list_id, title, description, latitude, longitude, category, source_url, image_url, address, notes, visited, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO pins (list_id, title, description, latitude, longitude, category, emoji, tags, priority, day_group, custom_order, opening_hours, source_url, image_url, address, notes, visited, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         params![
             list_id,
@@ -1171,6 +1289,12 @@ pub fn create_pin(conn: &Connection, req: &CreatePinRequest) -> rusqlite::Result
             req.latitude,
             req.longitude,
             category,
+            req.emoji,
+            req.tags,
+            priority_int,
+            day_group,
+            custom_order,
+            req.opening_hours,
             req.source_url,
             req.image_url,
             req.address,
@@ -1190,6 +1314,12 @@ pub fn create_pin(conn: &Connection, req: &CreatePinRequest) -> rusqlite::Result
         latitude: req.latitude,
         longitude: req.longitude,
         category,
+        emoji: req.emoji.clone(),
+        tags: req.tags.clone(),
+        priority: req.priority.unwrap_or(false),
+        day_group,
+        custom_order,
+        opening_hours: req.opening_hours.clone(),
         source_url: req.source_url.clone(),
         image_url: req.image_url.clone(),
         address: req.address.clone(),
@@ -1197,6 +1327,80 @@ pub fn create_pin(conn: &Connection, req: &CreatePinRequest) -> rusqlite::Result
         visited: req.visited.unwrap_or(false),
         created_at,
     })
+}
+
+pub fn create_pins_batch(
+    conn: &mut Connection,
+    list_id: i64,
+    pins: &[CreatePinRequest],
+) -> rusqlite::Result<Vec<Pin>> {
+    let tx = conn.transaction()?;
+    let created_at = Utc::now().to_rfc3339();
+    let mut inserted_pins = Vec::with_capacity(pins.len());
+
+    {
+        let mut stmt = tx.prepare(
+            r#"
+            INSERT INTO pins (list_id, title, description, latitude, longitude, category, emoji, tags, priority, day_group, custom_order, opening_hours, source_url, image_url, address, notes, visited, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )?;
+
+        for req in pins {
+            let category = req.category.as_deref().unwrap_or("General");
+            let visited_int = if req.visited.unwrap_or(false) { 1 } else { 0 };
+            let priority_int = if req.priority.unwrap_or(false) { 1 } else { 0 };
+            let day_group = req.day_group.unwrap_or(0);
+            let custom_order = req.custom_order.unwrap_or(0);
+
+            stmt.execute(params![
+                list_id,
+                req.title.trim(),
+                req.description,
+                req.latitude,
+                req.longitude,
+                category,
+                req.emoji,
+                req.tags,
+                priority_int,
+                day_group,
+                custom_order,
+                req.opening_hours,
+                req.source_url,
+                req.image_url,
+                req.address,
+                req.notes,
+                visited_int,
+                created_at
+            ])?;
+
+            let id = tx.last_insert_rowid();
+            inserted_pins.push(Pin {
+                id,
+                list_id,
+                title: req.title.trim().to_string(),
+                description: req.description.clone(),
+                latitude: req.latitude,
+                longitude: req.longitude,
+                category: category.to_string(),
+                emoji: req.emoji.clone(),
+                tags: req.tags.clone(),
+                priority: req.priority.unwrap_or(false),
+                day_group,
+                custom_order,
+                opening_hours: req.opening_hours.clone(),
+                source_url: req.source_url.clone(),
+                image_url: req.image_url.clone(),
+                address: req.address.clone(),
+                notes: req.notes.clone(),
+                visited: req.visited.unwrap_or(false),
+                created_at: created_at.clone(),
+            });
+        }
+    }
+
+    tx.commit()?;
+    Ok(inserted_pins)
 }
 
 pub fn update_pin(
@@ -1218,6 +1422,23 @@ pub fn update_pin(
     let latitude = req.latitude.unwrap_or(existing.latitude);
     let longitude = req.longitude.unwrap_or(existing.longitude);
     let category = req.category.as_ref().unwrap_or(&existing.category);
+    let emoji = match &req.emoji {
+        Some(e) => Some(e.clone()),
+        None => existing.emoji,
+    };
+    let tags = match &req.tags {
+        Some(t) => Some(t.clone()),
+        None => existing.tags,
+    };
+    let priority = req.priority.unwrap_or(existing.priority);
+    let priority_int = if priority { 1 } else { 0 };
+    let day_group = req.day_group.unwrap_or(existing.day_group);
+    let custom_order = req.custom_order.unwrap_or(existing.custom_order);
+    let opening_hours = match &req.opening_hours {
+        Some(o) => Some(o.clone()),
+        None => existing.opening_hours,
+    };
+
     let source_url = match &req.source_url {
         Some(u) => Some(u.clone()),
         None => existing.source_url,
@@ -1240,7 +1461,7 @@ pub fn update_pin(
     conn.execute(
         r#"
         UPDATE pins
-        SET list_id = ?, title = ?, description = ?, latitude = ?, longitude = ?, category = ?, source_url = ?, image_url = ?, address = ?, notes = ?, visited = ?
+        SET list_id = ?, title = ?, description = ?, latitude = ?, longitude = ?, category = ?, emoji = ?, tags = ?, priority = ?, day_group = ?, custom_order = ?, opening_hours = ?, source_url = ?, image_url = ?, address = ?, notes = ?, visited = ?
         WHERE id = ?
         "#,
         params![
@@ -1250,6 +1471,12 @@ pub fn update_pin(
             latitude,
             longitude,
             category,
+            emoji,
+            tags,
+            priority_int,
+            day_group,
+            custom_order,
+            opening_hours,
             source_url,
             image_url,
             address,
@@ -1451,7 +1678,7 @@ mod tests {
             image_url: None,
             address: Some("Minato City, Tokyo".to_string()),
             notes: None,
-            visited: Some(false),
+            visited: Some(false), ..Default::default()
         };
         let pin = repo.create_pin(&pin_req).expect("create pin");
         assert_eq!(pin.list_id, created.id);
@@ -1461,7 +1688,7 @@ mod tests {
                 list_id: Some(created.id),
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             }, "test-user")
             .expect("list pins");
         assert_eq!(pins.len(), 1);
@@ -1497,7 +1724,7 @@ mod tests {
             image_url: None,
             address: Some("Grindavik".to_string()),
             notes: None,
-            visited: Some(false),
+            visited: Some(false), ..Default::default()
         };
         let pin = repo.create_pin(&pin_req).unwrap();
         assert_eq!(pin.title, "Blue Lagoon");
@@ -1510,7 +1737,7 @@ mod tests {
                 list_id: Some(list.id),
                 category: None,
                 visited: Some(true),
-                search: Some("Lagoon".to_string()),
+                search: Some("Lagoon".to_string()), ..Default::default()
             }, "test-user")
             .unwrap();
         assert_eq!(pins.len(), 1);
@@ -1592,7 +1819,7 @@ mod tests {
             image_url: None,
             address: None,
             notes: None,
-            visited: Some(false),
+            visited: Some(false), ..Default::default()
         };
         create_pin(&conn, &pin_req).expect("create pin");
 
@@ -1602,7 +1829,7 @@ mod tests {
                 list_id: Some(list.id),
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             },
             None,
         )
@@ -1617,7 +1844,7 @@ mod tests {
                 list_id: Some(list.id),
                 category: None,
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             },
             None,
         )
@@ -1652,6 +1879,7 @@ mod tests {
                         address: None,
                         notes: None,
                         visited: Some(false),
+                        ..Default::default()
                     };
                     create_pin(&thread_conn, &req).expect("create concurrent pin");
                 }
@@ -1667,7 +1895,7 @@ mod tests {
             list_id: Some(1),
             category: None,
             visited: None,
-            search: None,
+            search: None, ..Default::default()
         }, None).expect("list pins");
 
         assert_eq!(pins.len(), num_threads * 10);
@@ -1689,7 +1917,7 @@ mod tests {
             image_url: Some("https://example.com/ramen.jpg".to_string()),
             address: Some("Tokyo Station".to_string()),
             notes: Some("Try the tsukemen".to_string()),
-            visited: Some(false),
+            visited: Some(false), ..Default::default()
         };
         let created_pin = create_pin(&conn, &pin_req).expect("create pin");
         assert_eq!(created_pin.title, "Ramen Street");
@@ -1714,7 +1942,7 @@ mod tests {
             image_url: None,
             address: None,
             notes: Some("Special miso ramen".to_string()),
-            visited: None,
+            visited: None, ..Default::default()
         };
         let updated = update_pin(&conn, created_pin.id, &update_req)
             .expect("update pin")
@@ -1762,6 +1990,7 @@ mod tests {
                     address: Some(address.to_string()),
                     notes: Some(notes.to_string()),
                     visited: Some(visited),
+                    ..Default::default()
                 },
             )
             .expect("create pin");
@@ -1774,7 +2003,7 @@ mod tests {
                 list_id: None,
                 category: Some("Sightseeing".to_string()),
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             },
             None,
         )
@@ -1788,7 +2017,7 @@ mod tests {
                 list_id: None,
                 category: Some("All".to_string()),
                 visited: None,
-                search: None,
+                search: None, ..Default::default()
             },
             None,
         )
@@ -1802,7 +2031,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: Some(true),
-                search: None,
+                search: None, ..Default::default()
             },
             None,
         )
@@ -1815,7 +2044,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: Some(false),
-                search: None,
+                search: None, ..Default::default()
             },
             None,
         )
@@ -1829,7 +2058,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: None,
-                search: Some("Eiffel".to_string()),
+                search: Some("Eiffel".to_string()), ..Default::default()
             },
             None,
         )
@@ -1844,7 +2073,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: None,
-                search: Some("Odeon".to_string()),
+                search: Some("Odeon".to_string()), ..Default::default()
             },
             None,
         )
@@ -1859,7 +2088,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: None,
-                search: Some("Mona Lisa".to_string()),
+                search: Some("Mona Lisa".to_string()), ..Default::default()
             },
             None,
         )
@@ -1874,7 +2103,7 @@ mod tests {
                 list_id: None,
                 category: None,
                 visited: None,
-                search: Some("NonExistentKeywordXYZ".to_string()),
+                search: Some("NonExistentKeywordXYZ".to_string()), ..Default::default()
             },
             None,
         )
@@ -1888,7 +2117,7 @@ mod tests {
                 list_id: None,
                 category: Some("Cafe".to_string()),
                 visited: Some(true),
-                search: None,
+                search: None, ..Default::default()
             },
             None,
         )
@@ -1919,7 +2148,7 @@ mod tests {
                 image_url: None,
                 address: None,
                 notes: None,
-                visited: None,
+                visited: None, ..Default::default()
             },
         )
         .expect("pin 1");
@@ -1947,7 +2176,7 @@ mod tests {
                 image_url: None,
                 address: None,
                 notes: None,
-                visited: None,
+                visited: None, ..Default::default()
             },
         )
         .expect("pin 2");
@@ -1995,7 +2224,7 @@ mod tests {
                 image_url: None,
                 address: None,
                 notes: None,
-                visited: None,
+                visited: None, ..Default::default()
             }
         )
         .expect("update pin")
@@ -2068,7 +2297,7 @@ mod tests {
                 image_url: None,
                 address: Some("Kyoto, Japan".to_string()),
                 notes: Some("Hike to the summit".to_string()),
-                visited: Some(false),
+                visited: Some(false), ..Default::default()
             })
             .expect("create pin B");
 
@@ -2079,7 +2308,7 @@ mod tests {
                     list_id: Some(trip_a.id),
                     category: None,
                     visited: None,
-                    search: None,
+                    search: None, ..Default::default()
                 },
                 token_a,
             )
@@ -2099,7 +2328,7 @@ mod tests {
                     list_id: Some(trip_a.id),
                     category: None,
                     visited: None,
-                    search: None,
+                    search: None, ..Default::default()
                 },
                 token_b,
             )
@@ -2140,7 +2369,7 @@ mod tests {
             image_url: None,
             address: Some("Tokyo Station, Tokyo, Japan".to_string()),
             notes: Some("Try Rokurinsha tsukemen".to_string()),
-            visited: Some(true),
+            visited: Some(true), ..Default::default()
         })
         .expect("pin 1");
 
@@ -2155,7 +2384,7 @@ mod tests {
             image_url: None,
             address: Some("Shinjuku, Tokyo, Japan".to_string()),
             notes: Some("Expect a queue".to_string()),
-            visited: Some(false),
+            visited: Some(false), ..Default::default()
         })
         .expect("pin 2");
 
@@ -2169,7 +2398,7 @@ mod tests {
                     list_id: Some(list2.id),
                     category: None,
                     visited: None,
-                    search: Some("SUBTERRANEAN".to_string()),
+                    search: Some("SUBTERRANEAN".to_string()), ..Default::default()
                 },
                 token,
             )
@@ -2184,7 +2413,7 @@ mod tests {
                     list_id: Some(list2.id),
                     category: None,
                     visited: None,
-                    search: Some("rokurinsha".to_string()),
+                    search: Some("rokurinsha".to_string()), ..Default::default()
                 },
                 token,
             )
@@ -2199,7 +2428,7 @@ mod tests {
                     list_id: Some(list2.id),
                     category: None,
                     visited: Some(false),
-                    search: None,
+                    search: None, ..Default::default()
                 },
                 token,
             )

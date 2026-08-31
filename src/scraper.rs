@@ -318,6 +318,7 @@ impl LinkScraper for GoogleMapsScraper {
                 longitude: lon,
                 address,
                 image_url,
+                opening_hours: None,
                 source_url: url.to_string(),
                 source_type: "google_maps".to_string(),
             })
@@ -418,6 +419,7 @@ impl LinkScraper for AppleMapsScraper {
                 longitude: lon,
                 address,
                 image_url: None,
+                opening_hours: None,
                 source_url: url.to_string(),
                 source_type: "apple_maps".to_string(),
             })
@@ -479,6 +481,7 @@ impl LinkScraper for InstagramScraper {
                 longitude: lon,
                 address,
                 image_url: og_image,
+                opening_hours: None,
                 source_url: url.to_string(),
                 source_type: "instagram".to_string(),
             })
@@ -541,6 +544,7 @@ impl LinkScraper for TikTokScraper {
                 longitude: lon,
                 address,
                 image_url: og_image,
+                opening_hours: None,
                 source_url: url.to_string(),
                 source_type: "tiktok".to_string(),
             })
@@ -609,6 +613,7 @@ impl LinkScraper for TripAdvisorScraper {
                 longitude: lon,
                 address,
                 image_url: og_image,
+                opening_hours: None,
                 source_url: url.to_string(),
                 source_type: "tripadvisor".to_string(),
             })
@@ -675,6 +680,7 @@ impl LinkScraper for YelpScraper {
                 longitude: lon,
                 address,
                 image_url: og_image,
+                opening_hours: None,
                 source_url: url.to_string(),
                 source_type: "yelp".to_string(),
             })
@@ -741,6 +747,7 @@ impl LinkScraper for AllTrailsScraper {
                 longitude: lon,
                 address,
                 image_url: og_image,
+                opening_hours: None,
                 source_url: url.to_string(),
                 source_type: "alltrails".to_string(),
             })
@@ -840,6 +847,7 @@ impl LinkScraper for GenericHtmlScraper {
                 longitude: parsed_lon,
                 address,
                 image_url,
+                opening_hours: None,
                 source_url: url.to_string(),
                 source_type: "article".to_string(),
             })
@@ -1068,6 +1076,7 @@ mod tests {
                         longitude: Some(2.35),
                         address: Some("Paris, France".to_string()),
                         image_url: None,
+                        opening_hours: None,
                         source_url: url.to_string(),
                         source_type: "custom_blog".to_string(),
                     })

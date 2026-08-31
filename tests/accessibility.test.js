@@ -43,6 +43,21 @@ describe('Accessibility & UI Layout Contract Tests', () => {
         );
       });
     });
+
+    it('should have all modal dialogs as direct isolated siblings without nesting', () => {
+      const modalIds = ['loading-overlay', 'pin-modal', 'new-list-modal', 'share-list-modal', 'sync-modal', 'about-modal', 'import-modal'];
+      modalIds.forEach((id) => {
+        assert.ok(html.includes(`id="${id}"`), `Modal #${id} must exist in HTML`);
+      });
+      // Verify import-modal is not nested inside about-modal
+      const aboutIdx = html.indexOf('id="about-modal"');
+      const importIdx = html.indexOf('id="import-modal"');
+      assert.ok(aboutIdx !== -1 && importIdx !== -1);
+      const between = html.slice(aboutIdx, importIdx);
+      const openDivs = (between.match(/<div\b/g) || []).length;
+      const closeDivs = (between.match(/<\/div>/g) || []).length;
+      assert.strictEqual(openDivs, closeDivs, 'About modal must be properly closed before Import modal starts');
+    });
   });
 
   describe('Mobile Floating Controls & Button Cleanliness', () => {
