@@ -319,13 +319,13 @@
             <i data-lucide="crosshair"></i>
           </button>
 
-          <!-- Surprise Pick Button on Map -->
-          <button class="map-fab fab-highlight" id="btn-surprise-map" onclick="surpriseMe()" title="Surprise Me (Random Place)">
+          <!-- Surprise Pick Button on Map (Desktop Only) -->
+          <button class="map-fab fab-highlight desktop-only" id="btn-surprise-map" onclick="surpriseMe()" title="Surprise Me (Random Place)">
             <i data-lucide="dice-5"></i>
           </button>
 
-          <!-- Reset / Fit All Pins View -->
-          <button class="map-fab" onclick="resetMapView()" title="Fit All Pins">
+          <!-- Reset / Fit All Pins View (Desktop Only) -->
+          <button class="map-fab desktop-only" onclick="resetMapView()" title="Fit All Pins">
             <i data-lucide="maximize-2"></i>
           </button>
         </div>
@@ -423,6 +423,12 @@
                 <label for="form-lon">Longitude</label>
                 <input type="number" step="any" id="form-lon" placeholder="-118.1943">
               </div>
+            </div>
+
+            <div class="form-plus-code-display hidden" id="form-plus-code-display">
+              <span class="plus-code-label">🧭 Plus Code:</span>
+              <code id="form-plus-code-val"></code>
+              <button type="button" class="btn-copy-code-sm" onclick="copyFormPlusCode()">Copy</button>
             </div>
 
             <div class="form-group">

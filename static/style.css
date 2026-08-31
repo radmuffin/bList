@@ -1070,39 +1070,79 @@ body {
   padding-top: 6px;
   border-top: 1px solid var(--border-color);
   font-size: 11px;
-}
-
-.status-toggle {
-  display: flex;
-  align-items: center;
   gap: 6px;
-  cursor: pointer;
-  user-select: none;
+}
+
+.btn-card-status-pill {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 11px;
   font-weight: 600;
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--text-muted);
-}
-
-.status-toggle input[type="checkbox"] {
-  accent-color: var(--success);
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.status-toggle:hover {
-  color: var(--text-main);
+.btn-card-status-pill svg {
+  width: 13px;
+  height: 13px;
+}
+
+.btn-card-status-pill:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-card-status-pill.is-visited {
+  background: var(--success-light);
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.btn-card-directions {
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid transparent;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.btn-card-directions svg {
+  width: 12px;
+  height: 12px;
+}
+
+.btn-card-directions:hover {
+  background: var(--primary);
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .card-action-btns {
   display: flex;
+  align-items: center;
   gap: 4px;
 }
 
 .btn-icon-sm {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-muted);
   cursor: pointer;
   padding: 5px;
-  border-radius: 4px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1113,11 +1153,91 @@ body {
 .btn-icon-sm:hover {
   color: var(--primary);
   background-color: var(--primary-light);
+  border-color: var(--border-color);
 }
 
 .btn-icon-sm.delete-btn:hover {
   color: var(--danger);
   background-color: var(--danger-light);
+}
+
+/* Plus Code Metadata Box (Popup & Modals) */
+.popup-plus-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 5px 8px;
+  margin-top: 2px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.popup-plus-code-row:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.plus-code-label {
+  color: var(--text-muted);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.plus-code-val,
+.plus-code-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 11.5px;
+  background: var(--bg-surface);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.plus-code-copy-btn,
+.plus-code-copy-badge {
+  background: var(--primary);
+  color: #ffffff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.form-plus-code-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.btn-copy-code-sm {
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-copy-code-sm:hover {
+  background: var(--primary);
+  color: white;
 }
 
 /* Empty State */

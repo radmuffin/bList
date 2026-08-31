@@ -1035,10 +1035,6 @@
     },
 
     renderBadgesHtml(pin, { distanceStr, weather, assignedList }) {
-      const plusCode = (window.bListHelpers && window.bListHelpers.encodePlusCode)
-        ? window.bListHelpers.encodePlusCode(pin.latitude, pin.longitude)
-        : '';
-
       return `
         <span class="pin-badge ${pin.visited ? 'badge-visited' : ''}">
           ${pin.visited ? '✅ Visited' : Utils.escapeHtml(pin.category || 'Place')}
@@ -1051,11 +1047,6 @@
             : ''
         }
         ${distanceStr ? `<span class="pin-badge badge-distance">📍 ${distanceStr}</span>` : ''}
-        ${
-          plusCode
-            ? `<span class="pin-badge badge-plus-code" onclick="event.stopPropagation(); copyPlusCode('${plusCode}')" title="Click to copy Plus Code (${plusCode})">🧭 ${plusCode}</span>`
-            : ''
-        }
         <span class="pin-badge badge-weather ${weather ? '' : 'hidden'}" id="weather-badge-${pin.id}">
           ${weather ? `${weather.icon} ${weather.tempF}°F` : ''}
         </span>
@@ -1102,30 +1093,18 @@
 
       return `
         <div class="pin-card-footer" onclick="event.stopPropagation()">
-          <label class="status-toggle">
-            <input type="checkbox" ${pin.visited ? 'checked' : ''} onchange="toggleVisited(${pin.id})">
-            <span>${pin.visited ? 'Visited' : 'Mark Visited'}</span>
-          </label>
+          <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
+            <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
+            <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
+          </button>
 
           <div class="card-action-btns">
-            <a href="${directionsUrl}" target="_blank" rel="noopener noreferrer" class="btn-icon-sm" title="Get Directions">
-              <i data-lucide="navigation" style="width: 14px; height: 14px;"></i>
+            <a href="${directionsUrl}" target="_blank" rel="noopener noreferrer" class="btn-card-directions" title="Get Directions">
+              <i data-lucide="navigation"></i>
+              <span>Directions</span>
             </a>
-            <button class="btn-icon-sm" onclick="sharePin(${pin.id})" title="Share Place">
-              <i data-lucide="share-2" style="width: 14px; height: 14px;"></i>
-            </button>
-            ${
-              sourceUrl
-                ? `<a href="${sourceUrl}" target="_blank" rel="noopener noreferrer" class="btn-icon-sm" title="Open Source Link">
-                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
-                   </a>`
-                : ''
-            }
-            <button class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit Place">
-              <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
-            </button>
-            <button class="btn-icon-sm delete-btn" onclick="deletePin(${pin.id})" title="Delete Place">
-              <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+            <button type="button" class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit & Options">
+              <i data-lucide="more-horizontal" style="width: 15px; height: 15px;"></i>
             </button>
           </div>
         </div>
@@ -1134,6 +1113,10 @@
 
     renderPopupHtml(pin, { distanceStr, weather, assignedList }) {
       const safeImg = pin.image_url ? Utils.sanitizeUrl(pin.image_url) : '';
+      const plusCode = (window.bListHelpers && window.bListHelpers.encodePlusCode)
+        ? window.bListHelpers.encodePlusCode(pin.latitude, pin.longitude)
+        : '';
+
       return `
         <div class="pin-popup">
           ${
@@ -1154,6 +1137,15 @@
                 ? `<div class="popup-address"><i data-lucide="map-pin" style="width: 12px; height: 12px;"></i> ${Utils.escapeHtml(
                     pin.address
                   )}</div>`
+                : ''
+            }
+            ${
+              plusCode
+                ? `<div class="popup-plus-code-row" onclick="event.stopPropagation(); copyPlusCode('${plusCode}')" title="Click to copy Plus Code (${plusCode})">
+                    <span class="plus-code-label"><i data-lucide="compass"></i> Plus Code:</span>
+                    <code class="plus-code-val">${plusCode}</code>
+                    <span class="plus-code-copy-btn">Copy</span>
+                  </div>`
                 : ''
             }
             ${pin.notes ? `<div class="popup-notes">"${Utils.escapeHtml(pin.notes)}"</div>` : ''}
@@ -1456,6 +1448,20 @@
       const formList = document.getElementById('form-list-id');
       if (formList) {
         formList.value = pin.list_id || (State.lists[0] ? State.lists[0].id : 1);
+      }
+
+      const plusCodeDisplay = document.getElementById('form-plus-code-display');
+      const plusCodeVal = document.getElementById('form-plus-code-val');
+      if (plusCodeDisplay && plusCodeVal) {
+        const plusCode = (window.bListHelpers && window.bListHelpers.encodePlusCode)
+          ? window.bListHelpers.encodePlusCode(pin.latitude, pin.longitude)
+          : '';
+        if (plusCode) {
+          plusCodeVal.textContent = plusCode;
+          plusCodeDisplay.classList.remove('hidden');
+        } else {
+          plusCodeDisplay.classList.add('hidden');
+        }
       }
 
       document.getElementById('pin-modal').classList.remove('hidden');
@@ -2309,6 +2315,12 @@
       } catch (_) {}
     }
     ToastManager.show(`🧭 Plus Code: ${code}`, 'info');
+  };
+  window.copyFormPlusCode = () => {
+    const el = document.getElementById('form-plus-code-val');
+    if (el && el.textContent) {
+      window.copyPlusCode(el.textContent.trim());
+    }
   };
 
   // Sync & Multi-Device
