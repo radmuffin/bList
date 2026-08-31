@@ -16,8 +16,8 @@ pub fn encode(latitude: f64, longitude: f64, code_length: usize) -> Option<Strin
         return None;
     }
 
-    let length = code_length.min(10).max(2);
-    let length = if length % 2 != 0 { length + 1 } else { length };
+    let length = code_length.clamp(2, 10);
+    let length = if !length.is_multiple_of(2) { length + 1 } else { length };
 
     // Normalize latitude to [-90, 90] and longitude to [-180, 180]
     let mut lat = latitude.clamp(-90.0, 90.0);
@@ -40,8 +40,7 @@ pub fn encode(latitude: f64, longitude: f64, code_length: usize) -> Option<Strin
     let mut result = String::with_capacity(12);
 
     let pairs = (length / 2).min(5);
-    for i in 0..pairs {
-        let res = PAIR_RESOLUTIONS[i];
+    for &res in PAIR_RESOLUTIONS.iter().take(pairs) {
         let lat_idx = (lat_val / res).floor() as usize;
         let lon_idx = (lon_val / res).floor() as usize;
 
@@ -87,14 +86,13 @@ pub fn decode(code: &str) -> Option<(f64, f64)> {
     let mut lon_size = 0.0;
 
     let pairs = (bare_code.len() / 2).min(5);
-    for i in 0..pairs {
+    for (i, &res) in PAIR_RESOLUTIONS.iter().enumerate().take(pairs) {
         let lat_char = bare_code.as_bytes()[i * 2];
         let lon_char = bare_code.as_bytes()[i * 2 + 1];
 
         let lat_idx = alphabet_index(lat_char)?;
         let lon_idx = alphabet_index(lon_char)?;
 
-        let res = PAIR_RESOLUTIONS[i];
         lat += (lat_idx as f64) * res;
         lon += (lon_idx as f64) * res;
         lat_size = res;
@@ -138,7 +136,7 @@ pub fn is_full(code: &str) -> bool {
                 return false;
             }
         } else if c == '0' {
-            if i < 2 || i >= SEPARATOR_POSITION {
+            if !(2..SEPARATOR_POSITION).contains(&i) {
                 return false;
             }
         } else if !CODE_ALPHABET.contains(&(c as u8)) {

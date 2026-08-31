@@ -229,7 +229,7 @@ mod tests {
         assert_eq!(deserialized.list_id, 10);
         assert_eq!(deserialized.title, "Mount Fuji");
         assert_eq!(deserialized.latitude, 35.3606);
-        assert_eq!(deserialized.visited, true);
+        assert!(deserialized.visited);
 
         // CreatePinRequest partial JSON deserialization
         let partial_create_json = r#"{"title":"Kyoto Shrine","latitude":35.0,"longitude":135.7}"#;

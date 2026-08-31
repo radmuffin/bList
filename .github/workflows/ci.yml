@@ -10,10 +10,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check-and-test:
-    name: Check, Test & Build
+  backend:
+    name: Backend Tests & Checks
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,6 +29,19 @@ jobs:
       - name: Run Backend Unit & Integration Tests
         run: cargo test --verbose
 
+  frontend-e2e:
+    name: Frontend & E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -42,8 +54,24 @@ jobs:
       - name: Run Frontend Unit & Accessibility Tests
         run: npm test
 
-      - name: Install Playwright Browsers
+      - name: Get Playwright Version
+        id: playwright-version
+        run: echo "version=$(npx playwright --version)" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Browsers & Deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium webkit
+
+      - name: Install Playwright OS Deps Only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium webkit
 
       - name: Run Playwright E2E & Visual Tests
         run: npm run test:e2e
@@ -55,6 +83,3 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
-
-      - name: Build Release Binary
-        run: cargo build --release --verbose

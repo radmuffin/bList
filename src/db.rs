@@ -1693,7 +1693,7 @@ mod tests {
         };
         let created_pin = create_pin(&conn, &pin_req).expect("create pin");
         assert_eq!(created_pin.title, "Ramen Street");
-        assert_eq!(created_pin.visited, false);
+        assert!(!created_pin.visited);
         assert_eq!(created_pin.category, "Food & Drink");
 
         // Get pin
@@ -1725,9 +1725,9 @@ mod tests {
 
         // Toggle visited
         let toggled1 = toggle_visited(&conn, created_pin.id).expect("toggle").expect("toggled pin");
-        assert_eq!(toggled1.visited, true);
+        assert!(toggled1.visited);
         let toggled2 = toggle_visited(&conn, created_pin.id).expect("toggle").expect("toggled pin");
-        assert_eq!(toggled2.visited, false);
+        assert!(!toggled2.visited);
 
         // Delete pin
         let deleted = delete_pin(&conn, created_pin.id).expect("delete pin");

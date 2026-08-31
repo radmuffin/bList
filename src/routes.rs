@@ -935,7 +935,7 @@ mod tests {
         let created_pin = res.data.unwrap();
         assert_eq!(created_pin.title, "Colosseum");
         assert_eq!(created_pin.category, "History");
-        assert_eq!(created_pin.visited, false);
+        assert!(!created_pin.visited);
 
         // Reject empty title
         let empty_title_req = CreatePinRequest {
@@ -989,11 +989,11 @@ mod tests {
         // Toggle visited
         let (status, Json(res)) = toggle_visited(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(res.data.unwrap().visited, true);
+        assert!(res.data.unwrap().visited);
 
         let (status, Json(res)) = toggle_visited(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(res.data.unwrap().visited, false);
+        assert!(!res.data.unwrap().visited);
 
         // Delete pin
         let (status, Json(res)) = delete_pin(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
