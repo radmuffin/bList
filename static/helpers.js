@@ -477,6 +477,52 @@
   }
 
   /**
+   * Extracts a clean, concise locality (City, State/Region/Country) from an address string.
+   */
+  function extractLocality(address) {
+    if (!address || typeof address !== 'string') return '';
+    const clean = address
+      .trim()
+      .replace(/\b\d{5}(-\d{4})?\b/g, '')
+      .replace(/\b[A-Z]\d[A-Z]\s?\d[A-Z]\d\b/g, '')
+      .trim();
+    const parts = clean
+      .split(',')
+      .map(p => p.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return parts[0];
+
+    // Filter out trailing country code if preceding parts are descriptive
+    let filtered = parts;
+    if (filtered.length > 2 && /^(USA|United States|US)$/i.test(filtered[filtered.length - 1])) {
+      filtered = filtered.slice(0, -1);
+    }
+    const locParts = filtered.slice(-2);
+    return locParts.join(', ').replace(/\s+,/g, ',').trim();
+  }
+
+  /**
+   * Formats a Plus Code into Google Maps style (Short Local Code + Locality when address is available).
+   * Example: "85GC68XX+RM", "Provo, UT" -> "68XX+RM Provo, UT"
+   */
+  function formatDisplayPlusCode(fullCode, address) {
+    if (!fullCode || typeof fullCode !== 'string' || fullCode.length < 8 || !fullCode.includes('+')) {
+      return fullCode || '';
+    }
+    const plusIdx = fullCode.indexOf('+');
+    if (plusIdx < 8) {
+      return fullCode; // already short code
+    }
+    const shortCode = fullCode.slice(plusIdx - 4);
+    const locality = extractLocality(address);
+    if (locality) {
+      return `${shortCode} ${locality}`;
+    }
+    return fullCode;
+  }
+
+  /**
    * Application metadata, version, and repository/support links.
    */
   const APP_INFO = Object.freeze({
@@ -512,6 +558,8 @@
     filterPins,
     sortPins,
     getEffectiveTheme,
-    encodePlusCode
+    encodePlusCode,
+    extractLocality,
+    formatDisplayPlusCode
   };
 });

@@ -16,6 +16,8 @@ const {
   sortPins,
   getEffectiveTheme,
   encodePlusCode,
+  extractLocality,
+  formatDisplayPlusCode,
   APP_INFO,
   getAppInfo
 } = require('../static/helpers.js');
@@ -428,6 +430,28 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.ok(encodePlusCode(-90.0, 0.0).includes('+'));
       assert.ok(encodePlusCode(0.0, 180.0).includes('+'));
       assert.strictEqual(encodePlusCode(NaN, 0.0), '');
+    });
+
+    it('should format Plus Codes into Google Maps short code + locality format when address is present', () => {
+      const formattedBYU = formatDisplayPlusCode('85GC68XX+RM', 'Talmage Building, BYU, Provo, UT 84602');
+      assert.strictEqual(formattedBYU, '68XX+RM Provo, UT');
+
+      const formattedSimple = formatDisplayPlusCode('85GC68XX+RM', 'Provo, Utah');
+      assert.strictEqual(formattedSimple, '68XX+RM Provo, Utah');
+
+      const formattedParis = formatDisplayPlusCode('8FW4V8FX+9H', 'Champ de Mars, 5 Av. Anatole France, 75007 Paris, France');
+      assert.strictEqual(formattedParis, 'V8FX+9H Paris, France');
+
+      // Fall back to full code if address is empty
+      assert.strictEqual(formatDisplayPlusCode('85GC68XX+RM', ''), '85GC68XX+RM');
+      assert.strictEqual(formatDisplayPlusCode('85GC68XX+RM', null), '85GC68XX+RM');
+    });
+
+    it('should extract clean city/state locality from address strings', () => {
+      assert.strictEqual(extractLocality('Provo, UT 84602'), 'Provo, UT');
+      assert.strictEqual(extractLocality('Highland Park, Los Angeles, CA'), 'Los Angeles, CA');
+      assert.strictEqual(extractLocality('4 Chome-2-8 Shibakoen, Minato City, Tokyo, Japan'), 'Tokyo, Japan');
+      assert.strictEqual(extractLocality(''), '');
     });
   });
 

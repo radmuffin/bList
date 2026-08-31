@@ -1120,9 +1120,12 @@
 
     renderPopupHtml(pin, { distanceStr, weather, assignedList }) {
       const safeImg = pin.image_url ? Utils.sanitizeUrl(pin.image_url) : '';
-      const plusCode = (window.bListHelpers && window.bListHelpers.encodePlusCode)
+      const rawPlusCode = (window.bListHelpers && window.bListHelpers.encodePlusCode)
         ? window.bListHelpers.encodePlusCode(pin.latitude, pin.longitude)
         : '';
+      const displayPlusCode = (window.bListHelpers && window.bListHelpers.formatDisplayPlusCode)
+        ? window.bListHelpers.formatDisplayPlusCode(rawPlusCode, pin.address)
+        : rawPlusCode;
 
       return `
         <div class="pin-popup">
@@ -1147,10 +1150,12 @@
                 : ''
             }
             ${
-              plusCode
-                ? `<div class="popup-plus-code-row" onclick="event.stopPropagation(); copyPlusCode('${plusCode}')" title="Click to copy Plus Code (${plusCode})">
+              displayPlusCode
+                ? `<div class="popup-plus-code-row" onclick="event.stopPropagation(); copyPlusCode('${Utils.escapeHtml(
+                    displayPlusCode
+                  )}')" title="Click to copy Plus Code (${Utils.escapeHtml(displayPlusCode)})">
                     <span class="plus-code-label"><i data-lucide="compass"></i> Plus Code:</span>
-                    <code class="plus-code-val">${plusCode}</code>
+                    <code class="plus-code-val">${Utils.escapeHtml(displayPlusCode)}</code>
                     <span class="plus-code-copy-btn">Copy</span>
                   </div>`
                 : ''
@@ -1461,6 +1466,7 @@
         }
       }
 
+      this.updateModalPlusCodePreview();
       document.getElementById('pin-modal').classList.remove('hidden');
     },
 
@@ -1496,21 +1502,29 @@
         formList.value = pin.list_id || (State.lists[0] ? State.lists[0].id : 1);
       }
 
+      this.updateModalPlusCodePreview();
+      document.getElementById('pin-modal').classList.remove('hidden');
+    },
+
+    updateModalPlusCodePreview() {
+      const latVal = parseFloat(document.getElementById('form-lat')?.value);
+      const lonVal = parseFloat(document.getElementById('form-lon')?.value);
+      const addressVal = document.getElementById('form-address')?.value || '';
       const plusCodeDisplay = document.getElementById('form-plus-code-display');
       const plusCodeVal = document.getElementById('form-plus-code-val');
-      if (plusCodeDisplay && plusCodeVal) {
-        const plusCode = (window.bListHelpers && window.bListHelpers.encodePlusCode)
-          ? window.bListHelpers.encodePlusCode(pin.latitude, pin.longitude)
-          : '';
-        if (plusCode) {
-          plusCodeVal.textContent = plusCode;
-          plusCodeDisplay.classList.remove('hidden');
-        } else {
-          plusCodeDisplay.classList.add('hidden');
-        }
-      }
 
-      document.getElementById('pin-modal').classList.remove('hidden');
+      if (plusCodeDisplay && plusCodeVal) {
+        if (!isNaN(latVal) && !isNaN(lonVal) && window.bListHelpers) {
+          const rawCode = window.bListHelpers.encodePlusCode(latVal, lonVal);
+          const displayCode = window.bListHelpers.formatDisplayPlusCode(rawCode, addressVal);
+          if (displayCode) {
+            plusCodeVal.textContent = displayCode;
+            plusCodeDisplay.classList.remove('hidden');
+            return;
+          }
+        }
+        plusCodeDisplay.classList.add('hidden');
+      }
     },
 
     closePinModal() {
@@ -2154,6 +2168,14 @@
             m.classList.add('hidden');
           }
         });
+      }
+    });
+
+    // Live Plus Code preview updates in place form
+    ['form-lat', 'form-lon', 'form-address'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', () => ModalManager.updateModalPlusCodePreview());
       }
     });
   }
