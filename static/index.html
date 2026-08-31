@@ -532,8 +532,14 @@
         </details>
 
         <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" onclick="closePinModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="btn-submit-pin">Save Place</button>
+          <button type="button" class="btn btn-danger hidden" id="btn-delete-pin-modal" onclick="handleDeleteFromPinModal()" title="Delete Place">
+            <i data-lucide="trash-2" class="btn-icon"></i>
+            <span>Delete</span>
+          </button>
+          <div class="modal-actions-right">
+            <button type="button" class="btn btn-secondary" onclick="closePinModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-submit-pin">Save Place</button>
+          </div>
         </div>
       </form>
     </div>

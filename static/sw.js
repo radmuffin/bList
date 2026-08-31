@@ -29,6 +29,7 @@ const PRECACHE_ASSETS = [
 // Map Tile domains for offline map tile caching
 const TILE_DOMAINS = [
   'tile.openstreetmap.org',
+  'basemaps.cartocdn.com',
   'cartodb-basemaps',
   'server.arcgisonline.com'
 ];

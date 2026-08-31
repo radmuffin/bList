@@ -115,6 +115,14 @@ describe('Accessibility & UI Layout Contract Tests', () => {
       assert.ok(css.includes('.btn-card-status-pill'), 'CSS must style .btn-card-status-pill');
       assert.ok(css.includes('.btn-card-directions'), 'CSS must style .btn-card-directions');
       assert.ok(css.includes('.popup-plus-code-row'), 'CSS must style .popup-plus-code-row');
+      assert.ok(css.includes('.btn-danger'), 'CSS must style .btn-danger');
+      assert.ok(css.includes('.pin-card-body'), 'CSS must style .pin-card-body');
+    });
+
+    it('should include delete button in place edit modal', () => {
+      assert.ok(html.includes('id="btn-delete-pin-modal"'), 'Place edit modal must contain a delete button');
+      assert.ok(html.includes('onclick="handleDeleteFromPinModal()"'), 'Delete button must have handleDeleteFromPinModal handler');
     });
   });
 });
+

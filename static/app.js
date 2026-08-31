@@ -21,10 +21,11 @@
       },
       dark: {
         name: 'Dark Mode',
-        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
         options: {
-          maxZoom: 16,
-          attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
+          maxZoom: 20,
+          subdomains: 'abcd',
+          attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         }
       }
     },
@@ -684,7 +685,8 @@
 
       State.map = L.map('map', {
         zoomControl: true,
-        tap: true
+        tap: true,
+        maxZoom: 19
       }).setView([20.0, 0.0], 2);
 
       State.markerLayer = L.layerGroup().addTo(State.map);
@@ -1327,8 +1329,11 @@
               <i data-lucide="navigation"></i>
               <span>Directions</span>
             </a>
-            <button type="button" class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit & Options">
-              <i data-lucide="more-horizontal" style="width: 15px; height: 15px;"></i>
+            <button type="button" class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit Place">
+              <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
+            </button>
+            <button type="button" class="btn-icon-sm delete-btn" onclick="deletePin(${pin.id})" title="Delete Place">
+              <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
             </button>
           </div>
         </div>
@@ -1496,13 +1501,6 @@
 
           return `
             <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
-              <div class="pin-card-header">
-                <div class="pin-card-title">${Utils.escapeHtml(pin.title)}</div>
-                <div class="badges-row">
-                  ${this.renderBadgesHtml(pin, { distanceStr, weather: weatherCached, assignedList })}
-                </div>
-              </div>
-
               ${
                 safeThumb
                   ? `<img src="${Utils.escapeHtml(safeThumb)}" class="pin-card-thumb" alt="${Utils.escapeHtml(
@@ -1510,25 +1508,28 @@
                     )}" onerror="this.style.display='none'">`
                   : ''
               }
-
-              ${
-                pin.address
-                  ? `<div class="pin-card-address">
-                      <i data-lucide="map-pin" style="width: 13px; height: 13px; flex-shrink: 0;"></i>
-                      <span>${Utils.escapeHtml(pin.address)}</span>
-                    </div>`
-                  : ''
-              }
-
-              ${
-                pin.notes
-                  ? `<div class="pin-card-notes">
-                      "${Utils.escapeHtml(pin.notes)}"
-                    </div>`
-                  : ''
-              }
-
-              ${this.renderActionsHtml(pin, false)}
+              <div class="pin-card-body">
+                <div class="badges-row">
+                  ${this.renderBadgesHtml(pin, { distanceStr, weather: weatherCached, assignedList })}
+                </div>
+                <div class="pin-card-title">${Utils.escapeHtml(pin.title)}</div>
+                ${
+                  pin.address
+                    ? `<div class="pin-card-address">
+                        <i data-lucide="map-pin" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                        <span>${Utils.escapeHtml(pin.address)}</span>
+                      </div>`
+                    : ''
+                }
+                ${
+                  pin.notes
+                    ? `<div class="pin-card-notes">
+                        "${Utils.escapeHtml(pin.notes)}"
+                      </div>`
+                    : ''
+                }
+                ${this.renderActionsHtml(pin, false)}
+              </div>
             </div>
           `;
         })
@@ -1688,6 +1689,9 @@
         }
       }
 
+      const deleteBtn = document.getElementById('btn-delete-pin-modal');
+      if (deleteBtn) deleteBtn.classList.add('hidden');
+
       this.updateModalPlusCodePreview();
       document.getElementById('pin-modal').classList.remove('hidden');
     },
@@ -1724,6 +1728,9 @@
         submitBtn.innerText = 'Update Place';
       }
 
+      const deleteBtn = document.getElementById('btn-delete-pin-modal');
+      if (deleteBtn) deleteBtn.classList.remove('hidden');
+
       const formList = document.getElementById('form-list-id');
       if (formList) {
         formList.value = pin.list_id || (State.lists[0] ? State.lists[0].id : 1);
@@ -1731,6 +1738,14 @@
 
       this.updateModalPlusCodePreview();
       document.getElementById('pin-modal').classList.remove('hidden');
+    },
+
+    handleDeleteFromPinModal() {
+      const idVal = document.getElementById('form-pin-id').value;
+      const pinId = parseInt(idVal, 10);
+      if (!pinId) return;
+      this.closePinModal();
+      FeatureActions.deletePin(pinId);
     },
 
     updateModalPlusCodePreview() {
@@ -3001,6 +3016,7 @@
   window.openManualPinModal = (lat, lon) => ModalManager.openManualPinModal(lat, lon);
   window.openEditPinModal = (id) => ModalManager.openEditPinModal(id);
   window.closePinModal = () => ModalManager.closePinModal();
+  window.handleDeleteFromPinModal = () => ModalManager.handleDeleteFromPinModal();
   window.handlePinFormSubmit = (e) => ModalManager.handlePinFormSubmit(e);
   window.handleModalBackdropClick = (e, modalId) => ModalManager.handleBackdropClick(e, modalId);
   window.handleSaveLinkSubmit = (e, inputId) => FeatureActions.handleSaveLinkSubmit(e, inputId);
