@@ -1792,6 +1792,9 @@
       const modal = document.getElementById('about-modal');
       if (!modal) return;
 
+      modal.classList.remove('hidden');
+      if (window.lucide) window.lucide.createIcons();
+
       try {
         const info = await ApiClient.fetchAppInfo();
         if (info && info.version) {
@@ -1804,9 +1807,6 @@
           if (sideVer) sideVer.textContent = ver;
         }
       } catch (_) {}
-
-      modal.classList.remove('hidden');
-      if (window.lucide) window.lucide.createIcons();
     },
 
     closeAboutModal() {
