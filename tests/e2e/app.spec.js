@@ -120,7 +120,7 @@ test.describe('bList Visual & E2E Suite', () => {
 
     const aboutModal = page.locator('#about-modal');
     await expect(aboutModal).toBeVisible();
-    await expect(aboutModal.locator('a[href*="github.com/radmuffin/bList"]')).toBeVisible();
+    await expect(aboutModal.locator('a[href*="github.com/radmuffin/bList"]').first()).toBeVisible();
 
     // Close modal via close button
     await aboutModal.locator('.btn-close').click();
