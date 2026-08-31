@@ -381,6 +381,13 @@
       ToastManager.show(toastMsg);
     },
 
+    toggle() {
+      const current = localStorage.getItem('blist_theme') || 'auto';
+      const effective = this.getEffectiveTheme(current);
+      const next = effective === 'dark' ? 'light' : 'dark';
+      this.set(next);
+    },
+
     toggleMenu() {
       const menu = document.getElementById('theme-menu');
       if (menu) menu.classList.toggle('hidden');
@@ -2322,14 +2329,13 @@
 
   // Theme
   window.setTheme = (theme) => ThemeManager.set(theme);
-  window.toggleThemeMenu = () => ThemeManager.toggleMenu();
-  window.toggleMobileMoreMenu = () => {
+  window.toggleTheme = () => ThemeManager.toggle();
+  window.toggleThemeMenu = () => ThemeManager.toggle();
+  window.toggleMobileMoreMenu = (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
     const menu = document.getElementById('mobile-more-menu');
     if (menu) {
       menu.classList.toggle('hidden');
-      if (!menu.classList.contains('hidden') && window.lucide) {
-        window.lucide.createIcons();
-      }
     }
   };
   window.closeMobileMoreMenu = () => {

@@ -76,7 +76,7 @@
         <div class="header-actions">
           <!-- Theme Switcher Dropdown (Desktop) -->
           <div class="theme-switcher-wrapper desktop-only" id="theme-switcher-wrapper">
-            <button class="btn-icon-header" id="theme-toggle-btn" onclick="toggleThemeMenu()" title="Theme: Auto (System)" aria-label="Theme: Auto">
+            <button class="btn-icon-header" id="theme-toggle-btn" onclick="toggleTheme()" title="Theme: Auto (System)" aria-label="Theme: Auto">
               <i data-lucide="monitor" id="theme-btn-icon"></i>
             </button>
             <div class="theme-menu hidden" id="theme-menu" role="menu">
@@ -122,7 +122,7 @@
 
           <!-- Mobile More Options Menu (•••) -->
           <div class="mobile-more-wrapper mobile-only" id="mobile-more-wrapper">
-            <button class="btn-icon-header" id="mobile-more-btn" onclick="toggleMobileMoreMenu()" aria-label="More options" title="More options" aria-haspopup="true">
+            <button class="btn-icon-header" id="mobile-more-btn" onclick="toggleMobileMoreMenu(event)" aria-label="More options" title="More options" aria-haspopup="true">
               <i data-lucide="more-vertical"></i>
             </button>
             <div class="mobile-more-menu hidden" id="mobile-more-menu" role="menu">
