@@ -261,7 +261,8 @@ mod tests {
             icon: Some("✈️".to_string()),
         };
         let create_json = serde_json::to_string(&create_req).expect("serialize create");
-        let create_de: CreateListRequest = serde_json::from_str(&create_json).expect("deserialize create");
+        let create_de: CreateListRequest =
+            serde_json::from_str(&create_json).expect("deserialize create");
         assert_eq!(create_de.name, "Trip");
         assert_eq!(create_de.icon, Some("✈️".to_string()));
 
@@ -271,7 +272,8 @@ mod tests {
             icon: None,
         };
         let update_json = serde_json::to_string(&update_req).expect("serialize update");
-        let update_de: UpdateListRequest = serde_json::from_str(&update_json).expect("deserialize update");
+        let update_de: UpdateListRequest =
+            serde_json::from_str(&update_json).expect("deserialize update");
         assert_eq!(update_de.name, Some("Trip Updated".to_string()));
         assert_eq!(update_de.icon, None);
     }
@@ -306,12 +308,16 @@ mod tests {
         assert_eq!(deserialized.list_id, 10);
         assert_eq!(deserialized.title, "Mount Fuji");
         assert_eq!(deserialized.latitude, 35.3606);
-        assert_eq!(deserialized.opening_hours, Some("Daily 06:00-18:00".to_string()));
+        assert_eq!(
+            deserialized.opening_hours,
+            Some("Daily 06:00-18:00".to_string())
+        );
         assert!(deserialized.visited);
 
         // CreatePinRequest partial JSON deserialization
         let partial_create_json = r#"{"title":"Kyoto Shrine","latitude":35.0,"longitude":135.7}"#;
-        let create_req: CreatePinRequest = serde_json::from_str(partial_create_json).expect("deserialize create partial");
+        let create_req: CreatePinRequest =
+            serde_json::from_str(partial_create_json).expect("deserialize create partial");
         assert_eq!(create_req.title, "Kyoto Shrine");
         assert_eq!(create_req.latitude, 35.0);
         assert_eq!(create_req.longitude, 135.7);
@@ -320,9 +326,13 @@ mod tests {
 
         // UpdatePinRequest partial JSON deserialization
         let partial_update_json = r#"{"visited":true,"notes":"Visited during festival"}"#;
-        let update_req: UpdatePinRequest = serde_json::from_str(partial_update_json).expect("deserialize update partial");
+        let update_req: UpdatePinRequest =
+            serde_json::from_str(partial_update_json).expect("deserialize update partial");
         assert_eq!(update_req.visited, Some(true));
-        assert_eq!(update_req.notes, Some("Visited during festival".to_string()));
+        assert_eq!(
+            update_req.notes,
+            Some("Visited during festival".to_string())
+        );
         assert_eq!(update_req.title, None);
     }
 
@@ -340,7 +350,8 @@ mod tests {
             notes: Some("Saved from reel".to_string()),
         };
         let ingest_json = serde_json::to_string(&ingest).expect("serialize ingest");
-        let ingest_de: IngestRequest = serde_json::from_str(&ingest_json).expect("deserialize ingest");
+        let ingest_de: IngestRequest =
+            serde_json::from_str(&ingest_json).expect("deserialize ingest");
         assert_eq!(ingest_de.url, "https://www.instagram.com/p/ABC123xyz/");
         assert_eq!(ingest_de.list_id, Some(2));
         assert_eq!(ingest_de.opening_hours, Some("09:00-21:00".to_string()));
@@ -360,7 +371,10 @@ mod tests {
         let meta_de: ScrapedMetadata = serde_json::from_str(&meta_json).expect("deserialize meta");
         assert_eq!(meta_de.title, "Cozy Coffee Roasters");
         assert_eq!(meta_de.latitude, Some(40.7128));
-        assert_eq!(meta_de.opening_hours, Some("Mon-Sun 07:00-19:00".to_string()));
+        assert_eq!(
+            meta_de.opening_hours,
+            Some("Mon-Sun 07:00-19:00".to_string())
+        );
         assert_eq!(meta_de.source_type, "google_maps");
 
         // ScrapedMetadata default

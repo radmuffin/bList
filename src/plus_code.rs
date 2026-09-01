@@ -17,7 +17,11 @@ pub fn encode(latitude: f64, longitude: f64, code_length: usize) -> Option<Strin
     }
 
     let length = code_length.clamp(2, 10);
-    let length = if !length.is_multiple_of(2) { length + 1 } else { length };
+    let length = if !length.is_multiple_of(2) {
+        length + 1
+    } else {
+        length
+    };
 
     // Normalize latitude to [-90, 90] and longitude to [-180, 180]
     let mut lat = latitude.clamp(-90.0, 90.0);
@@ -78,7 +82,10 @@ pub fn decode(code: &str) -> Option<(f64, f64)> {
     }
 
     // Remove separator for processing
-    let bare_code: String = clean_code.chars().filter(|&c| c != SEPARATOR && c != '0').collect();
+    let bare_code: String = clean_code
+        .chars()
+        .filter(|&c| c != SEPARATOR && c != '0')
+        .collect();
 
     let mut lat = -90.0;
     let mut lon = -180.0;

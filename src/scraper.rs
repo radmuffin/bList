@@ -39,7 +39,9 @@ impl ScraperContext {
         let mut html_text = response.text().await.unwrap_or_default();
 
         // Check for client-side meta refresh or JS redirect
-        if html_text.contains("http-equiv=\"refresh\"") || html_text.contains("http-equiv='refresh'") {
+        if html_text.contains("http-equiv=\"refresh\"")
+            || html_text.contains("http-equiv='refresh'")
+        {
             let re_refresh = Regex::new(r#"(?i)content=["'][0-9]+;\s*url=([^"']+)["']"#).unwrap();
             if let Some(caps) = re_refresh.captures(&html_text) {
                 if let Some(m) = caps.get(1) {
@@ -118,8 +120,9 @@ impl LinkScraper for GoogleMapsScraper {
             let re_place = Regex::new(r"/maps/place/([^/@?]+)").unwrap();
             if let Some(caps) = re_place.captures(&final_url) {
                 if let Some(m) = caps.get(1) {
-                    let unencoded =
-                        urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
+                    let unencoded = urlencoding::decode(m.as_str())
+                        .unwrap_or_default()
+                        .to_string();
                     let clean_name = unencoded.replace('+', " ").trim().to_string();
                     if !clean_name.is_empty() && !clean_name.starts_with("data=") {
                         place_query_candidate = Some(clean_name.clone());
@@ -130,12 +133,14 @@ impl LinkScraper for GoogleMapsScraper {
 
             if place_query_candidate.is_none() {
                 let re_search = Regex::new(r"/maps/search/([^/@?]+)").unwrap();
-                if let Some(caps) =
-                    re_search.captures(&final_url).or_else(|| re_search.captures(url))
+                if let Some(caps) = re_search
+                    .captures(&final_url)
+                    .or_else(|| re_search.captures(url))
                 {
                     if let Some(m) = caps.get(1) {
-                        let unencoded =
-                            urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
+                        let unencoded = urlencoding::decode(m.as_str())
+                            .unwrap_or_default()
+                            .to_string();
                         let clean_name = unencoded.replace('+', " ").trim().to_string();
                         if !clean_name.is_empty() && !clean_name.starts_with("data=") {
                             place_query_candidate = Some(clean_name.clone());
@@ -149,8 +154,9 @@ impl LinkScraper for GoogleMapsScraper {
                 let re_q = Regex::new(r"[?&](?:q|query|destination|daddr)=([^&]+)").unwrap();
                 if let Some(caps) = re_q.captures(&final_url).or_else(|| re_q.captures(url)) {
                     if let Some(m) = caps.get(1) {
-                        let unencoded =
-                            urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
+                        let unencoded = urlencoding::decode(m.as_str())
+                            .unwrap_or_default()
+                            .to_string();
                         let clean_name = unencoded.replace('+', " ").trim().to_string();
                         if !clean_name.is_empty() && clean_name.chars().any(|c| c.is_alphabetic()) {
                             place_query_candidate = Some(clean_name.clone());
@@ -223,7 +229,10 @@ impl LinkScraper for GoogleMapsScraper {
 
             // 3. Extract exact pin coordinates from URL (!3d... !4d...)
             let re_3d4d = Regex::new(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)").unwrap();
-            if let Some(caps) = re_3d4d.captures(&final_url).or_else(|| re_3d4d.captures(url)) {
+            if let Some(caps) = re_3d4d
+                .captures(&final_url)
+                .or_else(|| re_3d4d.captures(url))
+            {
                 lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
                 lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
             }
@@ -232,8 +241,9 @@ impl LinkScraper for GoogleMapsScraper {
             if lat.is_none() {
                 let re_q_coords =
                     Regex::new(r"[?&](?:q|ll|query)=(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
-                if let Some(caps) =
-                    re_q_coords.captures(&final_url).or_else(|| re_q_coords.captures(url))
+                if let Some(caps) = re_q_coords
+                    .captures(&final_url)
+                    .or_else(|| re_q_coords.captures(url))
                 {
                     lat = caps.get(1).and_then(|m| m.as_str().parse().ok());
                     lon = caps.get(2).and_then(|m| m.as_str().parse().ok());
@@ -304,8 +314,12 @@ impl LinkScraper for GoogleMapsScraper {
             let mut resolved_title = title.unwrap_or_else(|| "Saved Place".to_string());
             if resolved_title == "Google Maps" || resolved_title.is_empty() {
                 if let Some(ref a) = address {
-                    resolved_title =
-                        a.split(',').next().unwrap_or("Saved Place").trim().to_string();
+                    resolved_title = a
+                        .split(',')
+                        .next()
+                        .unwrap_or("Saved Place")
+                        .trim()
+                        .to_string();
                 } else {
                     resolved_title = "Saved Place".to_string();
                 }
@@ -361,8 +375,9 @@ impl LinkScraper for AppleMapsScraper {
             let re_q = Regex::new(r"[?&]q=([^&]+)").unwrap();
             if let Some(caps) = re_q.captures(url) {
                 if let Some(m) = caps.get(1) {
-                    let unencoded =
-                        urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
+                    let unencoded = urlencoding::decode(m.as_str())
+                        .unwrap_or_default()
+                        .to_string();
                     let clean = unencoded.replace('+', " ").trim().to_string();
                     if !clean.is_empty() {
                         title = Some(clean.clone());
@@ -374,8 +389,9 @@ impl LinkScraper for AppleMapsScraper {
             let re_address = Regex::new(r"[?&]address=([^&]+)").unwrap();
             if let Some(caps) = re_address.captures(url) {
                 if let Some(m) = caps.get(1) {
-                    let unencoded =
-                        urlencoding::decode(m.as_str()).unwrap_or_default().to_string();
+                    let unencoded = urlencoding::decode(m.as_str())
+                        .unwrap_or_default()
+                        .to_string();
                     let clean = unencoded.replace('+', " ").trim().to_string();
                     if !clean.is_empty() {
                         address = Some(clean);
@@ -585,10 +601,12 @@ impl LinkScraper for TripAdvisorScraper {
                     .unwrap_or_else(|| "TripAdvisor Location".to_string());
                 let desc = extract_meta_content(&document, "meta[property='og:description']");
                 let img = extract_meta_content(&document, "meta[property='og:image']");
-                let la = extract_meta_content(&document, "meta[property='place:location:latitude']")
-                    .and_then(|s| s.parse::<f64>().ok());
-                let lo = extract_meta_content(&document, "meta[property='place:location:longitude']")
-                    .and_then(|s| s.parse::<f64>().ok());
+                let la =
+                    extract_meta_content(&document, "meta[property='place:location:latitude']")
+                        .and_then(|s| s.parse::<f64>().ok());
+                let lo =
+                    extract_meta_content(&document, "meta[property='place:location:longitude']")
+                        .and_then(|s| s.parse::<f64>().ok());
                 (t, desc, img, la, lo)
             };
 
@@ -652,10 +670,12 @@ impl LinkScraper for YelpScraper {
                     .unwrap_or_else(|| "Yelp Place".to_string());
                 let desc = extract_meta_content(&document, "meta[property='og:description']");
                 let img = extract_meta_content(&document, "meta[property='og:image']");
-                let la = extract_meta_content(&document, "meta[property='place:location:latitude']")
-                    .and_then(|s| s.parse::<f64>().ok());
-                let lo = extract_meta_content(&document, "meta[property='place:location:longitude']")
-                    .and_then(|s| s.parse::<f64>().ok());
+                let la =
+                    extract_meta_content(&document, "meta[property='place:location:latitude']")
+                        .and_then(|s| s.parse::<f64>().ok());
+                let lo =
+                    extract_meta_content(&document, "meta[property='place:location:longitude']")
+                        .and_then(|s| s.parse::<f64>().ok());
                 (t, desc, img, la, lo)
             };
 
@@ -719,10 +739,12 @@ impl LinkScraper for AllTrailsScraper {
                     .unwrap_or_else(|| "AllTrails Route".to_string());
                 let desc = extract_meta_content(&document, "meta[property='og:description']");
                 let img = extract_meta_content(&document, "meta[property='og:image']");
-                let la = extract_meta_content(&document, "meta[property='place:location:latitude']")
-                    .and_then(|s| s.parse::<f64>().ok());
-                let lo = extract_meta_content(&document, "meta[property='place:location:longitude']")
-                    .and_then(|s| s.parse::<f64>().ok());
+                let la =
+                    extract_meta_content(&document, "meta[property='place:location:latitude']")
+                        .and_then(|s| s.parse::<f64>().ok());
+                let lo =
+                    extract_meta_content(&document, "meta[property='place:location:longitude']")
+                        .and_then(|s| s.parse::<f64>().ok());
                 (t, desc, img, la, lo)
             };
 
@@ -772,7 +794,9 @@ impl LinkScraper for BListScraper {
             || lower.contains("localhost")
             || lower.contains("127.0.0.1")
             || ((lower.contains("lat=") || lower.contains("latitude="))
-                && (lower.contains("lng=") || lower.contains("lon=") || lower.contains("longitude=")))
+                && (lower.contains("lng=")
+                    || lower.contains("lon=")
+                    || lower.contains("longitude=")))
     }
 
     fn scrape<'a>(
@@ -840,7 +864,10 @@ impl LinkScraper for BListScraper {
             }
 
             if lat.is_none() || lon.is_none() {
-                return Err("Cannot ingest bList URL: Missing location coordinates or place details.".to_string());
+                return Err(
+                    "Cannot ingest bList URL: Missing location coordinates or place details."
+                        .to_string(),
+                );
             }
 
             let final_title = title
@@ -923,8 +950,10 @@ impl LinkScraper for GenericHtmlScraper {
                 if la.is_none() {
                     let og_lat =
                         extract_meta_content(&document, "meta[property='place:location:latitude']");
-                    let og_lon =
-                        extract_meta_content(&document, "meta[property='place:location:longitude']");
+                    let og_lon = extract_meta_content(
+                        &document,
+                        "meta[property='place:location:longitude']",
+                    );
                     if let (Some(la_str), Some(lo_str)) = (og_lat, og_lon) {
                         la = la_str.trim().parse().ok();
                         lo = lo_str.trim().parse().ok();
@@ -1047,7 +1076,14 @@ impl Scraper {
             || trimmed.starts_with("data:")
             || trimmed.starts_with("about:");
         let has_domain_format = trimmed.starts_with("www.")
-            || (trimmed.contains('.') && !trimmed.contains(' ') && (trimmed.ends_with(".com") || trimmed.ends_with(".org") || trimmed.ends_with(".net") || trimmed.ends_with(".io") || trimmed.ends_with(".gl") || trimmed.ends_with(".app")));
+            || (trimmed.contains('.')
+                && !trimmed.contains(' ')
+                && (trimmed.ends_with(".com")
+                    || trimmed.ends_with(".org")
+                    || trimmed.ends_with(".net")
+                    || trimmed.ends_with(".io")
+                    || trimmed.ends_with(".gl")
+                    || trimmed.ends_with(".app")));
 
         let is_url = has_explicit_scheme || has_domain_format;
 
@@ -1109,8 +1145,10 @@ impl Scraper {
                     return Ok(meta);
                 } else if let Err(err_msg) = res {
                     // Fallback to URL path slug geocoding if network blocked (e.g. 403 bot check on Yelp/IG)
-                    let path_segments: Vec<&str> =
-                        parsed_url.path_segments().map(|c| c.collect()).unwrap_or_default();
+                    let path_segments: Vec<&str> = parsed_url
+                        .path_segments()
+                        .map(|c| c.collect())
+                        .unwrap_or_default();
                     if let Some(last_seg) = path_segments.last() {
                         let slug = last_seg.replace(['-', '_', '+'], " ").trim().to_string();
                         if slug.len() >= 3 && slug.chars().any(|c| c.is_alphabetic()) {
@@ -1177,7 +1215,12 @@ pub fn extract_tag_text(document: &Html, tag_name: &str) -> Option<String> {
 
 pub fn parse_google_maps_title_and_address(raw_title: &str) -> (Option<String>, Option<String>) {
     let mut text = raw_title.trim();
-    for suffix in &[" - Google Maps", " · Google Maps", " - Google Search", " - Google"] {
+    for suffix in &[
+        " - Google Maps",
+        " · Google Maps",
+        " - Google Search",
+        " - Google",
+    ] {
         if let Some(pos) = text.rfind(suffix) {
             text = text[..pos].trim();
         }
@@ -1371,24 +1414,32 @@ mod tests {
     fn test_apple_maps_scraper_can_handle_and_url_extraction() {
         let scraper = AppleMapsScraper;
         assert!(scraper.can_handle("https://maps.apple.com/?ll=37.7749,-122.4194&q=San+Francisco"));
-        assert!(scraper.can_handle("https://maps.apple.com/?address=1+Infinite+Loop,+Cupertino,+CA"));
+        assert!(
+            scraper.can_handle("https://maps.apple.com/?address=1+Infinite+Loop,+Cupertino,+CA")
+        );
         assert!(scraper.can_handle("http://maps.apple.com/place?auid=123456"));
         assert!(!scraper.can_handle("https://maps.google.com/?q=Paris"));
         assert!(!scraper.can_handle("https://www.instagram.com/p/123"));
 
         // Test coordinate regex
         let re_ll = Regex::new(r"[?&](?:ll|coordinate)=(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
-        let caps = re_ll.captures("https://maps.apple.com/?ll=37.7749,-122.4194&q=SF").unwrap();
+        let caps = re_ll
+            .captures("https://maps.apple.com/?ll=37.7749,-122.4194&q=SF")
+            .unwrap();
         assert_eq!(caps.get(1).unwrap().as_str(), "37.7749");
         assert_eq!(caps.get(2).unwrap().as_str(), "-122.4194");
 
-        let caps_coord = re_ll.captures("https://maps.apple.com/?coordinate=48.8584,2.2945").unwrap();
+        let caps_coord = re_ll
+            .captures("https://maps.apple.com/?coordinate=48.8584,2.2945")
+            .unwrap();
         assert_eq!(caps_coord.get(1).unwrap().as_str(), "48.8584");
         assert_eq!(caps_coord.get(2).unwrap().as_str(), "2.2945");
 
         // Test address regex
         let re_address = Regex::new(r"[?&]address=([^&]+)").unwrap();
-        let caps_addr = re_address.captures("https://maps.apple.com/?address=1+Infinite+Loop,+Cupertino,+CA").unwrap();
+        let caps_addr = re_address
+            .captures("https://maps.apple.com/?address=1+Infinite+Loop,+Cupertino,+CA")
+            .unwrap();
         let raw_addr = caps_addr.get(1).unwrap().as_str();
         let unencoded = urlencoding::decode(raw_addr).unwrap();
         let clean = unencoded.replace('+', " ");
@@ -1399,7 +1450,8 @@ mod tests {
     fn test_google_maps_scraper_can_handle_and_url_patterns() {
         let scraper = GoogleMapsScraper;
         assert!(scraper.can_handle("https://maps.google.com/?q=Paris"));
-        assert!(scraper.can_handle("https://www.google.com/maps/place/Tokyo+Tower/@35.6586,139.7454,17z"));
+        assert!(scraper
+            .can_handle("https://www.google.com/maps/place/Tokyo+Tower/@35.6586,139.7454,17z"));
         assert!(scraper.can_handle("https://goo.gl/maps/xyz123"));
         assert!(scraper.can_handle("https://maps.app.goo.gl/abc456"));
         assert!(scraper.can_handle("https://www.google.com/maps/search/Sushi+Dai+Tokyo"));
@@ -1415,14 +1467,20 @@ mod tests {
 
         // Test place path regex
         let re_place = Regex::new(r"/maps/place/([^/@?]+)").unwrap();
-        let caps_place = re_place.captures("https://www.google.com/maps/place/Grand+Canyon+National+Park/@36.0544,-112.1401").unwrap();
+        let caps_place = re_place
+            .captures(
+                "https://www.google.com/maps/place/Grand+Canyon+National+Park/@36.0544,-112.1401",
+            )
+            .unwrap();
         let place_raw = caps_place.get(1).unwrap().as_str();
         let place_clean = urlencoding::decode(place_raw).unwrap().replace('+', " ");
         assert_eq!(place_clean, "Grand Canyon National Park");
 
         // Test search path regex
         let re_search = Regex::new(r"/maps/search/([^/@?]+)").unwrap();
-        let caps_search = re_search.captures("https://www.google.com/maps/search/Best+Croissants+Paris").unwrap();
+        let caps_search = re_search
+            .captures("https://www.google.com/maps/search/Best+Croissants+Paris")
+            .unwrap();
         let search_raw = caps_search.get(1).unwrap().as_str();
         let search_clean = urlencoding::decode(search_raw).unwrap().replace('+', " ");
         assert_eq!(search_clean, "Best Croissants Paris");
@@ -1435,9 +1493,11 @@ mod tests {
         assert!(!InstagramScraper.can_handle("https://twitter.com/post/123"));
 
         assert!(TikTokScraper.can_handle("https://www.tiktok.com/@foodie/video/123456789"));
-        assert!(TripAdvisorScraper.can_handle("https://www.tripadvisor.com/Restaurant_Review-g60763-d12345"));
+        assert!(TripAdvisorScraper
+            .can_handle("https://www.tripadvisor.com/Restaurant_Review-g60763-d12345"));
         assert!(YelpScraper.can_handle("https://www.yelp.com/biz/tartine-bakery-san-francisco"));
-        assert!(AllTrailsScraper.can_handle("https://www.alltrails.com/trail/us/california/yosemite-falls"));
+        assert!(AllTrailsScraper
+            .can_handle("https://www.alltrails.com/trail/us/california/yosemite-falls"));
         assert!(GenericHtmlScraper.can_handle("https://anytravelblog.com/top-10-spots-rome"));
     }
 
@@ -1476,11 +1536,13 @@ mod tests {
             Some("Central Park, NYC".to_string())
         );
         assert_eq!(
-            extract_meta_content(&doc, "meta[itemprop='latitude']").and_then(|s| s.parse::<f64>().ok()),
+            extract_meta_content(&doc, "meta[itemprop='latitude']")
+                .and_then(|s| s.parse::<f64>().ok()),
             Some(40.785091)
         );
         assert_eq!(
-            extract_meta_content(&doc, "meta[itemprop='longitude']").and_then(|s| s.parse::<f64>().ok()),
+            extract_meta_content(&doc, "meta[itemprop='longitude']")
+                .and_then(|s| s.parse::<f64>().ok()),
             Some(-73.968285)
         );
     }
@@ -1495,5 +1557,4 @@ mod tests {
             assert_eq!(meta.source_type, "geocoded");
         }
     }
-
 }

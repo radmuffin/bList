@@ -167,12 +167,15 @@ pub async fn update_pin(
             if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, new_list_id) {
                 return err;
             }
-            if state.storage.count_list_pins(new_list_id).unwrap_or(0) >= crate::db::MAX_PINS_PER_LIST {
+            if state.storage.count_list_pins(new_list_id).unwrap_or(0)
+                >= crate::db::MAX_PINS_PER_LIST
+            {
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(ApiResponse::err(format!(
                         "Quota exceeded: Target list #{} already has maximum {} places.",
-                        new_list_id, crate::db::MAX_PINS_PER_LIST
+                        new_list_id,
+                        crate::db::MAX_PINS_PER_LIST
                     ))),
                 );
             }

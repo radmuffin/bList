@@ -151,7 +151,10 @@ pub async fn join_list(
             Json(ApiResponse::err("Share token cannot be empty")),
         );
     }
-    match state.storage.join_list(req.share_token.trim(), &user_token.0) {
+    match state
+        .storage
+        .join_list(req.share_token.trim(), &user_token.0)
+    {
         Ok(Some(list)) => (StatusCode::OK, Json(ApiResponse::ok(list))),
         Ok(None) => (
             StatusCode::NOT_FOUND,

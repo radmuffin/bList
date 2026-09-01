@@ -1,9 +1,4 @@
-use axum::{
-    debug_handler,
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{debug_handler, extract::State, http::StatusCode, Json};
 
 use super::{check_permission_or_err, AppState, UserToken};
 use crate::models::{
@@ -114,11 +109,15 @@ pub async fn ingest_link(
         }
     };
 
-    let category = req.category.unwrap_or_else(|| match meta.source_type.as_str() {
-        "instagram" | "tiktok" => "Social".to_string(),
-        "google_maps" | "apple_maps" | "tripadvisor" | "yelp" | "alltrails" => "Place".to_string(),
-        _ => "General".to_string(),
-    });
+    let category = req
+        .category
+        .unwrap_or_else(|| match meta.source_type.as_str() {
+            "instagram" | "tiktok" => "Social".to_string(),
+            "google_maps" | "apple_maps" | "tripadvisor" | "yelp" | "alltrails" => {
+                "Place".to_string()
+            }
+            _ => "General".to_string(),
+        });
 
     let create_req = CreatePinRequest {
         list_id: Some(list_id),
@@ -161,7 +160,10 @@ pub async fn ingest_link(
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to save ingested pin: {}", e))),
+            Json(ApiResponse::err(format!(
+                "Failed to save ingested pin: {}",
+                e
+            ))),
         ),
     }
 }
@@ -174,7 +176,9 @@ pub async fn import_places(
 ) -> (StatusCode, Json<ApiResponse<ImportSummary>>) {
     let list_id = if let Some(ref new_name) = payload.new_list_name {
         if !new_name.trim().is_empty() {
-            if state.storage.count_user_lists(&user_token.0).unwrap_or(0) >= crate::db::MAX_LISTS_PER_USER {
+            if state.storage.count_user_lists(&user_token.0).unwrap_or(0)
+                >= crate::db::MAX_LISTS_PER_USER
+            {
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(ApiResponse::err(format!(
@@ -234,7 +238,10 @@ pub async fn import_places(
             Err(e) => {
                 return (
                     StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::err(format!("Failed to parse import data: {}", e))),
+                    Json(ApiResponse::err(format!(
+                        "Failed to parse import data: {}",
+                        e
+                    ))),
                 );
             }
         }
@@ -278,7 +285,10 @@ pub async fn import_places(
                     description: item.description.clone(),
                     latitude: lat,
                     longitude: lon,
-                    category: item.category.clone().or_else(|| Some(default_cat.to_string())),
+                    category: item
+                        .category
+                        .clone()
+                        .or_else(|| Some(default_cat.to_string())),
                     emoji: item.emoji.clone(),
                     tags: item.tags.clone(),
                     priority: item.priority,
@@ -329,7 +339,10 @@ pub async fn import_places(
             req.source_url.as_deref(),
             None,
         ) {
-            warnings.push(format!("Skipped '{}': Already saved in this list", existing.title));
+            warnings.push(format!(
+                "Skipped '{}': Already saved in this list",
+                existing.title
+            ));
             continue;
         }
 
@@ -351,7 +364,10 @@ pub async fn import_places(
         deduplicated_requests.truncate(allowed_count);
     }
 
-    let created_pins = match state.storage.create_pins_batch(list_id, &deduplicated_requests) {
+    let created_pins = match state
+        .storage
+        .create_pins_batch(list_id, &deduplicated_requests)
+    {
         Ok(pins) => pins,
         Err(e) => {
             return (

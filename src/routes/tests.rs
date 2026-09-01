@@ -42,7 +42,8 @@ async fn test_routes_list_crud_and_validation() {
     let state = setup_test_sqlite_state();
 
     // List initial seeded lists
-    let (status, Json(res)) = list_lists(State(state.clone()), UserToken("test-token".to_string())).await;
+    let (status, Json(res)) =
+        list_lists(State(state.clone()), UserToken("test-token".to_string())).await;
     assert_eq!(status, StatusCode::OK);
     assert!(res.success);
     let lists = res.data.unwrap();
@@ -54,7 +55,12 @@ async fn test_routes_list_crud_and_validation() {
         name: "Euro Summer".to_string(),
         icon: Some("🏖️".to_string()),
     };
-    let (status, Json(res)) = create_list(State(state.clone()), UserToken("test-token".to_string()), Json(create_req)).await;
+    let (status, Json(res)) = create_list(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(create_req),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     assert!(res.success);
     let created_list = res.data.unwrap();
@@ -66,18 +72,33 @@ async fn test_routes_list_crud_and_validation() {
         name: "   ".to_string(),
         icon: None,
     };
-    let (status, Json(res)) = create_list(State(state.clone()), UserToken("test-token".to_string()), Json(empty_req)).await;
+    let (status, Json(res)) = create_list(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(empty_req),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(!res.success);
     assert_eq!(res.error.unwrap(), "List name cannot be empty");
 
     // Get created list
-    let (status, Json(res)) = get_list(State(state.clone()), UserToken("test-token".to_string()), Path(created_list.id)).await;
+    let (status, Json(res)) = get_list(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(created_list.id),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(res.data.unwrap().name, "Euro Summer");
 
     // Get non-existent list
-    let (status, Json(res)) = get_list(State(state.clone()), UserToken("test-token".to_string()), Path(99999)).await;
+    let (status, Json(res)) = get_list(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(99999),
+    )
+    .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(!res.success);
 
@@ -86,8 +107,13 @@ async fn test_routes_list_crud_and_validation() {
         name: Some("Euro Trip 2026".to_string()),
         icon: Some("✈️".to_string()),
     };
-    let (status, Json(res)) =
-        update_list(State(state.clone()), UserToken("test-token".to_string()), Path(created_list.id), Json(update_req)).await;
+    let (status, Json(res)) = update_list(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(created_list.id),
+        Json(update_req),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     let updated_list = res.data.unwrap();
     assert_eq!(updated_list.name, "Euro Trip 2026");
@@ -98,18 +124,33 @@ async fn test_routes_list_crud_and_validation() {
         name: Some("  ".to_string()),
         icon: None,
     };
-    let (status, Json(res)) =
-        update_list(State(state.clone()), UserToken("test-token".to_string()), Path(created_list.id), Json(invalid_update)).await;
+    let (status, Json(res)) = update_list(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(created_list.id),
+        Json(invalid_update),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(res.error.unwrap(), "List name cannot be empty");
 
     // Delete list
-    let (status, Json(res)) = delete_list(State(state.clone()), UserToken("test-token".to_string()), Path(created_list.id)).await;
+    let (status, Json(res)) = delete_list(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(created_list.id),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert!(res.data.unwrap());
 
     // Delete non-existent list
-    let (status, Json(res)) = delete_list(State(state.clone()), UserToken("test-token".to_string()), Path(99999)).await;
+    let (status, Json(res)) = delete_list(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(99999),
+    )
+    .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(!res.success);
 }
@@ -130,9 +171,15 @@ async fn test_routes_pin_crud_and_validation() {
         image_url: Some("https://example.com/colosseum.jpg".to_string()),
         address: Some("Piazza del Colosseo, 1, Roma".to_string()),
         notes: Some("Book tickets early".to_string()),
-        visited: Some(false), ..Default::default()
+        visited: Some(false),
+        ..Default::default()
     };
-    let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(pin_req)).await;
+    let (status, Json(res)) = create_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(pin_req),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     assert!(res.success);
     let created_pin = res.data.unwrap();
@@ -152,19 +199,35 @@ async fn test_routes_pin_crud_and_validation() {
         image_url: None,
         address: None,
         notes: None,
-        visited: None, ..Default::default()
+        visited: None,
+        ..Default::default()
     };
-    let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(empty_title_req)).await;
+    let (status, Json(res)) = create_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(empty_title_req),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(res.error.unwrap(), "Title cannot be empty");
 
     // Get pin
-    let (status, Json(res)) = get_pin(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
+    let (status, Json(res)) = get_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(created_pin.id),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(res.data.unwrap().title, "Colosseum");
 
     // Get non-existent pin
-    let (status, Json(_res)) = get_pin(State(state.clone()), UserToken("test-token".to_string()), Path(99999)).await;
+    let (status, Json(_res)) = get_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(99999),
+    )
+    .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
     // Update pin
@@ -179,10 +242,16 @@ async fn test_routes_pin_crud_and_validation() {
         image_url: None,
         address: None,
         notes: Some("Night tour booked".to_string()),
-        visited: None, ..Default::default()
+        visited: None,
+        ..Default::default()
     };
-    let (status, Json(res)) =
-        update_pin(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id), Json(update_req)).await;
+    let (status, Json(res)) = update_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(created_pin.id),
+        Json(update_req),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     let updated_pin = res.data.unwrap();
     assert_eq!(updated_pin.title, "Flavian Amphitheatre (Colosseum)");
@@ -190,21 +259,41 @@ async fn test_routes_pin_crud_and_validation() {
     assert_eq!(updated_pin.notes, Some("Night tour booked".to_string()));
 
     // Toggle visited
-    let (status, Json(res)) = toggle_visited(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
+    let (status, Json(res)) = toggle_visited(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(created_pin.id),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert!(res.data.unwrap().visited);
 
-    let (status, Json(res)) = toggle_visited(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
+    let (status, Json(res)) = toggle_visited(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(created_pin.id),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert!(!res.data.unwrap().visited);
 
     // Delete pin
-    let (status, Json(res)) = delete_pin(State(state.clone()), UserToken("test-token".to_string()), Path(created_pin.id)).await;
+    let (status, Json(res)) = delete_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(created_pin.id),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert!(res.data.unwrap());
 
     // Delete non-existent pin
-    let (status, Json(_res)) = delete_pin(State(state.clone()), UserToken("test-token".to_string()), Path(99999)).await;
+    let (status, Json(_res)) = delete_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(99999),
+    )
+    .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
@@ -234,7 +323,12 @@ async fn test_routes_pin_query_filters_and_search() {
             visited: Some(visited),
             ..Default::default()
         };
-        let _ = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(req)).await;
+        let _ = create_pin(
+            State(state.clone()),
+            UserToken("test-token".to_string()),
+            Json(req),
+        )
+        .await;
     }
 
     // Filter by category
@@ -242,9 +336,15 @@ async fn test_routes_pin_query_filters_and_search() {
         list_id: Some(1),
         category: Some("Sightseeing".to_string()),
         visited: None,
-        search: None, ..Default::default()
+        search: None,
+        ..Default::default()
     };
-    let (status, Json(res)) = list_pins(State(state.clone()), UserToken("test-token".to_string()), Query(query)).await;
+    let (status, Json(res)) = list_pins(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Query(query),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(res.data.unwrap().len(), 2);
 
@@ -253,9 +353,15 @@ async fn test_routes_pin_query_filters_and_search() {
         list_id: Some(1),
         category: None,
         visited: Some(true),
-        search: None, ..Default::default()
+        search: None,
+        ..Default::default()
     };
-    let (status, Json(res)) = list_pins(State(state.clone()), UserToken("test-token".to_string()), Query(query)).await;
+    let (status, Json(res)) = list_pins(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Query(query),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(res.data.unwrap().len(), 2);
 
@@ -264,9 +370,15 @@ async fn test_routes_pin_query_filters_and_search() {
         list_id: Some(1),
         category: None,
         visited: None,
-        search: Some("Sagrada".to_string()), ..Default::default()
+        search: Some("Sagrada".to_string()),
+        ..Default::default()
     };
-    let (status, Json(res)) = list_pins(State(state.clone()), UserToken("test-token".to_string()), Query(query)).await;
+    let (status, Json(res)) = list_pins(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Query(query),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     let found = res.data.unwrap();
     assert_eq!(found.len(), 1);
@@ -282,9 +394,15 @@ async fn test_routes_validation_and_exports() {
         url: "   ".to_string(),
         list_id: Some(1),
         category: None,
-        notes: None, ..Default::default()
+        notes: None,
+        ..Default::default()
     };
-    let (status, Json(res)) = ingest_link(State(state.clone()), UserToken("test-token".to_string()), Json(empty_ingest)).await;
+    let (status, Json(res)) = ingest_link(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(empty_ingest),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(res.error.unwrap(), "URL cannot be empty");
 
@@ -293,7 +411,8 @@ async fn test_routes_validation_and_exports() {
         url: "".to_string(),
         list_id: None,
         category: None,
-        notes: None, ..Default::default()
+        notes: None,
+        ..Default::default()
     };
     let (status, Json(res)) = preview_scrape(State(state.clone()), Json(empty_preview)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -307,7 +426,8 @@ async fn test_routes_validation_and_exports() {
             list_id: Some(1),
             category: None,
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
     )
     .await;
@@ -322,7 +442,8 @@ async fn test_routes_validation_and_exports() {
             list_id: Some(1),
             category: None,
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
     )
     .await;
@@ -337,7 +458,8 @@ async fn test_routes_validation_and_exports() {
             list_id: Some(1),
             category: None,
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
     )
     .await
@@ -364,10 +486,21 @@ async fn test_routes_ssrf_protection_in_ingest_and_preview() {
             url: url.to_string(),
             list_id: Some(1),
             category: None,
-            notes: None, ..Default::default()
+            notes: None,
+            ..Default::default()
         };
-        let (status, Json(res)) = ingest_link(State(state.clone()), UserToken("test-token".to_string()), Json(ingest_req)).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST, "Ingest should block SSRF URL: {}", url);
+        let (status, Json(res)) = ingest_link(
+            State(state.clone()),
+            UserToken("test-token".to_string()),
+            Json(ingest_req),
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "Ingest should block SSRF URL: {}",
+            url
+        );
         assert!(!res.success);
         assert!(
             res.error.as_ref().unwrap().contains("SSRF")
@@ -379,10 +512,16 @@ async fn test_routes_ssrf_protection_in_ingest_and_preview() {
             url: url.to_string(),
             list_id: None,
             category: None,
-            notes: None, ..Default::default()
+            notes: None,
+            ..Default::default()
         };
         let (status, Json(res)) = preview_scrape(State(state.clone()), Json(preview_req)).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST, "Preview should block SSRF URL: {}", url);
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "Preview should block SSRF URL: {}",
+            url
+        );
         assert!(!res.success);
     }
 }
@@ -402,9 +541,15 @@ async fn test_routes_invalid_coordinates_rejected() {
         image_url: None,
         address: None,
         notes: None,
-        visited: None, ..Default::default()
+        visited: None,
+        ..Default::default()
     };
-    let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(invalid_pin_req)).await;
+    let (status, Json(res)) = create_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(invalid_pin_req),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(!res.success);
     assert!(res.error.unwrap().contains("Invalid GPS coordinates"));
@@ -420,9 +565,15 @@ async fn test_routes_invalid_coordinates_rejected() {
         image_url: None,
         address: None,
         notes: None,
-        visited: None, ..Default::default()
+        visited: None,
+        ..Default::default()
     };
-    let (status, Json(_res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(nan_pin_req)).await;
+    let (status, Json(_res)) = create_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(nan_pin_req),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
     // Update pin with invalid coords
@@ -437,9 +588,15 @@ async fn test_routes_invalid_coordinates_rejected() {
         image_url: None,
         address: None,
         notes: None,
-        visited: None, ..Default::default()
+        visited: None,
+        ..Default::default()
     };
-    let (_, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(valid_req)).await;
+    let (_, Json(res)) = create_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(valid_req),
+    )
+    .await;
     let pin = res.data.unwrap();
 
     let invalid_update = UpdatePinRequest {
@@ -453,9 +610,16 @@ async fn test_routes_invalid_coordinates_rejected() {
         image_url: None,
         address: None,
         notes: None,
-        visited: None, ..Default::default()
+        visited: None,
+        ..Default::default()
     };
-    let (status, Json(res)) = update_pin(State(state.clone()), UserToken("test-token".to_string()), Path(pin.id), Json(invalid_update)).await;
+    let (status, Json(res)) = update_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(pin.id),
+        Json(invalid_update),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(res.error.unwrap().contains("Invalid latitude"));
 }
@@ -468,7 +632,12 @@ async fn test_routes_in_memory_backend() {
         name: "Kyoto Trip".to_string(),
         icon: Some("⛩️".to_string()),
     };
-    let (status, Json(res)) = create_list(State(state.clone()), UserToken("test-token".to_string()), Json(req)).await;
+    let (status, Json(res)) = create_list(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(req),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let list = res.data.unwrap();
     assert_eq!(list.name, "Kyoto Trip");
@@ -484,13 +653,24 @@ async fn test_routes_in_memory_backend() {
         image_url: None,
         address: Some("Fushimi Ward, Kyoto".to_string()),
         notes: None,
-        visited: Some(false), ..Default::default()
+        visited: Some(false),
+        ..Default::default()
     };
-    let (status, Json(res)) = create_pin(State(state.clone()), UserToken("test-token".to_string()), Json(pin_req)).await;
+    let (status, Json(res)) = create_pin(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Json(pin_req),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let pin = res.data.unwrap();
 
-    let (status, Json(res)) = toggle_visited(State(state.clone()), UserToken("test-token".to_string()), Path(pin.id)).await;
+    let (status, Json(res)) = toggle_visited(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Path(pin.id),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert!(res.data.unwrap().visited);
 }
@@ -507,7 +687,8 @@ async fn test_routes_multi_device_join_and_collaboration() {
             name: "Summer Roadtrip".to_string(),
             icon: Some("🚗".to_string()),
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let list_a = res.data.unwrap();
 
@@ -518,7 +699,8 @@ async fn test_routes_multi_device_join_and_collaboration() {
         Json(JoinListRequest {
             share_token: list_a.share_token.clone(),
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     let joined_list = res.data.unwrap();
     assert_eq!(joined_list.name, "Summer Roadtrip");
@@ -538,9 +720,11 @@ async fn test_routes_multi_device_join_and_collaboration() {
             image_url: None,
             address: None,
             notes: None,
-            visited: Some(false), ..Default::default()
+            visited: Some(false),
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let pin = res.data.unwrap();
 
@@ -549,7 +733,8 @@ async fn test_routes_multi_device_join_and_collaboration() {
         State(state.clone()),
         UserToken("device-a".to_string()),
         Path(pin.id),
-    ).await;
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(res.data.unwrap().title, "Grand Canyon");
 
@@ -558,7 +743,8 @@ async fn test_routes_multi_device_join_and_collaboration() {
         State(state.clone()),
         UserToken("device-c".to_string()),
         Path(pin.id),
-    ).await;
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
@@ -569,7 +755,10 @@ async fn test_routes_app_info() {
     assert_eq!(info["name"], "bList");
     assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(info["repository"], "https://github.com/radmuffin/bList");
-    assert_eq!(info["issues_url"], "https://github.com/radmuffin/bList/issues");
+    assert_eq!(
+        info["issues_url"],
+        "https://github.com/radmuffin/bList/issues"
+    );
     assert_eq!(info["license"], "MIT");
 }
 
@@ -585,7 +774,9 @@ async fn test_routes_user_token_extractor_header_and_query() {
         .body(())
         .unwrap();
     let (mut parts1, _) = req1.into_parts();
-    let token1 = UserToken::from_request_parts(&mut parts1, &state).await.expect("extract header");
+    let token1 = UserToken::from_request_parts(&mut parts1, &state)
+        .await
+        .expect("extract header");
     assert_eq!(token1.0, "header-device-123");
 
     // 2. Query param token
@@ -594,7 +785,9 @@ async fn test_routes_user_token_extractor_header_and_query() {
         .body(())
         .unwrap();
     let (mut parts2, _) = req2.into_parts();
-    let token2 = UserToken::from_request_parts(&mut parts2, &state).await.expect("extract query");
+    let token2 = UserToken::from_request_parts(&mut parts2, &state)
+        .await
+        .expect("extract query");
     assert_eq!(token2.0, "query-device-456");
 
     // 3. Encoded query param token
@@ -603,14 +796,13 @@ async fn test_routes_user_token_extractor_header_and_query() {
         .body(())
         .unwrap();
     let (mut parts3, _) = req3.into_parts();
-    let token3 = UserToken::from_request_parts(&mut parts3, &state).await.expect("extract encoded query");
+    let token3 = UserToken::from_request_parts(&mut parts3, &state)
+        .await
+        .expect("extract encoded query");
     assert_eq!(token3.0, "device custom token");
 
     // 4. Missing token -> rejected with 400 Bad Request
-    let req4 = Request::builder()
-        .uri("/api/pins")
-        .body(())
-        .unwrap();
+    let req4 = Request::builder().uri("/api/pins").body(()).unwrap();
     let (mut parts4, _) = req4.into_parts();
     let err4 = UserToken::from_request_parts(&mut parts4, &state).await;
     assert!(err4.is_err());
@@ -640,7 +832,8 @@ async fn test_routes_pin_filtering_combined_matrix() {
             name: "European Tour".to_string(),
             icon: Some("✈️".to_string()),
         }),
-    ).await;
+    )
+    .await;
     let list2 = res_list.data.unwrap();
 
     // Pin 1: List 1, Cafe, Visited
@@ -658,9 +851,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             image_url: None,
             address: Some("Saint-Germain-des-Prés, Paris".to_string()),
             notes: Some("Famous hot chocolate".to_string()),
-            visited: Some(true), ..Default::default()
+            visited: Some(true),
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
 
     // Pin 2: List 1, Sightseeing, Bucket
     let _ = create_pin(
@@ -677,9 +872,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             image_url: None,
             address: Some("Paris, France".to_string()),
             notes: Some("Visit at golden hour".to_string()),
-            visited: Some(false), ..Default::default()
+            visited: Some(false),
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
 
     // Pin 3: List 2, Cafe, Bucket
     let _ = create_pin(
@@ -696,9 +893,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             image_url: None,
             address: Some("Piazza San Marco, Venice, Italy".to_string()),
             notes: Some("Live orchestral music outside".to_string()),
-            visited: Some(false), ..Default::default()
+            visited: Some(false),
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
 
     // Query 1: All pins for user
     let (status, Json(res)) = list_pins(
@@ -708,9 +907,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             list_id: None,
             category: None,
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(res.data.unwrap().len(), 3);
 
@@ -722,9 +923,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             list_id: Some(1),
             category: None,
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(res.data.unwrap().len(), 2);
 
     // Query 3: Filter by category Cafe across all lists
@@ -735,9 +938,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             list_id: None,
             category: Some("Cafe".to_string()),
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(res.data.unwrap().len(), 2);
 
     // Query 4: Filter by category Cafe in List 1
@@ -748,9 +953,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             list_id: Some(1),
             category: Some("Cafe".to_string()),
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     let pins = res.data.unwrap();
     assert_eq!(pins.len(), 1);
     assert_eq!(pins[0].title, "Cafe de Flore");
@@ -763,9 +970,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             list_id: None,
             category: None,
             visited: Some(true),
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(res.data.unwrap().len(), 1);
 
     // Query 6: Search notes match "orchestral"
@@ -776,9 +985,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             list_id: None,
             category: None,
             visited: None,
-            search: Some("orchestral".to_string()), ..Default::default()
+            search: Some("orchestral".to_string()),
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     let search_res = res.data.unwrap();
     assert_eq!(search_res.len(), 1);
     assert_eq!(search_res[0].title, "Caffe Florian");
@@ -791,9 +1002,11 @@ async fn test_routes_pin_filtering_combined_matrix() {
             list_id: None,
             category: None,
             visited: None,
-            search: Some("UnmatchedKeyword12345".to_string()), ..Default::default()
+            search: Some("UnmatchedKeyword12345".to_string()),
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(res.data.unwrap().len(), 0);
 }
 
@@ -835,9 +1048,11 @@ async fn test_auto_onboarding_multi_user_isolation_and_pin_creation() {
             address: None,
             notes: None,
             visited: Some(false),
-            list_id: None, ..Default::default()
+            list_id: None,
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(status_pin_a, StatusCode::CREATED);
     assert_eq!(res_pin_a.data.unwrap().list_id, list_a_id);
 
@@ -856,9 +1071,11 @@ async fn test_auto_onboarding_multi_user_isolation_and_pin_creation() {
             address: None,
             notes: None,
             visited: Some(false),
-            list_id: None, ..Default::default()
+            list_id: None,
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(status_pin_b, StatusCode::CREATED);
     assert_eq!(res_pin_b.data.unwrap().list_id, list_b_id);
 
@@ -870,9 +1087,11 @@ async fn test_auto_onboarding_multi_user_isolation_and_pin_creation() {
             list_id: None,
             category: None,
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     let pins_a = pins_a_res.data.unwrap();
     assert_eq!(pins_a.len(), 1);
     assert_eq!(pins_a[0].title, "User A Tower");
@@ -885,9 +1104,11 @@ async fn test_auto_onboarding_multi_user_isolation_and_pin_creation() {
             list_id: None,
             category: None,
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     let pins_b = pins_b_res.data.unwrap();
     assert_eq!(pins_b.len(), 1);
     assert_eq!(pins_b[0].title, "User B Garden");
@@ -898,7 +1119,11 @@ async fn test_routes_import_places_and_batch_processing() {
     let storage = Arc::new(InMemoryStorage::new());
     let geocoder = Arc::new(Geocoder::new());
     let scraper = Arc::new(Scraper::with_geocoder(geocoder.clone()));
-    let state = AppState { storage, scraper, geocoder };
+    let state = AppState {
+        storage,
+        scraper,
+        geocoder,
+    };
     let user = UserToken("import-user-token".to_string());
 
     let json_data = r##"{
@@ -932,7 +1157,8 @@ async fn test_routes_import_places_and_batch_processing() {
         format: Some("takeout_json".to_string()),
     };
 
-    let (status, Json(res)) = import_places(State(state.clone()), user.clone(), Json(payload)).await;
+    let (status, Json(res)) =
+        import_places(State(state.clone()), user.clone(), Json(payload)).await;
     assert_eq!(status, StatusCode::OK);
     assert!(res.success);
     let summary = res.data.unwrap();
@@ -948,7 +1174,8 @@ async fn test_routes_import_places_and_batch_processing() {
             tag: Some("tokyo".to_string()),
             ..Default::default()
         }),
-    ).await;
+    )
+    .await;
     let tag_pins = tag_res.data.unwrap();
     assert_eq!(tag_pins.len(), 1);
     assert_eq!(tag_pins[0].title, "Shibuya Sky");
@@ -970,7 +1197,8 @@ async fn test_routes_duplicate_pin_rejection() {
         ..Default::default()
     };
 
-    let (status1, Json(res1)) = create_pin(State(state.clone()), user.clone(), Json(req1.clone())).await;
+    let (status1, Json(res1)) =
+        create_pin(State(state.clone()), user.clone(), Json(req1.clone())).await;
     assert_eq!(status1, StatusCode::CREATED);
     assert!(res1.success);
 
@@ -1013,7 +1241,8 @@ async fn test_routes_ingest_blist_link() {
         opening_hours: None,
     };
 
-    let (status, Json(res)) = ingest_link(State(state.clone()), user.clone(), Json(ingest_req.clone())).await;
+    let (status, Json(res)) =
+        ingest_link(State(state.clone()), user.clone(), Json(ingest_req.clone())).await;
     assert_eq!(status, StatusCode::CREATED);
     assert!(res.success);
     let pin = res.data.unwrap();
@@ -1023,7 +1252,8 @@ async fn test_routes_ingest_blist_link() {
     assert!(pin.priority);
 
     // Ingesting the same bList link again should be rejected as a duplicate
-    let (status_dup, Json(res_dup)) = ingest_link(State(state.clone()), user.clone(), Json(ingest_req)).await;
+    let (status_dup, Json(res_dup)) =
+        ingest_link(State(state.clone()), user.clone(), Json(ingest_req)).await;
     assert_eq!(status_dup, StatusCode::CONFLICT);
     assert!(!res_dup.success);
     assert!(res_dup.error.unwrap().contains("already saved"));
@@ -1047,7 +1277,8 @@ async fn test_routes_user_profile_and_collaborators() {
         avatar: Some("🐬".to_string()),
         color: Some("#06b6d4".to_string()),
     };
-    let (status_up, Json(res_up)) = update_profile(State(state.clone()), user_token.clone(), Json(update_req)).await;
+    let (status_up, Json(res_up)) =
+        update_profile(State(state.clone()), user_token.clone(), Json(update_req)).await;
     assert_eq!(status_up, StatusCode::OK);
     assert!(res_up.success);
     let updated = res_up.data.unwrap();
@@ -1056,7 +1287,8 @@ async fn test_routes_user_profile_and_collaborators() {
     assert_eq!(updated.color, "#06b6d4");
 
     // 3. Get collaborators for list #1 (default list)
-    let (status_c, Json(res_c)) = get_list_collaborators(State(state.clone()), user_token.clone(), Path(1)).await;
+    let (status_c, Json(res_c)) =
+        get_list_collaborators(State(state.clone()), user_token.clone(), Path(1)).await;
     assert_eq!(status_c, StatusCode::OK);
     assert!(res_c.success);
     let collabs = res_c.data.unwrap();
@@ -1064,4 +1296,3 @@ async fn test_routes_user_profile_and_collaborators() {
     assert_eq!(collabs[0].name, "Captain Nemo");
     assert_eq!(collabs[0].avatar, "🐬");
 }
-

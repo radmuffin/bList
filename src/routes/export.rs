@@ -52,10 +52,7 @@ pub async fn geocode(
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err("Location not found")),
         ),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(e)),
-        ),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err(e))),
     }
 }
 
@@ -65,7 +62,9 @@ pub async fn export_geojson(
     Query(query): Query<ListPinsQuery>,
 ) -> impl IntoResponse {
     if let Some(list_id) = query.list_id {
-        if let Err(err) = check_permission_or_err::<serde_json::Value>(&state.storage, &user_token.0, list_id) {
+        if let Err(err) =
+            check_permission_or_err::<serde_json::Value>(&state.storage, &user_token.0, list_id)
+        {
             return err.into_response();
         }
     }
@@ -75,7 +74,8 @@ pub async fn export_geojson(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": format!("Database error: {}", e) })),
-            ).into_response();
+            )
+                .into_response();
         }
     };
 

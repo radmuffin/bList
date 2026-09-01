@@ -43,16 +43,24 @@ fn test_pragmas_configured() {
     let guard = TestDbGuard::new("pragmas");
     let conn = init_db(&guard.path).expect("init db");
 
-    let journal_mode: String = conn.query_row("PRAGMA journal_mode", [], |r| r.get(0)).expect("journal_mode");
+    let journal_mode: String = conn
+        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+        .expect("journal_mode");
     assert_eq!(journal_mode.to_lowercase(), "wal");
 
-    let synchronous: i32 = conn.query_row("PRAGMA synchronous", [], |r| r.get(0)).expect("synchronous");
+    let synchronous: i32 = conn
+        .query_row("PRAGMA synchronous", [], |r| r.get(0))
+        .expect("synchronous");
     assert_eq!(synchronous, 1); // 1 = NORMAL
 
-    let foreign_keys: i32 = conn.query_row("PRAGMA foreign_keys", [], |r| r.get(0)).expect("foreign_keys");
+    let foreign_keys: i32 = conn
+        .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+        .expect("foreign_keys");
     assert_eq!(foreign_keys, 1); // 1 = ON
 
-    let busy_timeout: i64 = conn.query_row("PRAGMA busy_timeout", [], |r| r.get(0)).expect("busy_timeout");
+    let busy_timeout: i64 = conn
+        .query_row("PRAGMA busy_timeout", [], |r| r.get(0))
+        .expect("busy_timeout");
     assert!(busy_timeout >= 5000);
 }
 
@@ -124,22 +132,29 @@ fn test_sqlite_repository_trait_crud() {
         image_url: None,
         address: Some("Minato City, Tokyo".to_string()),
         notes: None,
-        visited: Some(false), ..Default::default()
+        visited: Some(false),
+        ..Default::default()
     };
     let pin = repo.create_pin(&pin_req).expect("create pin");
     assert_eq!(pin.list_id, created.id);
 
     let pins = repo
-        .list_pins(&ListPinsQuery {
-            list_id: Some(created.id),
-            category: None,
-            visited: None,
-            search: None, ..Default::default()
-        }, "test-user")
+        .list_pins(
+            &ListPinsQuery {
+                list_id: Some(created.id),
+                category: None,
+                visited: None,
+                search: None,
+                ..Default::default()
+            },
+            "test-user",
+        )
         .expect("list pins");
     assert_eq!(pins.len(), 1);
 
-    let cats = repo.get_categories(Some(created.id), "test-user").expect("categories");
+    let cats = repo
+        .get_categories(Some(created.id), "test-user")
+        .expect("categories");
     assert_eq!(cats, vec!["Sightseeing".to_string()]);
 
     let deleted = repo.delete_list(created.id).expect("delete list");
@@ -170,7 +185,8 @@ fn test_in_memory_storage_engine() {
         image_url: None,
         address: Some("Grindavik".to_string()),
         notes: None,
-        visited: Some(false), ..Default::default()
+        visited: Some(false),
+        ..Default::default()
     };
     let pin = repo.create_pin(&pin_req).unwrap();
     assert_eq!(pin.title, "Blue Lagoon");
@@ -179,12 +195,16 @@ fn test_in_memory_storage_engine() {
     assert!(toggled.visited);
 
     let pins = repo
-        .list_pins(&ListPinsQuery {
-            list_id: Some(list.id),
-            category: None,
-            visited: Some(true),
-            search: Some("Lagoon".to_string()), ..Default::default()
-        }, "test-user")
+        .list_pins(
+            &ListPinsQuery {
+                list_id: Some(list.id),
+                category: None,
+                visited: Some(true),
+                search: Some("Lagoon".to_string()),
+                ..Default::default()
+            },
+            "test-user",
+        )
         .unwrap();
     assert_eq!(pins.len(), 1);
 }
@@ -212,7 +232,9 @@ fn test_list_crud_operations() {
     assert_eq!(created.icon, "🗾");
 
     // Get list
-    let fetched = get_list(&conn, created.id).expect("get list").expect("found list");
+    let fetched = get_list(&conn, created.id)
+        .expect("get list")
+        .expect("found list");
     assert_eq!(fetched.id, created.id);
     assert_eq!(fetched.name, "Japan 2026");
 
@@ -221,7 +243,9 @@ fn test_list_crud_operations() {
         name: Some("Tokyo 2026".to_string()),
         icon: Some("🗼".to_string()),
     };
-    let updated = update_list(&conn, created.id, &update_req).expect("update list").expect("updated");
+    let updated = update_list(&conn, created.id, &update_req)
+        .expect("update list")
+        .expect("updated");
     assert_eq!(updated.name, "Tokyo 2026");
     assert_eq!(updated.icon, "🗼");
 
@@ -230,14 +254,18 @@ fn test_list_crud_operations() {
         name: Some("Tokyo & Kyoto 2026".to_string()),
         icon: None,
     };
-    let updated2 = update_list(&conn, created.id, &update_req2).expect("update list").expect("updated");
+    let updated2 = update_list(&conn, created.id, &update_req2)
+        .expect("update list")
+        .expect("updated");
     assert_eq!(updated2.name, "Tokyo & Kyoto 2026");
     assert_eq!(updated2.icon, "🗼");
 
     // Delete list
     let deleted = delete_list(&conn, created.id).expect("delete list");
     assert!(deleted);
-    assert!(get_list(&conn, created.id).expect("get deleted list").is_none());
+    assert!(get_list(&conn, created.id)
+        .expect("get deleted list")
+        .is_none());
 }
 
 #[test]
@@ -265,7 +293,8 @@ fn test_list_deletion_cascades_pins() {
         image_url: None,
         address: None,
         notes: None,
-        visited: Some(false), ..Default::default()
+        visited: Some(false),
+        ..Default::default()
     };
     create_pin(&conn, &pin_req).expect("create pin");
 
@@ -275,7 +304,8 @@ fn test_list_deletion_cascades_pins() {
             list_id: Some(list.id),
             category: None,
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         },
         None,
     )
@@ -290,7 +320,8 @@ fn test_list_deletion_cascades_pins() {
             list_id: Some(list.id),
             category: None,
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         },
         None,
     )
@@ -337,12 +368,18 @@ fn test_concurrent_reads_and_writes() {
         h.join().expect("thread join");
     }
 
-    let pins = list_pins(&conn, &ListPinsQuery {
-        list_id: Some(1),
-        category: None,
-        visited: None,
-        search: None, ..Default::default()
-    }, None).expect("list pins");
+    let pins = list_pins(
+        &conn,
+        &ListPinsQuery {
+            list_id: Some(1),
+            category: None,
+            visited: None,
+            search: None,
+            ..Default::default()
+        },
+        None,
+    )
+    .expect("list pins");
 
     assert_eq!(pins.len(), num_threads * 10);
 }
@@ -363,7 +400,8 @@ fn test_pin_crud_and_toggle_visited() {
         image_url: Some("https://example.com/ramen.jpg".to_string()),
         address: Some("Tokyo Station".to_string()),
         notes: Some("Try the tsukemen".to_string()),
-        visited: Some(false), ..Default::default()
+        visited: Some(false),
+        ..Default::default()
     };
     let created_pin = create_pin(&conn, &pin_req).expect("create pin");
     assert_eq!(created_pin.title, "Ramen Street");
@@ -371,7 +409,9 @@ fn test_pin_crud_and_toggle_visited() {
     assert_eq!(created_pin.category, "Food & Drink");
 
     // Get pin
-    let fetched = get_pin(&conn, created_pin.id).expect("get pin").expect("found pin");
+    let fetched = get_pin(&conn, created_pin.id)
+        .expect("get pin")
+        .expect("found pin");
     assert_eq!(fetched.id, created_pin.id);
     assert_eq!(fetched.title, "Ramen Street");
     assert_eq!(fetched.address, Some("Tokyo Station".to_string()));
@@ -388,7 +428,8 @@ fn test_pin_crud_and_toggle_visited() {
         image_url: None,
         address: None,
         notes: Some("Special miso ramen".to_string()),
-        visited: None, ..Default::default()
+        visited: None,
+        ..Default::default()
     };
     let updated = update_pin(&conn, created_pin.id, &update_req)
         .expect("update pin")
@@ -398,15 +439,21 @@ fn test_pin_crud_and_toggle_visited() {
     assert_eq!(updated.description, Some("Tasty noodles".to_string()));
 
     // Toggle visited
-    let toggled1 = toggle_visited(&conn, created_pin.id).expect("toggle").expect("toggled pin");
+    let toggled1 = toggle_visited(&conn, created_pin.id)
+        .expect("toggle")
+        .expect("toggled pin");
     assert!(toggled1.visited);
-    let toggled2 = toggle_visited(&conn, created_pin.id).expect("toggle").expect("toggled pin");
+    let toggled2 = toggle_visited(&conn, created_pin.id)
+        .expect("toggle")
+        .expect("toggled pin");
     assert!(!toggled2.visited);
 
     // Delete pin
     let deleted = delete_pin(&conn, created_pin.id).expect("delete pin");
     assert!(deleted);
-    assert!(get_pin(&conn, created_pin.id).expect("get deleted pin").is_none());
+    assert!(get_pin(&conn, created_pin.id)
+        .expect("get deleted pin")
+        .is_none());
 }
 
 #[test]
@@ -415,10 +462,42 @@ fn test_pin_filtering_and_search() {
 
     // Insert multiple pins
     let pins_data = vec![
-        ("Eiffel Tower", "Sightseeing", 48.8584, 2.2945, false, "Champ de Mars, Paris", "Iconic tower"),
-        ("Louvre Museum", "Sightseeing", 48.8606, 2.3376, true, "Rue de Rivoli, Paris", "Mona Lisa"),
-        ("Le Comptoir", "Food & Drink", 48.8519, 2.3387, false, "Carrefour de l'Odeon, Paris", "French bistro"),
-        ("Cafe de Flore", "Cafe", 48.8540, 2.3325, true, "Boulevard Saint-Germain, Paris", "Historic cafe"),
+        (
+            "Eiffel Tower",
+            "Sightseeing",
+            48.8584,
+            2.2945,
+            false,
+            "Champ de Mars, Paris",
+            "Iconic tower",
+        ),
+        (
+            "Louvre Museum",
+            "Sightseeing",
+            48.8606,
+            2.3376,
+            true,
+            "Rue de Rivoli, Paris",
+            "Mona Lisa",
+        ),
+        (
+            "Le Comptoir",
+            "Food & Drink",
+            48.8519,
+            2.3387,
+            false,
+            "Carrefour de l'Odeon, Paris",
+            "French bistro",
+        ),
+        (
+            "Cafe de Flore",
+            "Cafe",
+            48.8540,
+            2.3325,
+            true,
+            "Boulevard Saint-Germain, Paris",
+            "Historic cafe",
+        ),
     ];
 
     for (title, cat, lat, lon, visited, address, notes) in pins_data {
@@ -449,7 +528,8 @@ fn test_pin_filtering_and_search() {
             list_id: None,
             category: Some("Sightseeing".to_string()),
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         },
         None,
     )
@@ -463,7 +543,8 @@ fn test_pin_filtering_and_search() {
             list_id: None,
             category: Some("All".to_string()),
             visited: None,
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         },
         None,
     )
@@ -477,7 +558,8 @@ fn test_pin_filtering_and_search() {
             list_id: None,
             category: None,
             visited: Some(true),
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         },
         None,
     )
@@ -490,7 +572,8 @@ fn test_pin_filtering_and_search() {
             list_id: None,
             category: None,
             visited: Some(false),
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         },
         None,
     )
@@ -504,7 +587,8 @@ fn test_pin_filtering_and_search() {
             list_id: None,
             category: None,
             visited: None,
-            search: Some("Eiffel".to_string()), ..Default::default()
+            search: Some("Eiffel".to_string()),
+            ..Default::default()
         },
         None,
     )
@@ -519,7 +603,8 @@ fn test_pin_filtering_and_search() {
             list_id: None,
             category: None,
             visited: None,
-            search: Some("Odeon".to_string()), ..Default::default()
+            search: Some("Odeon".to_string()),
+            ..Default::default()
         },
         None,
     )
@@ -534,7 +619,8 @@ fn test_pin_filtering_and_search() {
             list_id: None,
             category: None,
             visited: None,
-            search: Some("Mona Lisa".to_string()), ..Default::default()
+            search: Some("Mona Lisa".to_string()),
+            ..Default::default()
         },
         None,
     )
@@ -549,7 +635,8 @@ fn test_pin_filtering_and_search() {
             list_id: None,
             category: None,
             visited: None,
-            search: Some("NonExistentKeywordXYZ".to_string()), ..Default::default()
+            search: Some("NonExistentKeywordXYZ".to_string()),
+            ..Default::default()
         },
         None,
     )
@@ -563,7 +650,8 @@ fn test_pin_filtering_and_search() {
             list_id: None,
             category: Some("Cafe".to_string()),
             visited: Some(true),
-            search: None, ..Default::default()
+            search: None,
+            ..Default::default()
         },
         None,
     )
@@ -594,7 +682,8 @@ fn test_get_categories() {
             image_url: None,
             address: None,
             notes: None,
-            visited: None, ..Default::default()
+            visited: None,
+            ..Default::default()
         },
     )
     .expect("pin 1");
@@ -622,7 +711,8 @@ fn test_get_categories() {
             image_url: None,
             address: None,
             notes: None,
-            visited: None, ..Default::default()
+            visited: None,
+            ..Default::default()
         },
     )
     .expect("pin 2");
@@ -670,12 +760,15 @@ fn test_nonexistent_entity_lookups_and_operations() {
             image_url: None,
             address: None,
             notes: None,
-            visited: None, ..Default::default()
+            visited: None,
+            ..Default::default()
         }
     )
     .expect("update pin")
     .is_none());
-    assert!(toggle_visited(&conn, 9999).expect("toggle visited").is_none());
+    assert!(toggle_visited(&conn, 9999)
+        .expect("toggle visited")
+        .is_none());
 }
 
 #[test]
@@ -708,9 +801,15 @@ fn test_multi_device_sync_and_collaboration() {
     assert!(!trip_a.share_token.is_empty());
 
     // Device A has permission, Device B and C do not yet
-    assert!(repo.check_permission(token_a, trip_a.id).expect("check perm A"));
-    assert!(!repo.check_permission(token_b, trip_a.id).expect("check perm B"));
-    assert!(!repo.check_permission(token_c, trip_a.id).expect("check perm C"));
+    assert!(repo
+        .check_permission(token_a, trip_a.id)
+        .expect("check perm A"));
+    assert!(!repo
+        .check_permission(token_b, trip_a.id)
+        .expect("check perm B"));
+    assert!(!repo
+        .check_permission(token_c, trip_a.id)
+        .expect("check perm C"));
 
     // Device B joins list using the share token
     let joined = repo
@@ -721,9 +820,13 @@ fn test_multi_device_sync_and_collaboration() {
     assert_eq!(joined.name, "Kyoto Autumn Trip");
 
     // Device B now has permission
-    assert!(repo.check_permission(token_b, trip_a.id).expect("check perm B after join"));
+    assert!(repo
+        .check_permission(token_b, trip_a.id)
+        .expect("check perm B after join"));
     // Device C still has no permission
-    assert!(!repo.check_permission(token_c, trip_a.id).expect("check perm C"));
+    assert!(!repo
+        .check_permission(token_c, trip_a.id)
+        .expect("check perm C"));
 
     // Both Device A and Device B see the list in list_lists
     let lists_b = repo.list_lists(token_b).expect("list B");
@@ -743,7 +846,8 @@ fn test_multi_device_sync_and_collaboration() {
             image_url: None,
             address: Some("Kyoto, Japan".to_string()),
             notes: Some("Hike to the summit".to_string()),
-            visited: Some(false), ..Default::default()
+            visited: Some(false),
+            ..Default::default()
         })
         .expect("create pin B");
 
@@ -754,7 +858,8 @@ fn test_multi_device_sync_and_collaboration() {
                 list_id: Some(trip_a.id),
                 category: None,
                 visited: None,
-                search: None, ..Default::default()
+                search: None,
+                ..Default::default()
             },
             token_a,
         )
@@ -764,7 +869,10 @@ fn test_multi_device_sync_and_collaboration() {
     assert_eq!(pins_a[0].title, "Fushimi Inari Taisha");
 
     // Device A toggles visited status
-    let updated_pin = repo.toggle_visited(pin.id).expect("toggle visited").expect("pin exists");
+    let updated_pin = repo
+        .toggle_visited(pin.id)
+        .expect("toggle visited")
+        .expect("pin exists");
     assert!(updated_pin.visited);
 
     // Device B sees the updated visited status
@@ -774,7 +882,8 @@ fn test_multi_device_sync_and_collaboration() {
                 list_id: Some(trip_a.id),
                 category: None,
                 visited: None,
-                search: None, ..Default::default()
+                search: None,
+                ..Default::default()
             },
             token_b,
         )
@@ -815,7 +924,8 @@ fn test_quota_counts_and_pin_filtering_edge_cases() {
         image_url: None,
         address: Some("Tokyo Station, Tokyo, Japan".to_string()),
         notes: Some("Try Rokurinsha tsukemen".to_string()),
-        visited: Some(true), ..Default::default()
+        visited: Some(true),
+        ..Default::default()
     })
     .expect("pin 1");
 
@@ -830,11 +940,15 @@ fn test_quota_counts_and_pin_filtering_edge_cases() {
         image_url: None,
         address: Some("Shinjuku, Tokyo, Japan".to_string()),
         notes: Some("Expect a queue".to_string()),
-        visited: Some(false), ..Default::default()
+        visited: Some(false),
+        ..Default::default()
     })
     .expect("pin 2");
 
-    assert_eq!(repo.count_list_pins(list2.id).expect("count list 2 pins"), 2);
+    assert_eq!(
+        repo.count_list_pins(list2.id).expect("count list 2 pins"),
+        2
+    );
     assert_eq!(repo.count_user_pins(token).expect("count user pins"), 2);
 
     // Search by description case-insensitive
@@ -844,7 +958,8 @@ fn test_quota_counts_and_pin_filtering_edge_cases() {
                 list_id: Some(list2.id),
                 category: None,
                 visited: None,
-                search: Some("SUBTERRANEAN".to_string()), ..Default::default()
+                search: Some("SUBTERRANEAN".to_string()),
+                ..Default::default()
             },
             token,
         )
@@ -859,7 +974,8 @@ fn test_quota_counts_and_pin_filtering_edge_cases() {
                 list_id: Some(list2.id),
                 category: None,
                 visited: None,
-                search: Some("rokurinsha".to_string()), ..Default::default()
+                search: Some("rokurinsha".to_string()),
+                ..Default::default()
             },
             token,
         )
@@ -874,7 +990,8 @@ fn test_quota_counts_and_pin_filtering_edge_cases() {
                 list_id: Some(list2.id),
                 category: None,
                 visited: Some(false),
-                search: None, ..Default::default()
+                search: None,
+                ..Default::default()
             },
             token,
         )
@@ -888,73 +1005,71 @@ fn test_find_duplicate_pin() {
     let conn = init_db(":memory:").expect("init db");
     let repo = SqliteRepository::new(conn);
 
-    let pin1 = repo.create_pin(&CreatePinRequest {
-        list_id: Some(1),
-        title: "Tokyo Tower".to_string(),
-        description: Some("Red tower".to_string()),
-        latitude: 35.6586,
-        longitude: 139.7454,
-        category: Some("Sightseeing".to_string()),
-        source_url: Some("https://maps.google.com/?cid=123".to_string()),
-        ..Default::default()
-    }).expect("create pin 1");
+    let pin1 = repo
+        .create_pin(&CreatePinRequest {
+            list_id: Some(1),
+            title: "Tokyo Tower".to_string(),
+            description: Some("Red tower".to_string()),
+            latitude: 35.6586,
+            longitude: 139.7454,
+            category: Some("Sightseeing".to_string()),
+            source_url: Some("https://maps.google.com/?cid=123".to_string()),
+            ..Default::default()
+        })
+        .expect("create pin 1");
 
     // 1. Same source_url
-    let dup_source = repo.find_duplicate_pin(
-        1,
-        "Another Name",
-        35.0,
-        139.0,
-        Some("https://maps.google.com/?cid=123"),
-        None,
-    ).expect("find duplicate by source");
+    let dup_source = repo
+        .find_duplicate_pin(
+            1,
+            "Another Name",
+            35.0,
+            139.0,
+            Some("https://maps.google.com/?cid=123"),
+            None,
+        )
+        .expect("find duplicate by source");
     assert!(dup_source.is_some());
     assert_eq!(dup_source.unwrap().id, pin1.id);
 
     // 2. Same coordinates
-    let dup_coords = repo.find_duplicate_pin(
-        1,
-        "Tokyo Tower Copy",
-        35.6586,
-        139.7454,
-        None,
-        None,
-    ).expect("find duplicate by coords");
+    let dup_coords = repo
+        .find_duplicate_pin(1, "Tokyo Tower Copy", 35.6586, 139.7454, None, None)
+        .expect("find duplicate by coords");
     assert!(dup_coords.is_some());
     assert_eq!(dup_coords.unwrap().id, pin1.id);
 
     // 3. Same title case-insensitively and close coords
-    let dup_title = repo.find_duplicate_pin(
-        1,
-        "  tokyo tower  ",
-        35.6588,
-        139.7456,
-        None,
-        None,
-    ).expect("find duplicate by title and proximity");
+    let dup_title = repo
+        .find_duplicate_pin(1, "  tokyo tower  ", 35.6588, 139.7456, None, None)
+        .expect("find duplicate by title and proximity");
     assert!(dup_title.is_some());
     assert_eq!(dup_title.unwrap().id, pin1.id);
 
     // 4. Exclude self ID during update
-    let self_dup = repo.find_duplicate_pin(
-        1,
-        "Tokyo Tower",
-        35.6586,
-        139.7454,
-        Some("https://maps.google.com/?cid=123"),
-        Some(pin1.id),
-    ).expect("exclude self");
+    let self_dup = repo
+        .find_duplicate_pin(
+            1,
+            "Tokyo Tower",
+            35.6586,
+            139.7454,
+            Some("https://maps.google.com/?cid=123"),
+            Some(pin1.id),
+        )
+        .expect("exclude self");
     assert!(self_dup.is_none());
 
     // 5. Different list ID
-    let diff_list = repo.find_duplicate_pin(
-        2,
-        "Tokyo Tower",
-        35.6586,
-        139.7454,
-        Some("https://maps.google.com/?cid=123"),
-        None,
-    ).expect("diff list");
+    let diff_list = repo
+        .find_duplicate_pin(
+            2,
+            "Tokyo Tower",
+            35.6586,
+            139.7454,
+            Some("https://maps.google.com/?cid=123"),
+            None,
+        )
+        .expect("diff list");
     assert!(diff_list.is_none());
 }
 
@@ -972,14 +1087,16 @@ fn test_user_profile_and_collaborators() {
     assert_eq!(alice_init.avatar, "🧭");
 
     // 2. Update Alice profile
-    let alice_updated = repo.update_user_profile(
-        token_alice,
-        &UpdateUserProfileRequest {
-            name: Some("Alice Adventurer".to_string()),
-            avatar: Some("🦊".to_string()),
-            color: Some("#f97316".to_string()),
-        },
-    ).expect("update profile");
+    let alice_updated = repo
+        .update_user_profile(
+            token_alice,
+            &UpdateUserProfileRequest {
+                name: Some("Alice Adventurer".to_string()),
+                avatar: Some("🦊".to_string()),
+                color: Some("#f97316".to_string()),
+            },
+        )
+        .expect("update profile");
     assert_eq!(alice_updated.name, "Alice Adventurer");
     assert_eq!(alice_updated.avatar, "🦊");
     assert_eq!(alice_updated.color, "#f97316");
@@ -992,23 +1109,30 @@ fn test_user_profile_and_collaborators() {
             avatar: Some("🎒".to_string()),
             color: Some("#10b981".to_string()),
         },
-    ).expect("update bob");
+    )
+    .expect("update bob");
 
     // 4. Create a shared list owned by Alice
-    let list = repo.create_list(
-        &CreateListRequest {
-            name: "Japan Trip 2026".to_string(),
-            icon: Some("⛩️".to_string()),
-        },
-        token_alice,
-    ).expect("create list");
+    let list = repo
+        .create_list(
+            &CreateListRequest {
+                name: "Japan Trip 2026".to_string(),
+                icon: Some("⛩️".to_string()),
+            },
+            token_alice,
+        )
+        .expect("create list");
 
     // 5. Bob joins Alice's list via share token
-    let joined = repo.join_list(&list.share_token, token_bob).expect("join list");
+    let joined = repo
+        .join_list(&list.share_token, token_bob)
+        .expect("join list");
     assert!(joined.is_some());
 
     // 6. Query collaborators for the list
-    let collabs = repo.get_list_collaborators(list.id).expect("get collaborators");
+    let collabs = repo
+        .get_list_collaborators(list.id)
+        .expect("get collaborators");
     assert_eq!(collabs.len(), 2);
 
     let owner = collabs.iter().find(|c| c.is_owner).expect("owner exists");
@@ -1019,4 +1143,3 @@ fn test_user_profile_and_collaborators() {
     assert_eq!(guest.name, "Bob Backpacker");
     assert_eq!(guest.avatar, "🎒");
 }
-

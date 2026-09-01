@@ -1,6 +1,6 @@
+use crate::models::ImportItem;
 use regex::Regex;
 use serde_json::Value;
-use crate::models::ImportItem;
 
 /// Detect and parse import data in various formats:
 /// - Google Takeout JSON ("Saved Places.json")
@@ -16,20 +16,17 @@ pub fn parse_import_data(raw: &str, format_hint: Option<&str>) -> Result<Vec<Imp
     let hint = format_hint.unwrap_or("auto").to_lowercase();
 
     match hint.as_str() {
-        "takeout_json" | "geojson" | "json" => {
-            parse_json_data(trimmed)
-        }
-        "takeout_csv" | "csv" => {
-            parse_csv_data(trimmed)
-        }
-        "kml" | "xml" => {
-            parse_kml_data(trimmed)
-        }
+        "takeout_json" | "geojson" | "json" => parse_json_data(trimmed),
+        "takeout_csv" | "csv" => parse_csv_data(trimmed),
+        "kml" | "xml" => parse_kml_data(trimmed),
         _ => {
             // Auto-detect format
             if trimmed.starts_with('{') || trimmed.starts_with('[') {
                 parse_json_data(trimmed)
-            } else if trimmed.starts_with("<?xml") || trimmed.contains("<kml") || trimmed.contains("<Placemark") {
+            } else if trimmed.starts_with("<?xml")
+                || trimmed.contains("<kml")
+                || trimmed.contains("<Placemark")
+            {
                 parse_kml_data(trimmed)
             } else {
                 parse_csv_data(trimmed)
@@ -40,7 +37,8 @@ pub fn parse_import_data(raw: &str, format_hint: Option<&str>) -> Result<Vec<Imp
 
 /// Parse JSON format (both GeoJSON and Google Takeout Saved Places JSON)
 pub fn parse_json_data(raw: &str) -> Result<Vec<ImportItem>, String> {
-    let parsed: Value = serde_json::from_str(raw).map_err(|e| format!("Invalid JSON format: {}", e))?;
+    let parsed: Value =
+        serde_json::from_str(raw).map_err(|e| format!("Invalid JSON format: {}", e))?;
     let mut items = Vec::new();
 
     if let Some(features) = parsed.get("features").and_then(|f| f.as_array()) {
@@ -82,7 +80,7 @@ pub fn parse_json_data(raw: &str) -> Result<Vec<ImportItem>, String> {
 
 fn parse_geojson_feature(feat: &Value) -> Option<ImportItem> {
     let props = feat.get("properties");
-    
+
     // Title extraction
     let title = props
         .and_then(|p| {
@@ -116,10 +114,17 @@ fn parse_geojson_feature(feat: &Value) -> Option<ImportItem> {
 
     // 2. Check Location.Geo Coordinates (Google Takeout JSON structure)
     if (lat.is_none() || lon.is_none()) && props.is_some() {
-        if let Some(geo) = props.and_then(|p| p.get("Location")).and_then(|l| l.get("Geo Coordinates")) {
+        if let Some(geo) = props
+            .and_then(|p| p.get("Location"))
+            .and_then(|l| l.get("Geo Coordinates"))
+        {
             if let (Some(la), Some(lo)) = (
-                geo.get("Latitude").or_else(|| geo.get("latitude")).and_then(|v| v.as_f64()),
-                geo.get("Longitude").or_else(|| geo.get("longitude")).and_then(|v| v.as_f64())
+                geo.get("Latitude")
+                    .or_else(|| geo.get("latitude"))
+                    .and_then(|v| v.as_f64()),
+                geo.get("Longitude")
+                    .or_else(|| geo.get("longitude"))
+                    .and_then(|v| v.as_f64()),
             ) {
                 if is_valid_lat_lon(la, lo) {
                     lat = Some(la);
@@ -192,7 +197,10 @@ fn parse_geojson_feature(feat: &Value) -> Option<ImportItem> {
             if let Some(s) = v.as_str() {
                 Some(s.trim().to_string())
             } else if let Some(arr) = v.as_array() {
-                let list: Vec<String> = arr.iter().filter_map(|t| t.as_str().map(|s| s.trim().to_string())).collect();
+                let list: Vec<String> = arr
+                    .iter()
+                    .filter_map(|t| t.as_str().map(|s| s.trim().to_string()))
+                    .collect();
                 Some(list.join(","))
             } else {
                 None
@@ -201,12 +209,20 @@ fn parse_geojson_feature(feat: &Value) -> Option<ImportItem> {
 
     // Priority
     let priority = props
-        .and_then(|p| p.get("priority").or_else(|| p.get("Priority")).or_else(|| p.get("starred")))
+        .and_then(|p| {
+            p.get("priority")
+                .or_else(|| p.get("Priority"))
+                .or_else(|| p.get("starred"))
+        })
         .and_then(|v| v.as_bool());
 
     // Opening Hours
     let opening_hours = props
-        .and_then(|p| p.get("opening_hours").or_else(|| p.get("Opening Hours")).or_else(|| p.get("hours")))
+        .and_then(|p| {
+            p.get("opening_hours")
+                .or_else(|| p.get("Opening Hours"))
+                .or_else(|| p.get("hours"))
+        })
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string());
 
@@ -215,7 +231,9 @@ fn parse_geojson_feature(feat: &Value) -> Option<ImportItem> {
         .and_then(|p| p.get("visited").or_else(|| p.get("Visited")))
         .and_then(|v| v.as_bool());
 
-    let final_title = title.or_else(|| address.clone()).unwrap_or_else(|| "Saved Place".to_string());
+    let final_title = title
+        .or_else(|| address.clone())
+        .unwrap_or_else(|| "Saved Place".to_string());
 
     Some(ImportItem {
         title: final_title,
@@ -246,24 +264,60 @@ fn parse_generic_json_object(obj: &Value) -> Option<ImportItem> {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    let raw_lat = obj.get("latitude").or_else(|| obj.get("lat")).and_then(|v| v.as_f64());
-    let raw_lon = obj.get("longitude").or_else(|| obj.get("lon")).or_else(|| obj.get("lng")).and_then(|v| v.as_f64());
+    let raw_lat = obj
+        .get("latitude")
+        .or_else(|| obj.get("lat"))
+        .and_then(|v| v.as_f64());
+    let raw_lon = obj
+        .get("longitude")
+        .or_else(|| obj.get("lon"))
+        .or_else(|| obj.get("lng"))
+        .and_then(|v| v.as_f64());
     let (lat, lon) = match (raw_lat, raw_lon) {
         (Some(la), Some(lo)) if is_valid_lat_lon(la, lo) => (Some(la), Some(lo)),
         _ => (None, None),
     };
 
-    let address = obj.get("address").or_else(|| obj.get("Address")).and_then(|v| v.as_str()).map(|s| s.to_string());
-    let url = obj.get("url").or_else(|| obj.get("URL")).or_else(|| obj.get("source_url")).and_then(|v| v.as_str()).map(|s| s.to_string());
-    let notes = obj.get("notes").or_else(|| obj.get("comment")).or_else(|| obj.get("description")).and_then(|v| v.as_str()).map(|s| s.to_string());
-    let category = obj.get("category").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let emoji = obj.get("emoji").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let tags = obj.get("tags").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let address = obj
+        .get("address")
+        .or_else(|| obj.get("Address"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let url = obj
+        .get("url")
+        .or_else(|| obj.get("URL"))
+        .or_else(|| obj.get("source_url"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let notes = obj
+        .get("notes")
+        .or_else(|| obj.get("comment"))
+        .or_else(|| obj.get("description"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let category = obj
+        .get("category")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let emoji = obj
+        .get("emoji")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let tags = obj
+        .get("tags")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let priority = obj.get("priority").and_then(|v| v.as_bool());
-    let opening_hours = obj.get("opening_hours").or_else(|| obj.get("hours")).and_then(|v| v.as_str()).map(|s| s.to_string());
+    let opening_hours = obj
+        .get("opening_hours")
+        .or_else(|| obj.get("hours"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let visited = obj.get("visited").and_then(|v| v.as_bool());
 
-    let final_title = title.or_else(|| address.clone()).unwrap_or_else(|| "Saved Place".to_string());
+    let final_title = title
+        .or_else(|| address.clone())
+        .unwrap_or_else(|| "Saved Place".to_string());
 
     Some(ImportItem {
         title: final_title,
@@ -292,7 +346,11 @@ pub fn parse_csv_data(raw: &str) -> Result<Vec<ImportItem>, String> {
         None => return Err("CSV is empty".to_string()),
     };
 
-    let delimiter = if header_line.contains('\t') { '\t' } else { ',' };
+    let delimiter = if header_line.contains('\t') {
+        '\t'
+    } else {
+        ','
+    };
     let headers: Vec<String> = parse_csv_row(header_line, delimiter)
         .into_iter()
         .map(|h| h.trim().to_lowercase())
@@ -317,7 +375,12 @@ pub fn parse_csv_data(raw: &str) -> Result<Vec<ImportItem>, String> {
             lon_idx = Some(i);
         } else if h == "url" || h == "google maps url" || h == "link" || h == "source_url" {
             url_idx = Some(i);
-        } else if h == "note" || h == "notes" || h == "comment" || h == "comments" || h == "description" {
+        } else if h == "note"
+            || h == "notes"
+            || h == "comment"
+            || h == "comments"
+            || h == "description"
+        {
             note_idx = Some(i);
         } else if h == "address" || h == "formatted address" || h == "location" {
             addr_idx = Some(i);
@@ -343,15 +406,37 @@ pub fn parse_csv_data(raw: &str) -> Result<Vec<ImportItem>, String> {
             continue;
         }
 
-        let title = title_idx.and_then(|idx| cols.get(idx)).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-        let addr = addr_idx.and_then(|idx| cols.get(idx)).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-        let url = url_idx.and_then(|idx| cols.get(idx)).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-        let notes = note_idx.and_then(|idx| cols.get(idx)).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-        let cat = cat_idx.and_then(|idx| cols.get(idx)).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-        let opening_hours = hours_idx.and_then(|idx| cols.get(idx)).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        let title = title_idx
+            .and_then(|idx| cols.get(idx))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let addr = addr_idx
+            .and_then(|idx| cols.get(idx))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let url = url_idx
+            .and_then(|idx| cols.get(idx))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let notes = note_idx
+            .and_then(|idx| cols.get(idx))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let cat = cat_idx
+            .and_then(|idx| cols.get(idx))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let opening_hours = hours_idx
+            .and_then(|idx| cols.get(idx))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
 
-        let raw_lat = lat_idx.and_then(|idx| cols.get(idx)).and_then(|s| s.trim().parse::<f64>().ok());
-        let raw_lon = lon_idx.and_then(|idx| cols.get(idx)).and_then(|s| s.trim().parse::<f64>().ok());
+        let raw_lat = lat_idx
+            .and_then(|idx| cols.get(idx))
+            .and_then(|s| s.trim().parse::<f64>().ok());
+        let raw_lon = lon_idx
+            .and_then(|idx| cols.get(idx))
+            .and_then(|s| s.trim().parse::<f64>().ok());
         let (mut lat, mut lon) = match (raw_lat, raw_lon) {
             (Some(la), Some(lo)) if is_valid_lat_lon(la, lo) => (Some(la), Some(lo)),
             _ => (None, None),
@@ -372,7 +457,9 @@ pub fn parse_csv_data(raw: &str) -> Result<Vec<ImportItem>, String> {
             lower == "true" || lower == "1" || lower == "yes" || lower == "visited"
         });
 
-        let final_title = title.or_else(|| addr.clone()).unwrap_or_else(|| "Saved Place".to_string());
+        let final_title = title
+            .or_else(|| addr.clone())
+            .unwrap_or_else(|| "Saved Place".to_string());
 
         items.push(ImportItem {
             title: final_title,
@@ -437,9 +524,18 @@ pub fn parse_kml_data(raw: &str) -> Result<Vec<ImportItem>, String> {
     for cap in placemark_re.captures_iter(raw) {
         let block = &cap[1];
 
-        let name = name_re.captures(block).map(|c| clean_xml_text(&c[1])).filter(|s| !s.is_empty());
-        let desc = desc_re.captures(block).map(|c| clean_xml_text(&c[1])).filter(|s| !s.is_empty());
-        let addr = address_re.captures(block).map(|c| clean_xml_text(&c[1])).filter(|s| !s.is_empty());
+        let name = name_re
+            .captures(block)
+            .map(|c| clean_xml_text(&c[1]))
+            .filter(|s| !s.is_empty());
+        let desc = desc_re
+            .captures(block)
+            .map(|c| clean_xml_text(&c[1]))
+            .filter(|s| !s.is_empty());
+        let addr = address_re
+            .captures(block)
+            .map(|c| clean_xml_text(&c[1]))
+            .filter(|s| !s.is_empty());
 
         let mut lat = None;
         let mut lon = None;
@@ -448,7 +544,10 @@ pub fn parse_kml_data(raw: &str) -> Result<Vec<ImportItem>, String> {
             let coord_str = &c_cap[1];
             let parts: Vec<&str> = coord_str.split(',').collect();
             if parts.len() >= 2 {
-                if let (Ok(x), Ok(y)) = (parts[0].trim().parse::<f64>(), parts[1].trim().parse::<f64>()) {
+                if let (Ok(x), Ok(y)) = (
+                    parts[0].trim().parse::<f64>(),
+                    parts[1].trim().parse::<f64>(),
+                ) {
                     if is_valid_lat_lon(y, x) {
                         lon = Some(x);
                         lat = Some(y);
@@ -457,7 +556,9 @@ pub fn parse_kml_data(raw: &str) -> Result<Vec<ImportItem>, String> {
             }
         }
 
-        let title = name.or_else(|| addr.clone()).unwrap_or_else(|| "Saved Place".to_string());
+        let title = name
+            .or_else(|| addr.clone())
+            .unwrap_or_else(|| "Saved Place".to_string());
 
         items.push(ImportItem {
             title,
@@ -490,7 +591,8 @@ fn clean_xml_text(raw: &str) -> String {
     if s.starts_with("<![CDATA[") && s.ends_with("]]>") {
         s = s[9..s.len() - 3].trim().to_string();
     }
-    s = s.replace("&amp;", "&")
+    s = s
+        .replace("&amp;", "&")
         .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
@@ -534,7 +636,10 @@ pub fn extract_coordinates_from_url(url: &str) -> Option<(f64, f64)> {
 }
 
 fn is_valid_lat_lon(lat: f64, lon: f64) -> bool {
-    lat.is_finite() && lon.is_finite() && (-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon)
+    lat.is_finite()
+        && lon.is_finite()
+        && (-90.0..=90.0).contains(&lat)
+        && (-180.0..=180.0).contains(&lon)
 }
 
 #[cfg(test)]
@@ -570,7 +675,10 @@ mod tests {
         assert_eq!(items[0].title, "Shibuya Crossing");
         assert_eq!(items[0].latitude, Some(35.6595));
         assert_eq!(items[0].longitude, Some(139.7004));
-        assert_eq!(items[0].address, Some("Shibuya City, Tokyo, Japan".to_string()));
+        assert_eq!(
+            items[0].address,
+            Some("Shibuya City, Tokyo, Japan".to_string())
+        );
         assert_eq!(items[0].notes, Some("Scramble intersection".to_string()));
     }
 
@@ -616,10 +724,16 @@ mod tests {
     #[test]
     fn test_extract_coordinates_from_url() {
         let url1 = "https://www.google.com/maps/@34.0522,-118.2437,14z";
-        assert_eq!(extract_coordinates_from_url(url1), Some((34.0522, -118.2437)));
+        assert_eq!(
+            extract_coordinates_from_url(url1),
+            Some((34.0522, -118.2437))
+        );
 
         let url2 = "https://www.google.com/maps/place/Data/@35.6586,139.7454/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d35.6586!4d139.7454";
-        assert_eq!(extract_coordinates_from_url(url2), Some((35.6586, 139.7454)));
+        assert_eq!(
+            extract_coordinates_from_url(url2),
+            Some((35.6586, 139.7454))
+        );
 
         let url3 = "https://maps.apple.com/?ll=51.5074,-0.1278&q=London";
         assert_eq!(extract_coordinates_from_url(url3), Some((51.5074, -0.1278)));

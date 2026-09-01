@@ -17,7 +17,10 @@ pub async fn get_profile(
         Ok(profile) => (StatusCode::OK, Json(ApiResponse::ok(profile))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to retrieve user profile: {}", e))),
+            Json(ApiResponse::err(format!(
+                "Failed to retrieve user profile: {}",
+                e
+            ))),
         ),
     }
 }
@@ -51,7 +54,10 @@ pub async fn get_list_collaborators(
         Ok(collaborators) => (StatusCode::OK, Json(ApiResponse::ok(collaborators))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(format!("Failed to get collaborators: {}", e))),
+            Json(ApiResponse::err(format!(
+                "Failed to get collaborators: {}",
+                e
+            ))),
         ),
     }
 }

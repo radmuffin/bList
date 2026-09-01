@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 
 use super::{ListRepository, PinRepository, StorageError, UserRepository};
 use crate::models::{
-    Collaborator, CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin,
-    UpdateListRequest, UpdatePinRequest, UpdateUserProfileRequest, UserProfile,
+    Collaborator, CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin, UpdateListRequest,
+    UpdatePinRequest, UpdateUserProfileRequest, UserProfile,
 };
 
 pub struct SqliteRepository {
@@ -223,7 +223,11 @@ impl PinRepository for SqliteRepository {
         create_pin(&conn, req).map_err(Into::into)
     }
 
-    fn create_pins_batch(&self, list_id: i64, pins: &[CreatePinRequest]) -> Result<Vec<Pin>, StorageError> {
+    fn create_pins_batch(
+        &self,
+        list_id: i64,
+        pins: &[CreatePinRequest],
+    ) -> Result<Vec<Pin>, StorageError> {
         let mut conn = self
             .conn
             .lock()
@@ -255,7 +259,11 @@ impl PinRepository for SqliteRepository {
         delete_pin(&conn, id).map_err(Into::into)
     }
 
-    fn get_categories(&self, list_id: Option<i64>, user_token: &str) -> Result<Vec<String>, StorageError> {
+    fn get_categories(
+        &self,
+        list_id: Option<i64>,
+        user_token: &str,
+    ) -> Result<Vec<String>, StorageError> {
         self.auto_associate_device(user_token)?;
         let conn = self
             .conn
@@ -295,22 +303,25 @@ impl PinRepository for SqliteRepository {
 impl UserRepository for SqliteRepository {
     fn get_user_profile(&self, user_token: &str) -> std::result::Result<UserProfile, StorageError> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT user_token, name, avatar, color FROM users WHERE user_token = ?")
+        let mut stmt = conn
+            .prepare("SELECT user_token, name, avatar, color FROM users WHERE user_token = ?")
             .map_err(|e| StorageError::Database(e.to_string()))?;
 
-        let profile = stmt.query_row(params![user_token], |row| {
-            Ok(UserProfile {
-                user_token: row.get(0)?,
-                name: row.get(1)?,
-                avatar: row.get(2)?,
-                color: row.get(3)?,
+        let profile = stmt
+            .query_row(params![user_token], |row| {
+                Ok(UserProfile {
+                    user_token: row.get(0)?,
+                    name: row.get(1)?,
+                    avatar: row.get(2)?,
+                    color: row.get(3)?,
+                })
             })
-        }).unwrap_or_else(|_| UserProfile {
-            user_token: user_token.to_string(),
-            name: "".to_string(),
-            avatar: "🧭".to_string(),
-            color: "#3b82f6".to_string(),
-        });
+            .unwrap_or_else(|_| UserProfile {
+                user_token: user_token.to_string(),
+                name: "".to_string(),
+                avatar: "🧭".to_string(),
+                color: "#3b82f6".to_string(),
+            });
 
         Ok(profile)
     }
@@ -341,9 +352,24 @@ impl UserRepository for SqliteRepository {
                 color: "#3b82f6".to_string(),
             });
 
-        let new_name = req.name.as_deref().unwrap_or(&current.name).trim().to_string();
-        let new_avatar = req.avatar.as_deref().unwrap_or(&current.avatar).trim().to_string();
-        let new_color = req.color.as_deref().unwrap_or(&current.color).trim().to_string();
+        let new_name = req
+            .name
+            .as_deref()
+            .unwrap_or(&current.name)
+            .trim()
+            .to_string();
+        let new_avatar = req
+            .avatar
+            .as_deref()
+            .unwrap_or(&current.avatar)
+            .trim()
+            .to_string();
+        let new_color = req
+            .color
+            .as_deref()
+            .unwrap_or(&current.color)
+            .trim()
+            .to_string();
         let now = Utc::now().to_rfc3339();
 
         conn.execute(
@@ -360,7 +386,10 @@ impl UserRepository for SqliteRepository {
         })
     }
 
-    fn get_list_collaborators(&self, list_id: i64) -> std::result::Result<Vec<Collaborator>, StorageError> {
+    fn get_list_collaborators(
+        &self,
+        list_id: i64,
+    ) -> std::result::Result<Vec<Collaborator>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT dl.user_token, COALESCE(u.name, ''), COALESCE(u.avatar, '🧭'), COALESCE(u.color, '#3b82f6'), \
@@ -371,36 +400,38 @@ impl UserRepository for SqliteRepository {
              WHERE dl.list_id = ? ORDER BY is_owner DESC, dl.user_token ASC"
         ).map_err(|e| StorageError::Database(e.to_string()))?;
 
-        let rows = stmt.query_map(params![list_id], |row| {
-            let _token: String = row.get(0)?;
-            let raw_name: String = row.get(1)?;
-            let raw_avatar: String = row.get(2)?;
-            let raw_color: String = row.get(3)?;
-            let is_owner: i64 = row.get(4)?;
+        let rows = stmt
+            .query_map(params![list_id], |row| {
+                let _token: String = row.get(0)?;
+                let raw_name: String = row.get(1)?;
+                let raw_avatar: String = row.get(2)?;
+                let raw_color: String = row.get(3)?;
+                let is_owner: i64 = row.get(4)?;
 
-            let name = if raw_name.trim().is_empty() {
-                "Traveler".to_string()
-            } else {
-                raw_name
-            };
-            let avatar = if raw_avatar.trim().is_empty() {
-                "🧭".to_string()
-            } else {
-                raw_avatar
-            };
-            let color = if raw_color.trim().is_empty() {
-                "#3b82f6".to_string()
-            } else {
-                raw_color
-            };
+                let name = if raw_name.trim().is_empty() {
+                    "Traveler".to_string()
+                } else {
+                    raw_name
+                };
+                let avatar = if raw_avatar.trim().is_empty() {
+                    "🧭".to_string()
+                } else {
+                    raw_avatar
+                };
+                let color = if raw_color.trim().is_empty() {
+                    "#3b82f6".to_string()
+                } else {
+                    raw_color
+                };
 
-            Ok(Collaborator {
-                name,
-                avatar,
-                color,
-                is_owner: is_owner == 1,
+                Ok(Collaborator {
+                    name,
+                    avatar,
+                    color,
+                    is_owner: is_owner == 1,
+                })
             })
-        }).map_err(|e| StorageError::Database(e.to_string()))?;
+            .map_err(|e| StorageError::Database(e.to_string()))?;
 
         let result: Vec<Collaborator> = rows.flatten().collect();
         Ok(result)
@@ -468,7 +499,8 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
     // Migration check for pins table
     let pin_columns = {
         let mut stmt = conn.prepare("PRAGMA table_info(pins)")?;
-        let columns: Vec<String> = stmt.query_map([], |row| row.get::<_, String>(1))?
+        let columns: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
             .filter_map(|r| r.ok())
             .collect();
         columns
@@ -484,13 +516,22 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
         conn.execute("ALTER TABLE pins ADD COLUMN tags TEXT", [])?;
     }
     if !pin_columns.contains(&"priority".to_string()) {
-        conn.execute("ALTER TABLE pins ADD COLUMN priority INTEGER NOT NULL DEFAULT 0", [])?;
+        conn.execute(
+            "ALTER TABLE pins ADD COLUMN priority INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
     }
     if !pin_columns.contains(&"day_group".to_string()) {
-        conn.execute("ALTER TABLE pins ADD COLUMN day_group INTEGER NOT NULL DEFAULT 0", [])?;
+        conn.execute(
+            "ALTER TABLE pins ADD COLUMN day_group INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
     }
     if !pin_columns.contains(&"custom_order".to_string()) {
-        conn.execute("ALTER TABLE pins ADD COLUMN custom_order INTEGER NOT NULL DEFAULT 0", [])?;
+        conn.execute(
+            "ALTER TABLE pins ADD COLUMN custom_order INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
     }
     if !pin_columns.contains(&"opening_hours".to_string()) {
         conn.execute("ALTER TABLE pins ADD COLUMN opening_hours TEXT", [])?;
@@ -514,20 +555,30 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
     };
 
     if !has_owner_token {
-        conn.execute("ALTER TABLE lists ADD COLUMN owner_token TEXT NOT NULL DEFAULT ''", [])?;
+        conn.execute(
+            "ALTER TABLE lists ADD COLUMN owner_token TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
     }
     if !has_share_token {
-        conn.execute("ALTER TABLE lists ADD COLUMN share_token TEXT NOT NULL DEFAULT ''", [])?;
+        conn.execute(
+            "ALTER TABLE lists ADD COLUMN share_token TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
     }
 
     // Populate share_token with random UUID for any lists where share_token is empty
     {
         let mut stmt = conn.prepare("SELECT id FROM lists WHERE share_token = ''")?;
-        let list_ids = stmt.query_map([], |row| row.get::<_, i64>(0))?
+        let list_ids = stmt
+            .query_map([], |row| row.get::<_, i64>(0))?
             .collect::<Result<Vec<i64>, rusqlite::Error>>()?;
         for id in list_ids {
             let uuid = uuid::Uuid::new_v4().to_string();
-            conn.execute("UPDATE lists SET share_token = ? WHERE id = ?", params![uuid, id])?;
+            conn.execute(
+                "UPDATE lists SET share_token = ? WHERE id = ?",
+                params![uuid, id],
+            )?;
         }
     }
 
@@ -560,7 +611,7 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
 pub fn list_lists(conn: &Connection, user_token: Option<&str>) -> Result<Vec<List>> {
     let mut sql = String::from(
         "SELECT l.id, l.name, l.icon, l.created_at, l.owner_token, l.share_token \
-         FROM lists l"
+         FROM lists l",
     );
     let mut params_vec = Vec::new();
     if let Some(tok) = user_token {
@@ -605,7 +656,9 @@ pub fn list_lists(conn: &Connection, user_token: Option<&str>) -> Result<Vec<Lis
 }
 
 pub fn get_list(conn: &Connection, id: i64) -> Result<Option<List>> {
-    let mut stmt = conn.prepare("SELECT id, name, icon, created_at, owner_token, share_token FROM lists WHERE id = ?")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, name, icon, created_at, owner_token, share_token FROM lists WHERE id = ?",
+    )?;
     let mut rows = stmt.query(params![id])?;
     if let Some(row) = rows.next()? {
         Ok(Some(List {
@@ -621,7 +674,11 @@ pub fn get_list(conn: &Connection, id: i64) -> Result<Option<List>> {
     }
 }
 
-pub fn create_list(conn: &Connection, req: &CreateListRequest, user_token: Option<&str>) -> Result<List> {
+pub fn create_list(
+    conn: &Connection,
+    req: &CreateListRequest,
+    user_token: Option<&str>,
+) -> Result<List> {
     let created_at = Utc::now().to_rfc3339();
     let default_icon = "📍".to_string();
     let icon = match &req.icon {
@@ -655,11 +712,7 @@ pub fn create_list(conn: &Connection, req: &CreateListRequest, user_token: Optio
     })
 }
 
-pub fn update_list(
-    conn: &Connection,
-    id: i64,
-    req: &UpdateListRequest,
-) -> Result<Option<List>> {
+pub fn update_list(conn: &Connection, id: i64, req: &UpdateListRequest) -> Result<Option<List>> {
     let existing = match get_list(conn, id)? {
         Some(list) => list,
         None => return Ok(None),
@@ -690,7 +743,11 @@ pub fn delete_list(conn: &Connection, id: i64) -> Result<bool> {
     Ok(rows_affected > 0)
 }
 
-pub fn list_pins(conn: &Connection, query: &ListPinsQuery, user_token: Option<&str>) -> Result<Vec<Pin>> {
+pub fn list_pins(
+    conn: &Connection,
+    query: &ListPinsQuery,
+    user_token: Option<&str>,
+) -> Result<Vec<Pin>> {
     let mut sql = String::from(
         "SELECT p.id, p.list_id, p.title, p.description, p.latitude, p.longitude, p.category, p.emoji, p.tags, p.priority, p.day_group, p.custom_order, p.opening_hours, p.source_url, p.image_url, p.address, p.notes, p.visited, p.created_at \
          FROM pins p"
@@ -698,7 +755,9 @@ pub fn list_pins(conn: &Connection, query: &ListPinsQuery, user_token: Option<&s
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
     if let Some(tok) = user_token {
-        sql.push_str(" INNER JOIN device_lists dl ON p.list_id = dl.list_id WHERE dl.user_token = ?");
+        sql.push_str(
+            " INNER JOIN device_lists dl ON p.list_id = dl.list_id WHERE dl.user_token = ?",
+        );
         params_vec.push(Box::new(tok.to_string()));
     } else {
         sql.push_str(" WHERE 1=1");
@@ -925,7 +984,10 @@ pub fn find_duplicate_pin(
 pub fn create_pin(conn: &Connection, req: &CreatePinRequest) -> Result<Pin> {
     let created_at = Utc::now().to_rfc3339();
     let list_id = req.list_id.unwrap_or(1);
-    let category = req.category.clone().unwrap_or_else(|| "General".to_string());
+    let category = req
+        .category
+        .clone()
+        .unwrap_or_else(|| "General".to_string());
     let visited_int = if req.visited.unwrap_or(false) { 1 } else { 0 };
     let priority_int = if req.priority.unwrap_or(false) { 1 } else { 0 };
     let day_group = req.day_group.unwrap_or(0);
@@ -1057,11 +1119,7 @@ pub fn create_pins_batch(
     Ok(inserted_pins)
 }
 
-pub fn update_pin(
-    conn: &Connection,
-    id: i64,
-    req: &UpdatePinRequest,
-) -> Result<Option<Pin>> {
+pub fn update_pin(conn: &Connection, id: i64, req: &UpdatePinRequest) -> Result<Option<Pin>> {
     let existing = match get_pin(conn, id)? {
         Some(pin) => pin,
         None => return Ok(None),
@@ -1165,7 +1223,11 @@ pub fn delete_pin(conn: &Connection, id: i64) -> Result<bool> {
     Ok(rows_affected > 0)
 }
 
-pub fn get_categories(conn: &Connection, list_id: Option<i64>, user_token: Option<&str>) -> Result<Vec<String>> {
+pub fn get_categories(
+    conn: &Connection,
+    list_id: Option<i64>,
+    user_token: Option<&str>,
+) -> Result<Vec<String>> {
     let (sql, params_vec): (String, Vec<Box<dyn rusqlite::ToSql>>) = match (list_id, user_token) {
         (Some(lid), Some(tok)) => (
             "SELECT DISTINCT p.category FROM pins p \

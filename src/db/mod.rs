@@ -1,5 +1,5 @@
-pub mod sqlite;
 pub mod in_memory;
+pub mod sqlite;
 #[cfg(test)]
 pub mod tests;
 
@@ -39,7 +39,8 @@ pub fn map_rusqlite_error(err: &rusqlite::Error) -> String {
     match err {
         rusqlite::Error::SqliteFailure(ffi_err, msg) => match ffi_err.code {
             rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked => {
-                "Database is currently busy or locked by another operation. Please retry shortly.".to_string()
+                "Database is currently busy or locked by another operation. Please retry shortly."
+                    .to_string()
             }
             rusqlite::ErrorCode::ConstraintViolation => {
                 if let Some(detail) = msg {
@@ -51,9 +52,7 @@ pub fn map_rusqlite_error(err: &rusqlite::Error) -> String {
             rusqlite::ErrorCode::CannotOpen => {
                 "Unable to open or access the database file.".to_string()
             }
-            rusqlite::ErrorCode::ReadOnly => {
-                "Database is in read-only mode.".to_string()
-            }
+            rusqlite::ErrorCode::ReadOnly => "Database is in read-only mode.".to_string(),
             _ => {
                 if let Some(detail) = msg {
                     format!("Database error ({:?}): {}", ffi_err.code, detail)
@@ -65,7 +64,10 @@ pub fn map_rusqlite_error(err: &rusqlite::Error) -> String {
         rusqlite::Error::QueryReturnedNoRows => "Requested record not found.".to_string(),
         rusqlite::Error::ToSqlConversionFailure(e) => format!("Data encoding error: {}", e),
         rusqlite::Error::FromSqlConversionFailure(idx, ty, e) => {
-            format!("Data conversion error at column {} (type {}): {}", idx, ty, e)
+            format!(
+                "Data conversion error at column {} (type {}): {}",
+                idx, ty, e
+            )
         }
         _ => format!("Database operation failed: {}", err),
     }
@@ -170,11 +172,19 @@ pub trait PinRepository: Send + Sync {
         exclude_id: Option<i64>,
     ) -> Result<Option<Pin>, StorageError>;
     fn create_pin(&self, req: &CreatePinRequest) -> Result<Pin, StorageError>;
-    fn create_pins_batch(&self, list_id: i64, pins: &[CreatePinRequest]) -> Result<Vec<Pin>, StorageError>;
+    fn create_pins_batch(
+        &self,
+        list_id: i64,
+        pins: &[CreatePinRequest],
+    ) -> Result<Vec<Pin>, StorageError>;
     fn update_pin(&self, id: i64, req: &UpdatePinRequest) -> Result<Option<Pin>, StorageError>;
     fn toggle_visited(&self, id: i64) -> Result<Option<Pin>, StorageError>;
     fn delete_pin(&self, id: i64) -> Result<bool, StorageError>;
-    fn get_categories(&self, list_id: Option<i64>, user_token: &str) -> Result<Vec<String>, StorageError>;
+    fn get_categories(
+        &self,
+        list_id: Option<i64>,
+        user_token: &str,
+    ) -> Result<Vec<String>, StorageError>;
     fn count_list_pins(&self, list_id: i64) -> Result<usize, StorageError>;
     fn count_user_pins(&self, user_token: &str) -> Result<usize, StorageError>;
 }
@@ -182,7 +192,11 @@ pub trait PinRepository: Send + Sync {
 /// Clean interface for user profiles and list collaborator management.
 pub trait UserRepository: Send + Sync {
     fn get_user_profile(&self, user_token: &str) -> Result<UserProfile, StorageError>;
-    fn update_user_profile(&self, user_token: &str, req: &UpdateUserProfileRequest) -> Result<UserProfile, StorageError>;
+    fn update_user_profile(
+        &self,
+        user_token: &str,
+        req: &UpdateUserProfileRequest,
+    ) -> Result<UserProfile, StorageError>;
     fn get_list_collaborators(&self, list_id: i64) -> Result<Vec<Collaborator>, StorageError>;
 }
 

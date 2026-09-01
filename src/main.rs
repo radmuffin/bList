@@ -56,7 +56,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .put(routes::update_list)
                 .delete(routes::delete_list),
         )
-        .route("/lists/:id/collaborators", get(routes::get_list_collaborators))
+        .route(
+            "/lists/:id/collaborators",
+            get(routes::get_list_collaborators),
+        )
         .route(
             "/user/profile",
             get(routes::get_profile).put(routes::update_profile),
@@ -80,9 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/export/json", get(routes::export_json));
 
     // Mount application routes into FlyServer with state and static SPA fallback
-    let app_router = Router::new()
-        .nest("/api", api_router)
-        .with_state(state);
+    let app_router = Router::new().nest("/api", api_router).with_state(state);
 
     fly_common::server::FlyServer::builder()
         .with_app_info("bList", "0.1.0")

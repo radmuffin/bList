@@ -363,7 +363,10 @@ impl GeocoderProvider for GooglePlacesGeocoder {
                 .map_err(|e| format!("Failed to contact Google Geocoding API: {}", e))?;
 
             if !response.status().is_success() {
-                return Err(format!("Google Geocoding API returned status: {}", response.status()));
+                return Err(format!(
+                    "Google Geocoding API returned status: {}",
+                    response.status()
+                ));
             }
 
             let data: GoogleGeocodeResponse = response
@@ -372,7 +375,10 @@ impl GeocoderProvider for GooglePlacesGeocoder {
                 .map_err(|e| format!("Failed to parse Google Geocoding response: {}", e))?;
 
             if data.status != "OK" && data.status != "ZERO_RESULTS" {
-                return Err(format!("Google Geocoding API status error: {}", data.status));
+                return Err(format!(
+                    "Google Geocoding API status error: {}",
+                    data.status
+                ));
             }
 
             if let Some(first) = data.results.into_iter().next() {
@@ -398,12 +404,10 @@ impl GeocoderProvider for GooglePlacesGeocoder {
                 lat, lon, self.api_key
             );
 
-            let response = self
-                .client
-                .get(&url)
-                .send()
-                .await
-                .map_err(|e| format!("Failed to contact Google Reverse Geocoding API: {}", e))?;
+            let response =
+                self.client.get(&url).send().await.map_err(|e| {
+                    format!("Failed to contact Google Reverse Geocoding API: {}", e)
+                })?;
 
             if !response.status().is_success() {
                 return Ok(None);
@@ -644,8 +648,15 @@ impl Geocoder {
 
     /// Reverse geocode GPS coordinates into a display address, using in-memory cache when available.
     pub async fn reverse_geocode(&self, lat: f64, lon: f64) -> Result<Option<String>, String> {
-        if !lat.is_finite() || !lon.is_finite() || !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lon) {
-            return Err("Invalid coordinates: latitude must be in [-90, 90] and longitude in [-180, 180]".to_string());
+        if !lat.is_finite()
+            || !lon.is_finite()
+            || !(-90.0..=90.0).contains(&lat)
+            || !(-180.0..=180.0).contains(&lon)
+        {
+            return Err(
+                "Invalid coordinates: latitude must be in [-90, 90] and longitude in [-180, 180]"
+                    .to_string(),
+            );
         }
 
         // 1. Check cache
@@ -707,7 +718,10 @@ mod tests {
         // Case-insensitive lookup should hit cache
         let cached_res = geocoder.geocode("  eiffel tower  ").await.unwrap();
         assert!(cached_res.is_some());
-        assert_eq!(cached_res.unwrap().display_name, "Eiffel Tower, Paris, France");
+        assert_eq!(
+            cached_res.unwrap().display_name,
+            "Eiffel Tower, Paris, France"
+        );
 
         // Reverse geocode lookup
         let rev = geocoder.reverse_geocode(48.8584, 2.2945).await.unwrap();
@@ -764,7 +778,10 @@ mod tests {
         let geocoder = Geocoder::new();
         assert_eq!(geocoder.geocode("").await.expect("empty query"), None);
         assert_eq!(geocoder.geocode("   ").await.expect("spaces"), None);
-        assert_eq!(geocoder.geocode("\t\n  \n").await.expect("tabs/newlines"), None);
+        assert_eq!(
+            geocoder.geocode("\t\n  \n").await.expect("tabs/newlines"),
+            None
+        );
     }
 
     #[test]
@@ -777,11 +794,15 @@ mod tests {
             }
         ]"#;
 
-        let results: Vec<NominatimSearchResult> = serde_json::from_str(json_data).expect("deserialize search result");
+        let results: Vec<NominatimSearchResult> =
+            serde_json::from_str(json_data).expect("deserialize search result");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].lat, "35.6585805");
         assert_eq!(results[0].lon, "139.7454329");
-        assert_eq!(results[0].display_name, "Tokyo Tower, 4-2-8, Shibakoen, Minato, Tokyo, Japan");
+        assert_eq!(
+            results[0].display_name,
+            "Tokyo Tower, 4-2-8, Shibakoen, Minato, Tokyo, Japan"
+        );
 
         let lat: f64 = results[0].lat.parse().expect("parse lat");
         let lon: f64 = results[0].lon.parse().expect("parse lon");
@@ -792,7 +813,8 @@ mod tests {
     #[test]
     fn test_nominatim_search_result_empty_array() {
         let json_data = "[]";
-        let results: Vec<NominatimSearchResult> = serde_json::from_str(json_data).expect("deserialize empty array");
+        let results: Vec<NominatimSearchResult> =
+            serde_json::from_str(json_data).expect("deserialize empty array");
         assert!(results.is_empty());
     }
 
@@ -806,7 +828,8 @@ mod tests {
             }
         ]"#;
 
-        let results: Vec<NominatimSearchResult> = serde_json::from_str(json_data).expect("deserialize search result");
+        let results: Vec<NominatimSearchResult> =
+            serde_json::from_str(json_data).expect("deserialize search result");
         assert_eq!(results.len(), 1);
         assert!(results[0].lat.parse::<f64>().is_err());
     }
@@ -817,7 +840,8 @@ mod tests {
             "display_name": "Eiffel Tower, 5, Avenue Anatole France, Quartier du Gros-Caillou, Paris, France"
         }"#;
 
-        let result: NominatimReverseResult = serde_json::from_str(json_data).expect("deserialize reverse result");
+        let result: NominatimReverseResult =
+            serde_json::from_str(json_data).expect("deserialize reverse result");
         assert_eq!(
             result.display_name,
             "Eiffel Tower, 5, Avenue Anatole France, Quartier du Gros-Caillou, Paris, France"
@@ -851,7 +875,10 @@ mod tests {
         // Insert negative cache entry (None)
         cache.insert_forward("Nonexistent Place Atlantis", None);
         assert_eq!(cache.get_forward("Nonexistent Place Atlantis"), Some(None));
-        assert_eq!(cache.get_forward("  nonexistent place atlantis  "), Some(None));
+        assert_eq!(
+            cache.get_forward("  nonexistent place atlantis  "),
+            Some(None)
+        );
 
         cache.insert_reverse(0.0, 0.0, None);
         assert_eq!(cache.get_reverse(0.0, 0.0), Some(None));
@@ -880,20 +907,33 @@ mod tests {
         let geocoder = Geocoder::with_provider(mock);
 
         // Forward geocode Tokyo
-        let tokyo = geocoder.geocode("Tokyo Skytree").await.unwrap().expect("found tokyo");
+        let tokyo = geocoder
+            .geocode("Tokyo Skytree")
+            .await
+            .unwrap()
+            .expect("found tokyo");
         assert!((tokyo.latitude - 35.7100).abs() < 1e-4);
         assert!((tokyo.longitude - 139.8107).abs() < 1e-4);
 
         // Forward geocode Rome
-        let rome = geocoder.geocode("  COLOSSEUM  ").await.unwrap().expect("found rome");
+        let rome = geocoder
+            .geocode("  COLOSSEUM  ")
+            .await
+            .unwrap()
+            .expect("found rome");
         assert!((rome.latitude - 41.8902).abs() < 1e-4);
 
         // Reverse geocode
         let rev_tokyo = geocoder.reverse_geocode(35.7100, 139.8107).await.unwrap();
-        assert_eq!(rev_tokyo, Some("Tokyo Skytree, Sumida, Tokyo, Japan".to_string()));
+        assert_eq!(
+            rev_tokyo,
+            Some("Tokyo Skytree, Sumida, Tokyo, Japan".to_string())
+        );
 
         let rev_rome = geocoder.reverse_geocode(41.8902, 12.4922).await.unwrap();
-        assert_eq!(rev_rome, Some("Colosseum, Piazza del Colosseo, Rome, Italy".to_string()));
+        assert_eq!(
+            rev_rome,
+            Some("Colosseum, Piazza del Colosseo, Rome, Italy".to_string())
+        );
     }
-
 }

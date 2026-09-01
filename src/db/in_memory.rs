@@ -4,8 +4,8 @@ use std::sync::RwLock;
 
 use super::{ListRepository, PinRepository, StorageError, UserRepository};
 use crate::models::{
-    Collaborator, CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin,
-    UpdateListRequest, UpdatePinRequest, UpdateUserProfileRequest, UserProfile,
+    Collaborator, CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin, UpdateListRequest,
+    UpdatePinRequest, UpdateUserProfileRequest, UserProfile,
 };
 
 /// In-Memory Storage Engine (For Unit Testing & Ephemeral Deployments)
@@ -84,7 +84,10 @@ impl ListRepository for InMemoryStorage {
         self.lists.write().unwrap().insert(id, list.clone());
 
         // Auto-associate the new list
-        self.device_lists.write().unwrap().push((user_token.to_string(), id));
+        self.device_lists
+            .write()
+            .unwrap()
+            .push((user_token.to_string(), id));
 
         Ok(list)
     }
@@ -125,7 +128,9 @@ impl ListRepository for InMemoryStorage {
     fn check_permission(&self, user_token: &str, list_id: i64) -> Result<bool, StorageError> {
         self.auto_associate_device(user_token)?;
         let device_lists = self.device_lists.read().unwrap();
-        Ok(device_lists.iter().any(|(tok, lid)| tok == user_token && *lid == list_id))
+        Ok(device_lists
+            .iter()
+            .any(|(tok, lid)| tok == user_token && *lid == list_id))
     }
 
     fn join_list(&self, share_token: &str, user_token: &str) -> Result<Option<List>, StorageError> {
@@ -133,7 +138,10 @@ impl ListRepository for InMemoryStorage {
         let lists = self.lists.read().unwrap();
         if let Some(list) = lists.values().find(|l| l.share_token == share_token) {
             let mut device_lists = self.device_lists.write().unwrap();
-            if !device_lists.iter().any(|(tok, lid)| tok == user_token && *lid == list.id) {
+            if !device_lists
+                .iter()
+                .any(|(tok, lid)| tok == user_token && *lid == list.id)
+            {
                 device_lists.push((user_token.to_string(), list.id));
             }
             Ok(Some(list.clone()))
@@ -175,7 +183,10 @@ impl ListRepository for InMemoryStorage {
     fn count_user_lists(&self, user_token: &str) -> Result<usize, StorageError> {
         self.auto_associate_device(user_token)?;
         let device_lists = self.device_lists.read().unwrap();
-        let count = device_lists.iter().filter(|(tok, _)| tok == user_token).count();
+        let count = device_lists
+            .iter()
+            .filter(|(tok, _)| tok == user_token)
+            .count();
         Ok(count)
     }
 }
@@ -235,8 +246,18 @@ impl PinRepository for InMemoryStorage {
                     let s = search.trim().to_lowercase();
                     if !s.is_empty() {
                         let title_m = p.title.to_lowercase().contains(&s);
-                        let desc_m = p.description.as_deref().unwrap_or("").to_lowercase().contains(&s);
-                        let addr_m = p.address.as_deref().unwrap_or("").to_lowercase().contains(&s);
+                        let desc_m = p
+                            .description
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&s);
+                        let addr_m = p
+                            .address
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&s);
                         let notes_m = p.notes.as_deref().unwrap_or("").to_lowercase().contains(&s);
                         let tags_m = p.tags.as_deref().unwrap_or("").to_lowercase().contains(&s);
                         if !title_m && !desc_m && !addr_m && !notes_m && !tags_m {
@@ -268,7 +289,9 @@ impl PinRepository for InMemoryStorage {
         exclude_id: Option<i64>,
     ) -> Result<Option<Pin>, StorageError> {
         let clean_title = title.trim().to_lowercase();
-        let clean_source = source_url.map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
+        let clean_source = source_url
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty());
 
         let pins = self.pins.read().unwrap();
         for p in pins.values() {
@@ -292,7 +315,8 @@ impl PinRepository for InMemoryStorage {
             if lat_diff < 0.0001 && lon_diff < 0.0001 {
                 return Ok(Some(p.clone()));
             }
-            if p.title.trim().to_lowercase() == clean_title && lat_diff < 0.001 && lon_diff < 0.001 {
+            if p.title.trim().to_lowercase() == clean_title && lat_diff < 0.001 && lon_diff < 0.001
+            {
                 return Ok(Some(p.clone()));
             }
         }
@@ -311,7 +335,10 @@ impl PinRepository for InMemoryStorage {
             description: req.description.clone(),
             latitude: req.latitude,
             longitude: req.longitude,
-            category: req.category.clone().unwrap_or_else(|| "General".to_string()),
+            category: req
+                .category
+                .clone()
+                .unwrap_or_else(|| "General".to_string()),
             emoji: req.emoji.clone(),
             tags: req.tags.clone(),
             priority: req.priority.unwrap_or(false),
@@ -330,7 +357,11 @@ impl PinRepository for InMemoryStorage {
         Ok(pin)
     }
 
-    fn create_pins_batch(&self, list_id: i64, pins: &[CreatePinRequest]) -> Result<Vec<Pin>, StorageError> {
+    fn create_pins_batch(
+        &self,
+        list_id: i64,
+        pins: &[CreatePinRequest],
+    ) -> Result<Vec<Pin>, StorageError> {
         let mut created = Vec::with_capacity(pins.len());
         for req in pins {
             let mut req_copy = req.clone();
@@ -415,7 +446,11 @@ impl PinRepository for InMemoryStorage {
         Ok(pins.remove(&id).is_some())
     }
 
-    fn get_categories(&self, list_id: Option<i64>, user_token: &str) -> Result<Vec<String>, StorageError> {
+    fn get_categories(
+        &self,
+        list_id: Option<i64>,
+        user_token: &str,
+    ) -> Result<Vec<String>, StorageError> {
         self.auto_associate_device(user_token)?;
         let device_lists = self.device_lists.read().unwrap();
         let allowed_lists: HashSet<i64> = device_lists
@@ -457,7 +492,10 @@ impl PinRepository for InMemoryStorage {
             .map(|(_, lid)| *lid)
             .collect();
         let pins = self.pins.read().unwrap();
-        let count = pins.values().filter(|p| allowed_lists.contains(&p.list_id)).count();
+        let count = pins
+            .values()
+            .filter(|p| allowed_lists.contains(&p.list_id))
+            .count();
         Ok(count)
     }
 }
@@ -483,12 +521,15 @@ impl UserRepository for InMemoryStorage {
         req: &UpdateUserProfileRequest,
     ) -> Result<UserProfile, StorageError> {
         let mut users = self.users.write().unwrap();
-        let mut profile = users.get(user_token).cloned().unwrap_or_else(|| UserProfile {
-            user_token: user_token.to_string(),
-            name: "".to_string(),
-            avatar: "🧭".to_string(),
-            color: "#3b82f6".to_string(),
-        });
+        let mut profile = users
+            .get(user_token)
+            .cloned()
+            .unwrap_or_else(|| UserProfile {
+                user_token: user_token.to_string(),
+                name: "".to_string(),
+                avatar: "🧭".to_string(),
+                color: "#3b82f6".to_string(),
+            });
 
         if let Some(ref name) = req.name {
             profile.name = name.trim().to_string();
@@ -509,7 +550,10 @@ impl UserRepository for InMemoryStorage {
         let users = self.users.read().unwrap();
         let lists = self.lists.read().unwrap();
 
-        let list_owner_token = lists.get(&list_id).map(|l| l.owner_token.as_str()).unwrap_or("");
+        let list_owner_token = lists
+            .get(&list_id)
+            .map(|l| l.owner_token.as_str())
+            .unwrap_or("");
 
         let mut collaborators = Vec::new();
         for (tok, lid) in device_lists.iter() {
@@ -533,7 +577,11 @@ impl UserRepository for InMemoryStorage {
                         },
                     )
                 } else {
-                    ("Traveler".to_string(), "🧭".to_string(), "#3b82f6".to_string())
+                    (
+                        "Traveler".to_string(),
+                        "🧭".to_string(),
+                        "#3b82f6".to_string(),
+                    )
                 };
 
                 let is_owner = !list_owner_token.is_empty() && list_owner_token == tok;
