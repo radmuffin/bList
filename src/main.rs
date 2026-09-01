@@ -70,8 +70,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/scrape/preview", post(routes::preview_scrape))
         .route("/categories", get(routes::get_categories))
         .route("/geocode", get(routes::geocode))
-        .route("/health", get(routes::health_check))
-        .route("/info", get(routes::app_info))
         .route("/version", get(routes::app_info))
         .route("/export/geojson", get(routes::export_geojson))
         .route("/export/json", get(routes::export_json));
