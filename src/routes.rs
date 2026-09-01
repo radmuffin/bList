@@ -42,7 +42,7 @@ impl FromRequestParts<AppState> for UserToken {
             .or_else(|| {
                 parts.uri.query().and_then(|q| {
                     q.split('&')
-                        .find(|p| p.starts_with("user_token="))
+                        .find(|p| p.starts_with("user_token=") || p.starts_with("token="))
                         .and_then(|p| p.split('=').nth(1))
                         .map(|v| urlencoding::decode(v).unwrap_or(std::borrow::Cow::Borrowed(v)).into_owned())
                 })
@@ -70,19 +70,17 @@ fn check_permission_or_err<T>(
     list_id: i64,
 ) -> Result<(), (StatusCode, Json<ApiResponse<T>>)> {
     match storage.get_list(list_id) {
-        Ok(Some(_)) => {
-            match storage.check_permission(user_token, list_id) {
-                Ok(true) => Ok(()),
-                Ok(false) => Err((
-                    StatusCode::FORBIDDEN,
-                    Json(ApiResponse::err("Forbidden: Access denied to this list")),
-                )),
-                Err(e) => Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::err(format!("Database error: {}", e))),
-                )),
-            }
-        }
+        Ok(Some(_)) => match storage.check_permission(user_token, list_id) {
+            Ok(true) => Ok(()),
+            Ok(false) => Err((
+                StatusCode::FORBIDDEN,
+                Json(ApiResponse::err("Forbidden: Access denied to this list")),
+            )),
+            Err(e) => Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(format!("Database error: {}", e))),
+            )),
+        },
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(format!("List #{} not found", list_id))),
@@ -99,29 +97,19 @@ fn check_pin_permission_or_err<T>(
     user_token: &str,
     pin_id: i64,
 ) -> Result<Pin, (StatusCode, Json<ApiResponse<T>>)> {
-    match storage.get_pin(pin_id) {
-        Ok(Some(pin)) => {
-            match storage.check_permission(user_token, pin.list_id) {
-                Ok(true) => Ok(pin),
-                Ok(false) => Err((
-                    StatusCode::FORBIDDEN,
-                    Json(ApiResponse::err("Forbidden: Access denied to this list")),
-                )),
-                Err(e) => Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::err(format!("Database error: {}", e))),
-                )),
-            }
-        }
-        Ok(None) => Err((
+    let pin = match storage.get_pin(pin_id) {
+        Ok(Some(pin)) => pin,
+        Ok(None) => return Err((
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(format!("Pin #{} not found", pin_id))),
         )),
-        Err(e) => Err((
+        Err(e) => return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::err(format!("Database error: {}", e))),
         )),
-    }
+    };
+    check_permission_or_err(storage, user_token, pin.list_id)?;
+    Ok(pin)
 }
 
 // ---------------------------------------------------------------------------
@@ -873,6 +861,7 @@ pub async fn get_categories(
 }
 
 #[debug_handler]
+#[allow(dead_code)]
 pub async fn health_check() -> (StatusCode, Json<serde_json::Value>) {
     (
         StatusCode::OK,

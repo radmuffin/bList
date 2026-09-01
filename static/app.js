@@ -144,8 +144,10 @@
   // ==========================================================================
   // 3. Utility Helpers
   // ==========================================================================
+  const H = window.bListHelpers || {};
   const Utils = {
     escapeHtml(str) {
+      if (typeof H.escapeHtml === 'function') return H.escapeHtml(str);
       if (!str) return '';
       return String(str).replace(/[&<>"']/g, (m) => ({
         '&': '&amp;',
@@ -157,13 +159,15 @@
     },
 
     formatFileSize(bytes) {
+      if (typeof H.formatFileSize === 'function') return H.formatFileSize(bytes);
       if (!bytes || bytes < 1024) return (bytes || 0) + ' B';
       if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
       return (bytes / 1048576).toFixed(1) + ' MB';
     },
 
     calculateDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371; // Earth radius in km
+      if (typeof H.calculateDistance === 'function') return H.calculateDistance(lat1, lon1, lat2, lon2);
+      const R = 6371;
       const dLat = ((lat2 - lat1) * Math.PI) / 180;
       const dLon = ((lon2 - lon1) * Math.PI) / 180;
       const a =
@@ -172,16 +176,13 @@
           Math.cos((lat2 * Math.PI) / 180) *
           Math.sin(dLon / 2) *
           Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
+      return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
     },
 
     formatDistance(dKm) {
-      if (dKm < 1) {
-        return `${Math.round(dKm * 1000)} m away`;
-      }
-      const mi = (dKm * 0.621371).toFixed(1);
-      return `${mi} mi away (${dKm.toFixed(1)} km)`;
+      if (typeof H.formatDistance === 'function') return H.formatDistance(dKm);
+      if (dKm < 1) return `${Math.round(dKm * 1000)} m away`;
+      return `${(dKm * 0.621371).toFixed(1)} mi away (${dKm.toFixed(1)} km)`;
     },
 
     getListNameForPin(pin) {
@@ -191,9 +192,7 @@
     },
 
     isValidHttpUrl(url) {
-      if (window.bListHelpers && typeof window.bListHelpers.isValidHttpUrl === 'function') {
-        return window.bListHelpers.isValidHttpUrl(url);
-      }
+      if (typeof H.isValidHttpUrl === 'function') return H.isValidHttpUrl(url);
       if (!url || typeof url !== 'string') return false;
       try {
         const parsed = new URL(url.trim());
@@ -204,9 +203,7 @@
     },
 
     sanitizeUrl(url) {
-      if (window.bListHelpers && typeof window.bListHelpers.sanitizeUrl === 'function') {
-        return window.bListHelpers.sanitizeUrl(url);
-      }
+      if (typeof H.sanitizeUrl === 'function') return H.sanitizeUrl(url);
       if (!url || typeof url !== 'string') return '';
       const trimmed = url.trim();
       if (!trimmed) return '';
@@ -221,15 +218,9 @@
       }
       try {
         const parsed = new URL(trimmed);
-        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-          return parsed.toString();
-        }
-        return '';
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : '';
       } catch (_) {
-        if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
-          return trimmed;
-        }
-        return '';
+        return trimmed.startsWith('/') && !trimmed.startsWith('//') ? trimmed : '';
       }
     }
   };
@@ -1028,93 +1019,24 @@
   // ==========================================================================
   const FilterManager = {
     getFilteredPins() {
-      let listPins = State.allPins;
-
-      // Custom List / Trip Filter
-      if (State.currentListFilter === 'bucket') {
-        listPins = State.allPins.filter((p) => !p.visited);
-      } else if (State.currentListFilter === 'visited') {
-        listPins = State.allPins.filter((p) => p.visited);
-      } else if (State.currentListFilter !== 'all') {
-        const listIdNum = parseInt(State.currentListFilter, 10);
-        listPins = State.allPins.filter((p) => p.list_id === listIdNum);
-      }
-
-      return listPins
-        .filter((pin) => {
-          // Status Tab Filter
-          if (State.selectedStatus === 'bucket' && pin.visited) return false;
-          if (State.selectedStatus === 'visited' && !pin.visited) return false;
-
-          // Priority Filter
-          if (State.priorityOnly && !pin.priority) return false;
-
-          // Open Now Filter
-          if (State.openNowOnly) {
-            if (!pin.opening_hours) return false;
-            const getStatusFn = (window.bListHelpers && window.bListHelpers.getOpeningStatus) ||
-                                (window.Helpers && window.Helpers.getOpeningStatus);
-            const op = getStatusFn ? getStatusFn(pin.opening_hours) : null;
-            if (!op || !op.isOpen) return false;
-          }
-
-          // Tag Filter
-          if (State.selectedTag) {
-            if (!pin.tags || !pin.tags.toLowerCase().includes(State.selectedTag.toLowerCase())) {
-              return false;
-            }
-          }
-
-          // Day Planner Filter
-          if (State.selectedDay !== null && pin.day_group !== State.selectedDay) {
-            return false;
-          }
-
-          // Category Chip Filter
-          if (State.selectedCategory !== 'All' && pin.category !== State.selectedCategory) {
-            return false;
-          }
-
-          // Omni Search Query Filter
-          if (State.searchQuery.trim()) {
-            const q = State.searchQuery.toLowerCase();
-            const matchTitle = pin.title && pin.title.toLowerCase().includes(q);
-            const matchAddress = pin.address && pin.address.toLowerCase().includes(q);
-            const matchNotes = pin.notes && pin.notes.toLowerCase().includes(q);
-            const matchCategory = pin.category && pin.category.toLowerCase().includes(q);
-            const matchTags = pin.tags && pin.tags.toLowerCase().includes(q);
-            if (!matchTitle && !matchAddress && !matchNotes && !matchCategory && !matchTags) return false;
-          }
-
-          return true;
-        })
-        .sort((a, b) => {
-          if (State.currentSort === 'nearest' && State.currentUserLocation) {
-            const distA = Utils.calculateDistance(
-              State.currentUserLocation.lat,
-              State.currentUserLocation.lng,
-              a.latitude,
-              a.longitude
-            );
-            const distB = Utils.calculateDistance(
-              State.currentUserLocation.lat,
-              State.currentUserLocation.lng,
-              b.latitude,
-              b.longitude
-            );
-            return distA - distB;
-          } else if (State.currentSort === 'az') {
-            return (a.title || '').localeCompare(b.title || '');
-          } else if (State.currentSort === 'category') {
-            return (a.category || '').localeCompare(b.category || '');
-          } else {
-            // Respect custom sequence if defined, else newest first
-            const orderA = a.custom_order !== undefined ? a.custom_order : 0;
-            const orderB = b.custom_order !== undefined ? b.custom_order : 0;
-            if (orderA !== orderB) return orderA - orderB;
-            return (b.id || 0) - (a.id || 0);
-          }
+      const H = window.bListHelpers || {};
+      if (typeof H.filterPins === 'function') {
+        const filtered = H.filterPins(State.allPins, {
+          listFilter: State.currentListFilter,
+          status: State.selectedStatus,
+          category: State.selectedCategory,
+          priorityOnly: State.priorityOnly,
+          openNowOnly: State.openNowOnly,
+          tag: State.selectedTag,
+          dayGroup: State.selectedDay,
+          search: State.searchQuery
         });
+        if (typeof H.sortPins === 'function') {
+          return H.sortPins(filtered, State.currentSort, State.currentUserLocation);
+        }
+        return filtered;
+      }
+      return State.allPins;
     },
 
     selectList(listId) {
