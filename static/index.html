@@ -8,12 +8,14 @@
   <!-- Critical Anti-Theme-Flash Style & Script: immediately resolves theme & background -->
   <style>
     html, body {
-      background-color: #0b0f17; /* Default dark neutral to eliminate white startup flash */
+      background-color: #0b0f17 !important; /* Default dark neutral to eliminate white startup flash */
       color: #f8fafc;
+      margin: 0;
+      padding: 0;
     }
     html[data-theme="light"],
     html[data-resolved-theme="light"] {
-      background-color: #f8fafc;
+      background-color: #f8fafc !important;
       color: #0f172a;
     }
   </style>
@@ -40,6 +42,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="bList">
+  <link rel="apple-touch-startup-image" href="/icons/icon-512.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
