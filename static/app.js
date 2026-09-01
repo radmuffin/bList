@@ -2324,6 +2324,12 @@
           panel.classList.toggle('active', t === tabName);
         }
       });
+
+      const body = document.querySelector('#about-modal .about-modal-body');
+      if (body) {
+        body.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
       if (window.lucide) window.lucide.createIcons();
     },
 
@@ -3669,6 +3675,7 @@
 
     renderHeaderProfile() {
       const circle = document.getElementById('header-avatar-circle');
+      const mobileCircle = document.getElementById('mobile-avatar-circle');
       const nameEl = document.getElementById('header-user-name');
       const gen = window.bListHelpers && typeof window.bListHelpers.generateAvatarSvg === 'function'
         ? window.bListHelpers.generateAvatarSvg({
@@ -3679,13 +3686,15 @@
           })
         : null;
 
-      if (circle) {
-        if (gen && gen.svg) {
-          circle.innerHTML = gen.svg;
-        } else {
-          circle.textContent = this.profile.avatar || '🧭';
+      [circle, mobileCircle].forEach((el) => {
+        if (el) {
+          if (gen && gen.svg) {
+            el.innerHTML = gen.svg;
+          } else {
+            el.textContent = this.profile.avatar || '🧭';
+          }
         }
-      }
+      });
 
       if (nameEl) {
         nameEl.textContent = this.profile.name.trim() ? this.profile.name.trim() : 'Profile';

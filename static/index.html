@@ -125,10 +125,10 @@
             <span class="btn-text">About</span>
           </button>
 
-          <!-- Mobile More Options Menu (•••) -->
+          <!-- Mobile Profile & More Options Menu -->
           <div class="mobile-more-wrapper mobile-only" id="mobile-more-wrapper">
-            <button class="btn-icon-header" id="mobile-more-btn" onclick="toggleMobileMoreMenu(event)" aria-label="More options" title="More options" aria-haspopup="true">
-              <i data-lucide="more-vertical"></i>
+            <button class="btn-user-avatar btn-mobile-avatar" id="mobile-more-btn" onclick="toggleMobileMoreMenu(event)" aria-label="Explorer Profile & Options" title="Profile & Options" aria-haspopup="true">
+              <div class="header-avatar-circle" id="mobile-avatar-circle">🧭</div>
             </button>
             <div class="mobile-more-menu hidden" id="mobile-more-menu" role="menu">
               <!-- Quick Theme Segmented Switcher -->
@@ -961,16 +961,20 @@
         <!-- Decomposed Nav Tabs -->
         <div class="about-tabs-nav" role="tablist" aria-label="About Sections">
           <button type="button" class="about-tab-btn active" id="tab-btn-explorer" onclick="switchAboutTab('explorer')" role="tab" aria-selected="true" aria-controls="about-panel-explorer">
-            <span>🏆 Badges &amp; Inspiration</span>
+            <i data-lucide="award"></i>
+            <span>Badges &amp; Inspiration</span>
           </button>
           <button type="button" class="about-tab-btn" id="tab-btn-features" onclick="switchAboutTab('features')" role="tab" aria-selected="false" aria-controls="about-panel-features">
-            <span>🗺️ How It Works</span>
+            <i data-lucide="compass"></i>
+            <span>How It Works</span>
           </button>
           <button type="button" class="about-tab-btn" id="tab-btn-tech" onclick="switchAboutTab('tech')" role="tab" aria-selected="false" aria-controls="about-panel-tech">
-            <span>⚡ Engine &amp; Speed</span>
+            <i data-lucide="zap"></i>
+            <span>Engine &amp; Speed</span>
           </button>
           <button type="button" class="about-tab-btn" id="tab-btn-creator" onclick="switchAboutTab('creator')" role="tab" aria-selected="false" aria-controls="about-panel-creator">
-            <span>👋 Creator &amp; Contact</span>
+            <i data-lucide="user"></i>
+            <span>Creator &amp; Contact</span>
           </button>
         </div>
 
@@ -1033,6 +1037,13 @@
                 </button>
               </div>
             </div>
+          </div>
+
+          <div class="about-tab-footer">
+            <button type="button" class="btn btn-sm btn-ghost about-nav-next" onclick="switchAboutTab('features')">
+              <span>Next: How It Works</span>
+              <i data-lucide="arrow-right"></i>
+            </button>
           </div>
         </div>
 
@@ -1111,6 +1122,16 @@
               </div>
             </div>
           </div>
+          <div class="about-tab-footer">
+            <button type="button" class="btn btn-sm btn-ghost about-nav-prev" onclick="switchAboutTab('explorer')">
+              <i data-lucide="arrow-left"></i>
+              <span>Badges &amp; Inspiration</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-ghost about-nav-next" onclick="switchAboutTab('tech')">
+              <span>Next: Engine &amp; Speed</span>
+              <i data-lucide="arrow-right"></i>
+            </button>
+          </div>
         </div>
 
         <!-- Tab 3: System & Architecture -->
@@ -1146,6 +1167,16 @@
                 <span class="meta-value">MIT Open Source</span>
               </div>
             </div>
+          </div>
+          <div class="about-tab-footer">
+            <button type="button" class="btn btn-sm btn-ghost about-nav-prev" onclick="switchAboutTab('features')">
+              <i data-lucide="arrow-left"></i>
+              <span>How It Works</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-ghost about-nav-next" onclick="switchAboutTab('creator')">
+              <span>Next: Creator &amp; Contact</span>
+              <i data-lucide="arrow-right"></i>
+            </button>
           </div>
         </div>
 
@@ -1211,6 +1242,12 @@
                 <i data-lucide="external-link" class="action-arrow"></i>
               </a>
             </div>
+          </div>
+          <div class="about-tab-footer">
+            <button type="button" class="btn btn-sm btn-ghost about-nav-prev" onclick="switchAboutTab('tech')">
+              <i data-lucide="arrow-left"></i>
+              <span>Engine &amp; Speed</span>
+            </button>
           </div>
         </div>
       </div>
