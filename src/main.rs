@@ -11,9 +11,7 @@ use axum::{
     routing::{get, patch, post},
     Router,
 };
-use std::net::SocketAddr;
 use std::sync::Arc;
-use tower_http::services::{ServeDir, ServeFile};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::db::SqliteRepository;
@@ -78,30 +76,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/export/geojson", get(routes::export_geojson))
         .route("/export/json", get(routes::export_json));
 
-    // Static Assets & Fallback
-    let static_service =
-        ServeDir::new("static").fallback(ServeFile::new("static/index.html"));
-
-    let app = Router::new()
-        .route("/health", get(routes::health_check))
+    // Mount application routes into FlyServer with state and static SPA fallback
+    let app_router = Router::new()
         .nest("/api", api_router)
-        .fallback_service(static_service)
-        .layer(axum::middleware::from_fn(fly_common::security::set_security_headers))
-        .layer(fly_common::security::standard_cors_layer())
-        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state);
 
-    let port: u16 = std::env::var("PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(3000);
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    println!("🚀 Server listening on http://localhost:{}", port);
-    println!("📍 Open http://localhost:{} in your browser to view the interactive map!", port);
-
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    fly_common::server::FlyServer::builder()
+        .with_app_info("bList", "0.1.0")
+        .with_static_dir("static")
+        .with_routes(app_router)
+        .serve()
+        .await?;
 
     Ok(())
 }

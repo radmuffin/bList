@@ -15,6 +15,7 @@ use crate::models::{
 /// - synchronous = NORMAL for optimal WAL write throughput
 /// - busy_timeout = 5000ms for busy lock retry
 /// - foreign_keys = ON for relational integrity
+#[allow(dead_code)]
 pub fn configure_pragmas(conn: &Connection) -> Result<()> {
     fly_common::db::FlyDb::apply_pragmas(conn)?;
     let _ = conn.busy_timeout(std::time::Duration::from_millis(5000));
@@ -850,14 +851,7 @@ impl PinRepository for InMemoryStorage {
 // ---------------------------------------------------------------------------
 
 pub fn init_db(db_path: &str) -> Result<Connection> {
-    let conn = if db_path == ":memory:" {
-        Connection::open_in_memory()?
-    } else {
-        Connection::open(db_path)?
-    };
-
-    // Apply robust concurrency pragmas
-    configure_pragmas(&conn)?;
+    let conn = fly_common::db::FlyDb::open(db_path)?;
 
     conn.execute_batch(
         r#"
