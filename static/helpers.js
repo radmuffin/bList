@@ -1158,6 +1158,356 @@
     }
   ];
 
+  // ---------------------------------------------------------------------------
+  // Self-Contained Offline SVG QR Code Generator (ISO/IEC 18004 Standard)
+  // ---------------------------------------------------------------------------
+
+  const GF256_EXP = new Uint8Array(512);
+  const GF256_LOG = new Uint8Array(256);
+  (function initGf256() {
+    let x = 1;
+    for (let i = 0; i < 255; i++) {
+      GF256_EXP[i] = x;
+      GF256_EXP[i + 255] = x;
+      GF256_LOG[x] = i;
+      x <<= 1;
+      if (x >= 256) x ^= 0x11d;
+    }
+  })();
+
+  function gfMul(x, y) {
+    if (x === 0 || y === 0) return 0;
+    return GF256_EXP[GF256_LOG[x] + GF256_LOG[y]];
+  }
+
+  function rsPolyMul(p, q) {
+    const r = new Array(p.length + q.length - 1).fill(0);
+    for (let i = 0; i < p.length; i++) {
+      for (let j = 0; j < q.length; j++) {
+        r[i + j] ^= gfMul(p[i], q[j]);
+      }
+    }
+    return r;
+  }
+
+  function rsGenPoly(ecLen) {
+    let g = [1];
+    for (let i = 0; i < ecLen; i++) {
+      g = rsPolyMul(g, [1, GF256_EXP[i]]);
+    }
+    return g;
+  }
+
+  function rsCalcEcc(data, ecLen) {
+    const gen = rsGenPoly(ecLen);
+    const result = new Array(ecLen).fill(0);
+    for (let i = 0; i < data.length; i++) {
+      const factor = data[i] ^ result[0];
+      result.shift();
+      result.push(0);
+      if (factor !== 0) {
+        for (let j = 0; j < ecLen; j++) {
+          result[j] ^= gfMul(gen[j + 1], factor);
+        }
+      }
+    }
+    return result;
+  }
+
+  // QR Version Specs for Level 'M' (15% Error Correction) and 'L' (7% Error Correction)
+  // Format: [version, totalCodewords, dataCodewordsM, ecPerBlockM, numBlocksM, alignPatternCoords]
+  const QR_SPECS_M = [
+    null,
+    [1, 26, 16, 10, 1, []],
+    [2, 44, 28, 16, 1, [6, 18]],
+    [3, 70, 44, 26, 1, [6, 22]],
+    [4, 100, 64, 18, 2, [6, 26]],
+    [5, 134, 86, 24, 2, [6, 30]],
+    [6, 172, 108, 16, 4, [6, 34]],
+    [7, 196, 124, 18, 4, [6, 22, 38]],
+    [8, 242, 154, 22, 4, [6, 24, 42]],
+    [9, 292, 182, 22, 5, [6, 26, 46]],
+    [10, 346, 216, 26, 5, [6, 28, 50]]
+  ];
+
+  // BCH Format Info (15 bits) masked with 0x5412 for Level M and Mask Patterns 0-7
+  const FORMAT_INFO_M = [
+    0x5412 ^ 0x5412, // mask 0: 0x0000
+    0x5125 ^ 0x5412, // mask 1
+    0x5e7c ^ 0x5412, // mask 2
+    0x5b4b ^ 0x5412, // mask 3
+    0x45f9 ^ 0x5412, // mask 4
+    0x40ce ^ 0x5412, // mask 5
+    0x4f97 ^ 0x5412, // mask 6
+    0x4aa0 ^ 0x5412  // mask 7
+  ];
+
+  /**
+   * Generates a fully self-contained SVG QR Code and data URI for any given text.
+   * Works 100% offline with zero dependencies or external network calls.
+   */
+  function generateQrSvg(text, options = {}) {
+    const rawText = String(text || '').trim();
+    if (!rawText) {
+      return { svg: '', dataUrl: '', size: 0, moduleCount: 0 };
+    }
+
+    const margin = typeof options.margin === 'number' ? options.margin : 2;
+    const size = typeof options.size === 'number' ? options.size : 240;
+    const fg = options.foreground || '#000000';
+    const bg = options.background || '#ffffff';
+
+    // Encode text into UTF-8 bytes
+    let utf8Bytes = [];
+    if (typeof TextEncoder !== 'undefined') {
+      utf8Bytes = Array.from(new TextEncoder().encode(rawText));
+    } else {
+      for (let i = 0; i < rawText.length; i++) {
+        let code = rawText.charCodeAt(i);
+        if (code < 128) {
+          utf8Bytes.push(code);
+        } else if (code < 2048) {
+          utf8Bytes.push(192 | (code >> 6), 128 | (code & 63));
+        } else {
+          utf8Bytes.push(224 | (code >> 12), 128 | ((code >> 6) & 63), 128 | (code & 63));
+        }
+      }
+    }
+
+    // Determine smallest suitable QR version
+    let chosenVersion = 1;
+    for (let v = 1; v <= 10; v++) {
+      const spec = QR_SPECS_M[v];
+      const maxDataBytes = spec[2] - (v <= 9 ? 2 : 3); // Byte mode header overhead (4 bits mode + 8/16 bits len)
+      if (utf8Bytes.length <= maxDataBytes) {
+        chosenVersion = v;
+        break;
+      }
+      if (v === 10) {
+        chosenVersion = 10; // Cap at 10
+      }
+    }
+
+    const spec = QR_SPECS_M[chosenVersion];
+    const totalCodewords = spec[1];
+    const dataCodewords = spec[2];
+    const ecPerBlock = spec[3];
+    const numBlocks = spec[4];
+    const alignCoords = spec[5];
+    const moduleCount = 17 + 4 * chosenVersion;
+
+    // Bit buffer encoding (Byte Mode: 0100)
+    let bitBuffer = [];
+    function appendBits(val, len) {
+      for (let i = len - 1; i >= 0; i--) {
+        bitBuffer.push((val >> i) & 1);
+      }
+    }
+
+    appendBits(0x4, 4); // Byte mode indicator
+    appendBits(utf8Bytes.length, chosenVersion <= 9 ? 8 : 16); // Character count indicator
+    for (let b of utf8Bytes) {
+      appendBits(b, 8);
+    }
+
+    // Add terminator (up to 4 zeroes)
+    const totalDataBits = dataCodewords * 8;
+    const termBits = Math.min(4, totalDataBits - bitBuffer.length);
+    appendBits(0, termBits);
+
+    // Pad to byte boundary
+    while (bitBuffer.length % 8 !== 0) {
+      bitBuffer.push(0);
+    }
+
+    // Pad bytes to fill data capacity
+    const padBytes = [0xEC, 0x11];
+    let padIdx = 0;
+    while (bitBuffer.length < totalDataBits) {
+      appendBits(padBytes[padIdx % 2], 8);
+      padIdx++;
+    }
+
+    // Convert bit buffer to data codewords
+    const rawDataBytes = [];
+    for (let i = 0; i < bitBuffer.length; i += 8) {
+      let byteVal = 0;
+      for (let j = 0; j < 8; j++) {
+        byteVal = (byteVal << 1) | bitBuffer[i + j];
+      }
+      rawDataBytes.push(byteVal);
+    }
+
+    // Split data into blocks and calculate Reed-Solomon ECC
+    const blocksData = [];
+    const blocksEcc = [];
+    const baseBlockLen = Math.floor(dataCodewords / numBlocks);
+    const extraBlocks = dataCodewords % numBlocks;
+
+    let dataOffset = 0;
+    for (let b = 0; b < numBlocks; b++) {
+      const curBlockLen = baseBlockLen + (b >= numBlocks - extraBlocks ? 1 : 0);
+      const curData = rawDataBytes.slice(dataOffset, dataOffset + curBlockLen);
+      dataOffset += curBlockLen;
+      blocksData.push(curData);
+      blocksEcc.push(rsCalcEcc(curData, ecPerBlock));
+    }
+
+    // Interleave data and ECC codewords
+    const finalCodewords = [];
+    const maxDataBlockLen = baseBlockLen + (extraBlocks > 0 ? 1 : 0);
+    for (let i = 0; i < maxDataBlockLen; i++) {
+      for (let b = 0; b < numBlocks; b++) {
+        if (i < blocksData[b].length) {
+          finalCodewords.push(blocksData[b][i]);
+        }
+      }
+    }
+    for (let i = 0; i < ecPerBlock; i++) {
+      for (let b = 0; b < numBlocks; b++) {
+        finalCodewords.push(blocksEcc[b][i]);
+      }
+    }
+
+    // Initialize module matrix and isFunction (reserved) mask
+    const matrix = Array.from({ length: moduleCount }, () => new Array(moduleCount).fill(0));
+    const isFunc = Array.from({ length: moduleCount }, () => new Array(moduleCount).fill(false));
+
+    function setModule(r, c, val, func = true) {
+      if (r >= 0 && r < moduleCount && c >= 0 && c < moduleCount) {
+        matrix[r][c] = val ? 1 : 0;
+        if (func) isFunc[r][c] = true;
+      }
+    }
+
+    // Place Finder Patterns (7x7) + Separators
+    function placeFinder(r0, c0) {
+      for (let r = -1; r <= 7; r++) {
+        for (let c = -1; c <= 7; c++) {
+          const rCur = r0 + r;
+          const cCur = c0 + c;
+          if (rCur < 0 || rCur >= moduleCount || cCur < 0 || cCur >= moduleCount) continue;
+          if (r >= 0 && r <= 6 && c >= 0 && c <= 6) {
+            const isDark = r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+            setModule(rCur, cCur, isDark, true);
+          } else {
+            setModule(rCur, cCur, false, true);
+          }
+        }
+      }
+    }
+
+    placeFinder(0, 0);
+    placeFinder(0, moduleCount - 7);
+    placeFinder(moduleCount - 7, 0);
+
+    // Place Alignment Patterns for Version >= 2
+    if (alignCoords && alignCoords.length > 0) {
+      for (let r of alignCoords) {
+        for (let c of alignCoords) {
+          if (isFunc[r][c]) continue; // Skip if overlapping finder patterns
+          for (let dr = -2; dr <= 2; dr++) {
+            for (let dc = -2; dc <= 2; dc++) {
+              const isDark = Math.abs(dr) === 2 || Math.abs(dc) === 2 || (dr === 0 && dc === 0);
+              setModule(r + dr, c + dc, isDark, true);
+            }
+          }
+        }
+      }
+    }
+
+    // Place Timing Patterns (row 6 and col 6)
+    for (let i = 8; i < moduleCount - 8; i++) {
+      if (!isFunc[6][i]) setModule(6, i, i % 2 === 0, true);
+      if (!isFunc[i][6]) setModule(i, 6, i % 2 === 0, true);
+    }
+
+    // Dark Module
+    setModule(moduleCount - 8, 8, true, true);
+
+    // Reserve Format Information Areas
+    for (let i = 0; i < 9; i++) {
+      if (!isFunc[8][i]) isFunc[8][i] = true;
+      if (!isFunc[i][8]) isFunc[i][8] = true;
+    }
+    for (let i = 0; i < 8; i++) {
+      if (!isFunc[8][moduleCount - 1 - i]) isFunc[8][moduleCount - 1 - i] = true;
+      if (!isFunc[moduleCount - 1 - i][8]) isFunc[moduleCount - 1 - i][8] = true;
+    }
+
+    // Convert Final Codewords to Bits and Place in Matrix
+    const dataBits = [];
+    for (let byte of finalCodewords) {
+      for (let i = 7; i >= 0; i--) {
+        dataBits.push((byte >> i) & 1);
+      }
+    }
+
+    let bitIdx = 0;
+    let right = moduleCount - 1;
+    let upward = true;
+
+    while (right > 0) {
+      if (right === 6) right--; // Skip vertical timing column
+      const colPairs = [right, right - 1];
+      const rows = upward
+        ? Array.from({ length: moduleCount }, (_, idx) => moduleCount - 1 - idx)
+        : Array.from({ length: moduleCount }, (_, idx) => idx);
+
+      for (let r of rows) {
+        for (let c of colPairs) {
+          if (!isFunc[r][c]) {
+            const bit = bitIdx < dataBits.length ? dataBits[bitIdx++] : 0;
+            // Apply Standard Mask Pattern 0: (row + col) % 2 === 0
+            const maskBit = (r + c) % 2 === 0 ? 1 : 0;
+            matrix[r][c] = bit ^ maskBit;
+          }
+        }
+      }
+      upward = !upward;
+      right -= 2;
+    }
+
+    // Write Format Information for Mask Pattern 0
+    const formatBitsVal = FORMAT_INFO_M[0];
+    for (let i = 0; i < 15; i++) {
+      const bit = (formatBitsVal >> i) & 1;
+      // Around top-left finder
+      if (i <= 5) setModule(8, i, bit, true);
+      else if (i === 6) setModule(8, 7, bit, true);
+      else if (i === 7) setModule(8, 8, bit, true);
+      else if (i === 8) setModule(7, 8, bit, true);
+      else setModule(14 - i, 8, bit, true);
+
+      // Around other two finders
+      if (i < 8) setModule(moduleCount - 1 - i, 8, bit, true);
+      else setModule(8, moduleCount - 15 + i, bit, true);
+    }
+
+    // Build Scalable SVG Path
+    let pathD = '';
+    for (let r = 0; r < moduleCount; r++) {
+      for (let c = 0; c < moduleCount; c++) {
+        if (matrix[r][c] === 1) {
+          const x = c + margin;
+          const y = r + margin;
+          pathD += `M${x},${y}h1v1h-1z `;
+        }
+      }
+    }
+
+    const totalDim = moduleCount + margin * 2;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalDim} ${totalDim}" width="${size}" height="${size}" shape-rendering="crispEdges"><rect width="${totalDim}" height="${totalDim}" fill="${bg}"/><path d="${pathD.trim()}" fill="${fg}"/></svg>`;
+    const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+
+    return {
+      svg,
+      dataUrl,
+      size,
+      moduleCount: totalDim
+    };
+  }
+
   /**
    * Generates formatted share URLs for various social and messaging platforms.
    */
@@ -1169,6 +1519,8 @@
     const encodedText = encodeURIComponent(text);
     const encodedTitle = encodeURIComponent(title);
 
+    const qrResult = generateQrSvg(safeUrl, { size: 240, margin: 2 });
+
     return {
       url: safeUrl,
       text,
@@ -1178,7 +1530,9 @@
       twitter: `https://twitter.com/intent/tweet?text=${encodedText}`,
       email: `mailto:?subject=${encodedTitle}&body=${encodeURIComponent(`Hey!\n\nI thought you'd love bList for saving places and organizing travel bucket lists on a visual map:\n\n${safeUrl}\n\nHappy travels! 🗺️✈️`)}`,
       telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(title)}`,
-      qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodedUrl}&margin=10`
+      qrUrl: qrResult.dataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodedUrl}&margin=10`,
+      qrDataUrl: qrResult.dataUrl,
+      qrSvg: qrResult.svg
     };
   }
 
@@ -1437,6 +1791,7 @@
     formatMinutesToTime,
     getOpeningStatus,
     generateShareLinks,
+    generateQrSvg,
     getRandomInspiration,
     MANIFESTO_RULES,
     INSPIRATIONS,

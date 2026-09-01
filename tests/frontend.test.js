@@ -23,6 +23,7 @@ const {
   formatFileSize,
   getOpeningStatus,
   generateShareLinks,
+  generateQrSvg,
   getRandomInspiration,
   MANIFESTO_RULES,
   INSPIRATIONS,
@@ -978,13 +979,16 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.ok(links.messenger.includes('fb-messenger://share/?link='));
       assert.ok(links.twitter.includes('twitter.com/intent/tweet?text='));
       assert.ok(links.email.startsWith('mailto:?subject='));
-      assert.ok(links.qrUrl.includes('api.qrserver.com/v1/create-qr-code'));
+      assert.ok(links.qrUrl.startsWith('data:image/svg+xml') || links.qrUrl.includes('create-qr-code'));
+      assert.ok(links.qrDataUrl.startsWith('data:image/svg+xml'));
+      assert.ok(links.qrSvg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"'));
     });
 
     it('should fallback safely when invalid or empty URL is provided', () => {
       const links = generateShareLinks('');
       assert.strictEqual(links.url, 'https://blist-radmuffin.fly.dev/');
       assert.ok(links.whatsapp.includes('blist-radmuffin.fly.dev'));
+      assert.ok(links.qrDataUrl.startsWith('data:image/svg+xml'));
     });
   });
 
@@ -1091,6 +1095,50 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
 
       assert.strictEqual(syncBadge.unlocked, true);
       assert.strictEqual(secretBadge.unlocked, true);
+    });
+  });
+
+  describe('Offline SVG QR Code Generator (generateQrSvg)', () => {
+    it('should generate valid crisp SVG XML and data URL for standard URLs', () => {
+      const url = 'https://blist-radmuffin.fly.dev/';
+      const res = generateQrSvg(url, { size: 240, margin: 2 });
+
+      assert.ok(res.svg);
+      assert.ok(res.dataUrl);
+      assert.ok(res.svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"'));
+      assert.ok(res.svg.includes('viewBox="0 0 25 25"') || res.svg.includes('viewBox="0 0 29 29"') || res.svg.includes('viewBox="0 0 33 33"'));
+      assert.ok(res.svg.includes('<rect width='));
+      assert.ok(res.svg.includes('<path d="M'));
+      assert.ok(res.dataUrl.startsWith('data:image/svg+xml;charset=utf-8,'));
+      assert.strictEqual(res.size, 240);
+    });
+
+    it('should encode long sync links into higher QR versions without error', () => {
+      const syncUrl = 'https://blist-radmuffin.fly.dev/?sync_token=550e8400-e29b-41d4-a716-446655440000-deep-sync-token-with-extra-payload';
+      const res = generateQrSvg(syncUrl, { size: 180, margin: 1 });
+
+      assert.ok(res.svg);
+      assert.ok(res.dataUrl);
+      assert.strictEqual(res.size, 180);
+      assert.ok(res.moduleCount > 21); // Higher version matrix
+    });
+
+    it('should support custom foreground and background colors', () => {
+      const res = generateQrSvg('https://example.com', {
+        foreground: '#ef4444',
+        background: '#f8fafc'
+      });
+
+      assert.ok(res.svg.includes('fill="#f8fafc"'));
+      assert.ok(res.svg.includes('fill="#ef4444"'));
+    });
+
+    it('should handle empty or null input gracefully', () => {
+      const res1 = generateQrSvg('');
+      assert.deepStrictEqual(res1, { svg: '', dataUrl: '', size: 0, moduleCount: 0 });
+
+      const res2 = generateQrSvg(null);
+      assert.deepStrictEqual(res2, { svg: '', dataUrl: '', size: 0, moduleCount: 0 });
     });
   });
 

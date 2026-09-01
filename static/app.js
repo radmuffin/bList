@@ -2054,7 +2054,12 @@
         syncInput.value = syncUrl;
       }
       if (qrImg) {
-        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(syncUrl)}`;
+        if (window.bListHelpers && typeof window.bListHelpers.generateQrSvg === 'function') {
+          const qr = window.bListHelpers.generateQrSvg(syncUrl, { size: 180, margin: 2 });
+          qrImg.src = qr.dataUrl;
+        } else {
+          qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(syncUrl)}`;
+        }
       }
 
       if (modal) modal.classList.remove('hidden');
@@ -2304,8 +2309,13 @@
 
       const isHidden = box.classList.contains('hidden');
       if (isHidden) {
-        const appUrl = encodeURIComponent(window.location.origin + '/');
-        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${appUrl}&margin=8`;
+        const appUrl = window.location.origin + '/';
+        if (window.bListHelpers && typeof window.bListHelpers.generateQrSvg === 'function') {
+          const qr = window.bListHelpers.generateQrSvg(appUrl, { size: 240, margin: 2 });
+          img.src = qr.dataUrl;
+        } else {
+          img.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(appUrl)}&margin=8`;
+        }
         box.classList.remove('hidden');
         if (label) label.textContent = 'Hide QR Code';
       } else {
