@@ -721,7 +721,12 @@
     const copy = [...pins];
 
     return copy.sort((a, b) => {
-      if (sortType === 'nearest' && userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lng === 'number') {
+      if (sortType === 'custom' || sortType === 'custom_order') {
+        const orderA = typeof a.custom_order === 'number' ? a.custom_order : Number.MAX_SAFE_INTEGER;
+        const orderB = typeof b.custom_order === 'number' ? b.custom_order : Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return (b.id || 0) - (a.id || 0);
+      } else if (sortType === 'nearest' && userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lng === 'number') {
         const distA = calculateDistance(userLocation.lat, userLocation.lng, a.latitude, a.longitude);
         const distB = calculateDistance(userLocation.lat, userLocation.lng, b.latitude, b.longitude);
         return distA - distB;

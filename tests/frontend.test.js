@@ -722,6 +722,16 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.deepStrictEqual(sorted.map(p => p.id), [1, 2, 3]);
     });
 
+    it('should sort by custom / 2-Opt optimized route order (custom_order)', () => {
+      const pinsWithOrder = [
+        { id: 10, title: 'Stop C', custom_order: 2 },
+        { id: 11, title: 'Stop A', custom_order: 0 },
+        { id: 12, title: 'Stop B', custom_order: 1 }
+      ];
+      const sorted = sortPins(pinsWithOrder, 'custom');
+      assert.deepStrictEqual(sorted.map(p => p.id), [11, 12, 10]);
+    });
+
     it('should handle null or empty lists safely', () => {
       assert.deepStrictEqual(sortPins(null), []);
       assert.deepStrictEqual(sortPins([]), []);

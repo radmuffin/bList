@@ -3450,6 +3450,11 @@
         ApiClient.updatePin(pin.id, { custom_order: idx }).catch(() => {});
       }
 
+      // Switch active sort mode to custom route order so MapController & FilterManager render the 2-Opt path
+      State.currentSort = 'custom';
+      const sortSelect = document.getElementById('sort-select');
+      if (sortSelect) sortSelect.value = 'custom';
+
       if (!State.isRouteActive) {
         MapController.toggleRouteLine();
       } else {
