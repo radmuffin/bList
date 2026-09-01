@@ -5,7 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>bList - Visual Map Bucket List</title>
   
-  <!-- Anti-theme-flash script: immediately sets data-theme to prevent flash of wrong theme -->
+  <!-- Critical Anti-Theme-Flash Style & Script: immediately resolves theme & background -->
+  <style>
+    html, body {
+      background-color: #0b0f17; /* Default dark neutral to eliminate light flash */
+      color: #f8fafc;
+    }
+    @media (prefers-color-scheme: light) {
+      :root[data-theme="light"], :root[data-resolved-theme="light"] {
+        background-color: #f8fafc;
+        color: #0f172a;
+      }
+    }
+  </style>
   <script>
     (function() {
       try {
@@ -13,12 +25,14 @@
         const isDark = savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.documentElement.setAttribute('data-resolved-theme', isDark ? 'dark' : 'light');
+        document.documentElement.style.backgroundColor = isDark ? '#0b0f17' : '#f8fafc';
       } catch (_) {}
     })();
   </script>
 
   <!-- PWA & Mobile Web App Meta -->
-  <meta name="theme-color" content="#2563eb">
+  <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -41,6 +55,14 @@
   <link rel="stylesheet" href="style.css?v=0.1.2">
 </head>
 <body>
+  <!-- Full Screen Initial App Splash / Loading Overlay -->
+  <div id="app-splash-screen" class="app-splash-screen" aria-label="Loading bList">
+    <div class="splash-content">
+      <div class="splash-logo">🧭</div>
+      <div class="splash-spinner"></div>
+    </div>
+  </div>
+
   <div class="app-layout">
     <!-- Top Header -->
     <header class="app-header">

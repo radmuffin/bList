@@ -3934,6 +3934,15 @@
     setupGlobalClickHandlers();
     registerServiceWorker();
     if (window.lucide) window.lucide.createIcons();
+
+    // Dismiss full-screen splash loading overlay once app is ready
+    const splash = document.getElementById('app-splash-screen');
+    if (splash) {
+      splash.classList.add('fade-out');
+      setTimeout(() => {
+        if (splash.parentNode) splash.parentNode.removeChild(splash);
+      }, 260);
+    }
   });
 
   // ==========================================================================
