@@ -2391,6 +2391,9 @@
     },
 
     openShareBListModal() {
+      // Seamlessly dismiss About modal if open
+      this.closeAboutModal();
+
       const modal = document.getElementById('share-blist-modal');
       if (!modal) return;
 
@@ -3533,38 +3536,61 @@
     },
 
     setupModalSwipe() {
-      // Swiping down on mobile modals to dismiss
-      const modalContainers = document.querySelectorAll('.modal');
-      modalContainers.forEach((modal) => {
+      // Swiping down on mobile modals / bottom sheets to dismiss
+      const modalOverlays = document.querySelectorAll('.modal-overlay, .modal');
+      modalOverlays.forEach((modal) => {
         let modalStartY = 0;
         let modalStartX = 0;
         let isModalTracking = false;
-        const content = modal.querySelector('.modal-content') || modal;
+        const card = modal.querySelector('.modal-card, .modal-content') || modal;
 
-        content.addEventListener('touchstart', (e) => {
+        card.addEventListener('touchstart', (e) => {
           if (e.touches.length !== 1 || window.innerWidth > 768) return;
-          const rect = content.getBoundingClientRect();
+          const rect = card.getBoundingClientRect();
           const relativeY = e.touches[0].clientY - rect.top;
-          if (relativeY <= 80 || e.target.closest('.modal-header') || e.target.closest('.modal-drag-handle')) {
+          // Trigger when drag starts in upper header area or drag handles
+          if (relativeY <= 90 || e.target.closest('.modal-header') || e.target.closest('.modal-drag-handle')) {
             modalStartY = e.touches[0].clientY;
             modalStartX = e.touches[0].clientX;
             isModalTracking = true;
           }
         }, { passive: true });
 
-        content.addEventListener('touchend', (e) => {
-          if (!isModalTracking || e.changedTouches.length !== 1 || window.innerWidth > 768) return;
+        card.addEventListener('touchmove', (e) => {
+          if (!isModalTracking || e.touches.length !== 1 || window.innerWidth > 768) return;
+          const currentY = e.touches[0].clientY;
+          const diffY = currentY - modalStartY;
+          if (diffY > 0) {
+            // Dragging downward
+            card.style.transition = 'none';
+            card.style.transform = `translateY(${diffY}px)`;
+          }
+        }, { passive: true });
+
+        const handleModalTouchEnd = (e) => {
+          if (!isModalTracking) return;
           isModalTracking = false;
-          const endY = e.changedTouches[0].clientY;
-          const endX = e.changedTouches[0].clientX;
+          card.style.transition = '';
+          const endY = e.changedTouches && e.changedTouches.length ? e.changedTouches[0].clientY : modalStartY;
+          const endX = e.changedTouches && e.changedTouches.length ? e.changedTouches[0].clientX : modalStartX;
           const deltaY = endY - modalStartY;
           const deltaX = Math.abs(endX - modalStartX);
 
-          // Swipe down (> 60px downwards, vertical movement dominates)
-          if (deltaY > 60 && deltaY > deltaX * 1.4) {
+          // Swipe down (> 55px downwards, vertical movement dominates)
+          if (deltaY > 55 && deltaY > deltaX * 1.25) {
+            card.style.transform = '';
             modal.classList.add('hidden');
+            if (modal.id === 'about-modal' && window.location.hash === '#about') {
+              history.replaceState(null, document.title, window.location.pathname + window.location.search);
+            }
+          } else {
+            // Snap back up
+            card.style.transform = '';
           }
-        }, { passive: true });
+        };
+
+        card.addEventListener('touchend', handleModalTouchEnd, { passive: true });
+        card.addEventListener('touchcancel', handleModalTouchEnd, { passive: true });
       });
     }
   };
