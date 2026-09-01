@@ -124,5 +124,73 @@ describe('Accessibility & UI Layout Contract Tests', () => {
       assert.ok(html.includes('onclick="handleDeleteFromPinModal()"'), 'Delete button must have handleDeleteFromPinModal handler');
     });
   });
+
+  describe('E2E & UI Selector Contract Integrity Tests', () => {
+    it('should preserve all critical UI selectors targeted by Playwright E2E suites', () => {
+      const e2eSelectors = [
+        '#theme-toggle-btn',
+        '#mobile-more-btn',
+        '#mobile-more-menu',
+        '#btn-about',
+        '#about-modal',
+        '#tab-btn-explorer',
+        '#tab-btn-creator',
+        '#about-panel-explorer',
+        '#about-panel-creator',
+        '#trip-progress-bar',
+        '#btn-add-place',
+        '#pin-modal',
+        '#form-title',
+        '#btn-submit-pin',
+        '#list-select',
+        '#new-list-modal',
+        '#sync-btn-header',
+        '#user-profile-btn'
+      ];
+
+      e2eSelectors.forEach((sel) => {
+        if (sel.startsWith('#')) {
+          const id = sel.slice(1);
+          assert.ok(
+            html.includes(`id="${id}"`),
+            `E2E critical element ${sel} must exist in static/index.html to prevent UI test breakages`
+          );
+        }
+      });
+    });
+
+    it('should contain valid GitHub repository and issues links in About modal Creator tab', () => {
+      assert.ok(
+        html.includes('href="https://github.com/radmuffin/bList"'),
+        'GitHub repository link must exist in static/index.html'
+      );
+      assert.ok(
+        html.includes('href="https://github.com/radmuffin/bList/issues"'),
+        'GitHub issues link must exist in static/index.html'
+      );
+      assert.ok(
+        html.includes('Daniel Spiesman'),
+        'Creator name Daniel Spiesman must be present in static/index.html'
+      );
+    });
+
+    it('should structure About modal tabs with matching aria controls and panel IDs', () => {
+      const tabs = ['explorer', 'features', 'tech', 'creator'];
+      tabs.forEach((tab) => {
+        assert.ok(
+          html.includes(`id="tab-btn-${tab}"`),
+          `Tab button #tab-btn-${tab} must exist in About modal`
+        );
+        assert.ok(
+          html.includes(`id="about-panel-${tab}"`),
+          `Tab panel #about-panel-${tab} must exist in About modal`
+        );
+        assert.ok(
+          html.includes(`aria-controls="about-panel-${tab}"`),
+          `Tab button must reference aria-controls="about-panel-${tab}"`
+        );
+      });
+    });
+  });
 });
 
