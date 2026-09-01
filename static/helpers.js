@@ -121,7 +121,17 @@
    */
   function parseShareTargetPayload(params) {
     if (!params) {
-      return { url: '', title: '', text: '', rawText: '', isUrlCandidate: false };
+      return {
+        url: '',
+        title: '',
+        text: '',
+        rawText: '',
+        isJoinLink: false,
+        joinToken: null,
+        isSyncLink: false,
+        syncToken: null,
+        isUrlCandidate: false
+      };
     }
 
     let rawTitle = '';
@@ -202,9 +212,27 @@
       remainingText = remainingText.replace(foundUrl, '').trim();
     }
 
-    // Clean up "Check out ... on my travel bucket list!" wrapper if shared from bList
+    let isJoinLink = false;
+    let joinToken = null;
+    let isSyncLink = false;
+    let syncToken = null;
+
+    const fullStringToCheck = `${rawUrl} ${rawText} ${rawTitle} ${foundUrl}`;
+    const joinMatch = fullStringToCheck.match(/[?&]join=([a-zA-Z0-9_-]+)/);
+    if (joinMatch) {
+      isJoinLink = true;
+      joinToken = joinMatch[1];
+    }
+
+    const syncMatch = fullStringToCheck.match(/[?&]sync_token=([a-zA-Z0-9_-]+)/);
+    if (syncMatch) {
+      isSyncLink = true;
+      syncToken = syncMatch[1];
+    }
+
+    // Clean up "Check out ... on my travel bucket list!" or "Check out my ... trip" wrapper if shared from bList
     if (remainingText) {
-      const blistShareMatch = remainingText.match(/^Check out\s+(.+?)\s+on my travel bucket list!?$/i);
+      const blistShareMatch = remainingText.match(/^Check out(?:\s+my)?\s+(.+?)(?:\s+trip)?(?:\s+on my travel bucket list!?)?$/i);
       if (blistShareMatch) {
         remainingText = blistShareMatch[1].trim();
       }
@@ -225,12 +253,21 @@
       } catch (_) {}
     }
 
+    // Clean up " | bList" or " - bList" suffix in title
+    if (extractedTitle) {
+      extractedTitle = extractedTitle.replace(/\s*\|\s*bList\s*$/i, '').replace(/\s*-\s*bList\s*$/i, '').trim();
+    }
+
     return {
       url: extractedUrl,
       title: extractedTitle,
       text: remainingText,
       rawText: rawText || rawTitle || rawUrl,
-      isUrlCandidate: Boolean(extractedUrl)
+      isJoinLink,
+      joinToken,
+      isSyncLink,
+      syncToken,
+      isUrlCandidate: Boolean(extractedUrl) && !isJoinLink && !isSyncLink
     };
   }
 

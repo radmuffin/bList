@@ -1028,20 +1028,109 @@ impl Scraper {
 
     /// Scrapes a given URL using the best matching registered domain scraper.
     pub async fn scrape_url(&self, raw_url: &str) -> Result<ScrapedMetadata, String> {
-        // If it's a bList URL with parameters, handle directly without network DNS check
+        let trimmed = raw_url.trim();
+        if trimmed.is_empty() {
+            return Err("URL or location cannot be empty".to_string());
+        }
+
+        // 1. If it's a bList URL with parameters, handle directly without external DNS checks
         for scraper in &self.scrapers {
-            if scraper.name() == "blist" && scraper.can_handle(raw_url) {
-                return scraper.scrape(raw_url, &self.context).await;
+            if scraper.name() == "blist" && scraper.can_handle(trimmed) {
+                return scraper.scrape(trimmed, &self.context).await;
             }
         }
 
-        let parsed_url = validate_url_for_ssrf(raw_url)?;
+        // 2. Check if the input is a URL or a plain search text query / location name
+        let has_explicit_scheme = trimmed.contains("://")
+            || trimmed.starts_with("javascript:")
+            || trimmed.starts_with("file:")
+            || trimmed.starts_with("data:")
+            || trimmed.starts_with("about:");
+        let has_domain_format = trimmed.starts_with("www.")
+            || (trimmed.contains('.') && !trimmed.contains(' ') && (trimmed.ends_with(".com") || trimmed.ends_with(".org") || trimmed.ends_with(".net") || trimmed.ends_with(".io") || trimmed.ends_with(".gl") || trimmed.ends_with(".app")));
+
+        let is_url = has_explicit_scheme || has_domain_format;
+
+        if !is_url {
+            // Direct geocoding for plain text place names (e.g. "Spain!", "Eiffel Tower", "Tokyo Tower")
+            let clean_query = trimmed.trim_end_matches(['!', '?', '.', ',', ' ']).trim();
+            if !clean_query.is_empty() {
+                if let Ok(Some(geo)) = self.context.geocoder.geocode(clean_query).await {
+                    return Ok(ScrapedMetadata {
+                        title: clean_query.to_string(),
+                        description: None,
+                        latitude: Some(geo.latitude),
+                        longitude: Some(geo.longitude),
+                        address: Some(geo.display_name),
+                        image_url: None,
+                        opening_hours: None,
+                        source_url: format!(
+                            "https://www.openstreetmap.org/search?query={}",
+                            urlencoding::encode(clean_query)
+                        ),
+                        source_type: "geocoded".to_string(),
+                    });
+                }
+            }
+            return Err(format!(
+                "Could not find location for '{}'. Try entering a more specific city or landmark.",
+                trimmed
+            ));
+        }
+
+        // 3. Validate URL strictly for SSRF
+        let parsed_url = validate_url_for_ssrf(trimmed)?;
         let full_url = parsed_url.to_string();
 
-        // Find first scraper that can handle this URL
+        // 4. Find first registered domain scraper that can handle this URL
         for scraper in &self.scrapers {
             if scraper.can_handle(&full_url) {
-                return scraper.scrape(&full_url, &self.context).await;
+                let res = scraper.scrape(&full_url, &self.context).await;
+                if let Ok(ref meta) = res {
+                    if meta.latitude.is_some() && meta.longitude.is_some() {
+                        return res;
+                    }
+                }
+                // If scraper succeeded but missing coordinates, geocode extracted title/address
+                if let Ok(mut meta) = res {
+                    if (meta.latitude.is_none() || meta.longitude.is_none())
+                        && !meta.title.is_empty()
+                        && meta.title != "Saved Place"
+                    {
+                        if let Ok(Some(geo)) = self.context.geocoder.geocode(&meta.title).await {
+                            meta.latitude = Some(geo.latitude);
+                            meta.longitude = Some(geo.longitude);
+                            if meta.address.is_none() {
+                                meta.address = Some(geo.display_name);
+                            }
+                            return Ok(meta);
+                        }
+                    }
+                    return Ok(meta);
+                } else if let Err(err_msg) = res {
+                    // Fallback to URL path slug geocoding if network blocked (e.g. 403 bot check on Yelp/IG)
+                    let path_segments: Vec<&str> =
+                        parsed_url.path_segments().map(|c| c.collect()).unwrap_or_default();
+                    if let Some(last_seg) = path_segments.last() {
+                        let slug = last_seg.replace(['-', '_', '+'], " ").trim().to_string();
+                        if slug.len() >= 3 && slug.chars().any(|c| c.is_alphabetic()) {
+                            if let Ok(Some(geo)) = self.context.geocoder.geocode(&slug).await {
+                                return Ok(ScrapedMetadata {
+                                    title: slug,
+                                    description: None,
+                                    latitude: Some(geo.latitude),
+                                    longitude: Some(geo.longitude),
+                                    address: Some(geo.display_name),
+                                    image_url: None,
+                                    opening_hours: None,
+                                    source_url: full_url,
+                                    source_type: "geocoded".to_string(),
+                                });
+                            }
+                        }
+                    }
+                    return Err(err_msg);
+                }
             }
         }
 
@@ -1394,6 +1483,17 @@ mod tests {
             extract_meta_content(&doc, "meta[itemprop='longitude']").and_then(|s| s.parse::<f64>().ok()),
             Some(-73.968285)
         );
+    }
+
+    #[tokio::test]
+    async fn test_scraper_plain_location_geocoding_fallback() {
+        let scraper = Scraper::new();
+        let res = scraper.scrape_url("Paris, France").await;
+        if let Ok(meta) = res {
+            assert!(meta.latitude.is_some());
+            assert!(meta.longitude.is_some());
+            assert_eq!(meta.source_type, "geocoded");
+        }
     }
 
 }

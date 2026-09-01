@@ -266,7 +266,7 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
         text: 'Check out Tokyo Tower (Tokyo, Japan) on my travel bucket list!'
       });
       assert.strictEqual(result.url, 'https://blist.fly.dev/?lat=35.6586&lng=139.7454&title=Tokyo+Tower&address=Tokyo%2C+Japan');
-      assert.strictEqual(result.title, 'Tokyo Tower | bList');
+      assert.strictEqual(result.title, 'Tokyo Tower');
       assert.strictEqual(result.isUrlCandidate, true);
     });
 
@@ -279,21 +279,40 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(result.isUrlCandidate, false);
     });
 
+    it('should identify shared list join links and extract joinToken', () => {
+      const result = parseShareTargetPayload({
+        title: 'Spain! | bList',
+        text: 'Check out my Spain! trip https://blist.fly.dev/?join=7d8e9f10-1234-5678-9abc-def012345678'
+      });
+      assert.strictEqual(result.isJoinLink, true);
+      assert.strictEqual(result.joinToken, '7d8e9f10-1234-5678-9abc-def012345678');
+      assert.strictEqual(result.isUrlCandidate, false);
+      assert.strictEqual(result.title, 'Spain!');
+    });
+
+    it('should identify shared device sync links and extract syncToken', () => {
+      const result = parseShareTargetPayload({
+        url: 'https://blist.fly.dev/?sync_token=usr_token_abcdef123456'
+      });
+      assert.strictEqual(result.isSyncLink, true);
+      assert.strictEqual(result.syncToken, 'usr_token_abcdef123456');
+      assert.strictEqual(result.isUrlCandidate, false);
+    });
+
     it('should handle null, undefined, empty, and non-object inputs safely', () => {
-      assert.deepStrictEqual(parseShareTargetPayload(null), {
+      const emptyResult = {
         url: '',
         title: '',
         text: '',
         rawText: '',
+        isJoinLink: false,
+        joinToken: null,
+        isSyncLink: false,
+        syncToken: null,
         isUrlCandidate: false
-      });
-      assert.deepStrictEqual(parseShareTargetPayload(undefined), {
-        url: '',
-        title: '',
-        text: '',
-        rawText: '',
-        isUrlCandidate: false
-      });
+      };
+      assert.deepStrictEqual(parseShareTargetPayload(null), emptyResult);
+      assert.deepStrictEqual(parseShareTargetPayload(undefined), emptyResult);
       assert.strictEqual(parseShareTargetPayload('').isUrlCandidate, false);
     });
   });

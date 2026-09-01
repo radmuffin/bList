@@ -2812,11 +2812,22 @@
 
   async function handleIncomingJoinLink() {
     const params = new URLSearchParams(window.location.search);
-    const joinToken = params.get('join');
-    if (!joinToken) return;
+    let joinToken = params.get('join');
+
+    if (!joinToken) {
+      const rawText = params.get('url') || params.get('text') || params.get('title') || '';
+      const parsed = window.bListHelpers && typeof window.bListHelpers.parseShareTargetPayload === 'function'
+        ? window.bListHelpers.parseShareTargetPayload(rawText)
+        : null;
+      if (parsed && parsed.isJoinLink && parsed.joinToken) {
+        joinToken = parsed.joinToken;
+      }
+    }
+
+    if (!joinToken || !joinToken.trim()) return;
 
     try {
-      const res = await ApiClient.joinList(joinToken);
+      const res = await ApiClient.joinList(joinToken.trim());
       if (res && res.success && res.data) {
         const list = res.data;
         ToastManager.show(`🎉 Joined shared collection "${list.icon} ${list.name}"!`, 'success');
@@ -2831,6 +2842,9 @@
     }
 
     params.delete('join');
+    params.delete('url');
+    params.delete('text');
+    params.delete('title');
     const newSearch = params.toString();
     const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
     window.history.replaceState({}, document.title, newUrl);
@@ -2838,13 +2852,27 @@
 
   async function handleIncomingSyncLink() {
     const params = new URLSearchParams(window.location.search);
-    const syncToken = params.get('sync_token');
+    let syncToken = params.get('sync_token');
+
+    if (!syncToken) {
+      const rawText = params.get('url') || params.get('text') || params.get('title') || '';
+      const parsed = window.bListHelpers && typeof window.bListHelpers.parseShareTargetPayload === 'function'
+        ? window.bListHelpers.parseShareTargetPayload(rawText)
+        : null;
+      if (parsed && parsed.isSyncLink && parsed.syncToken) {
+        syncToken = parsed.syncToken;
+      }
+    }
+
     if (!syncToken || !syncToken.trim()) return;
 
     localStorage.setItem('blist_user_token', syncToken.trim());
     ToastManager.show('📱 Linked and synced with your device session!', 'success');
 
     params.delete('sync_token');
+    params.delete('url');
+    params.delete('text');
+    params.delete('title');
     const newSearch = params.toString();
     const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
     window.history.replaceState({}, document.title, newUrl);
@@ -2872,11 +2900,19 @@
       ? window.bListHelpers.parseShareTargetPayload(sharedPayload)
       : null;
 
+    if (parsed && (parsed.isJoinLink || parsed.isSyncLink)) {
+      // Already handled by handleIncomingJoinLink / handleIncomingSyncLink
+      return;
+    }
+
     const linkToSave = (parsed && (parsed.url || parsed.title || parsed.text))
       ? (parsed.url || parsed.title || parsed.text)
       : sharedPayload.trim();
 
-    ToastManager.show('📥 Processing shared location...', 'info');
+    if (!linkToSave || !linkToSave.trim()) return;
+
+    const isUrl = parsed && parsed.isUrlCandidate;
+    ToastManager.show(isUrl ? '📥 Processing shared location link...' : `🔍 Finding location for "${linkToSave}"...`, 'info');
 
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.classList.remove('hidden');
