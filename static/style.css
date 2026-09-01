@@ -2369,6 +2369,476 @@ label {
   color: var(--text-main);
 }
 
+/* ==========================================================================
+   Share bList & About Whimsical Extensions
+   ========================================================================== */
+
+.modal-share-blist {
+  max-width: 480px;
+  width: 95vw;
+}
+
+.share-blist-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.share-logo-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.share-blist-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.share-blist-intro {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.share-link-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.share-link-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.share-link-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.share-link-input {
+  flex: 1;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-main);
+  color: var(--text-main);
+  outline: none;
+  user-select: all;
+}
+
+.btn-copy-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.native-share-wrapper {
+  width: 100%;
+}
+
+.btn-native-share {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-native-share:hover {
+  background: var(--primary);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.share-social-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-social-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.share-social-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .share-social-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.share-social-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-main);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.share-social-btn:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  transform: translateY(-1px);
+}
+
+.share-social-btn .social-icon {
+  font-size: 15px;
+}
+
+.share-qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.btn-toggle-qr {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: color 0.18s ease;
+}
+
+.btn-toggle-qr:hover {
+  color: var(--primary);
+}
+
+.share-qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-top: 4px;
+}
+
+.share-qr-img {
+  width: 140px;
+  height: 140px;
+  display: block;
+}
+
+.qr-subtext {
+  font-size: 11px;
+  color: #4b5563;
+  margin: 0;
+  text-align: center;
+}
+
+/* About Modal Spotlight Banner */
+.about-share-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(249, 115, 22, 0.10) 100%);
+  border: 1px dashed var(--primary);
+}
+
+.share-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.share-banner-sparkle {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.share-banner-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 2px 0;
+}
+
+.share-banner-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.btn-share-about {
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Interactive Easter Egg Logo */
+.interactive-logo-egg {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  user-select: none;
+}
+
+.interactive-logo-egg:hover {
+  transform: scale(1.25) rotate(-10deg);
+}
+
+.interactive-logo-egg:active {
+  transform: scale(0.9) rotate(15deg);
+}
+
+.app-fun-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+  animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* Manifesto Grid */
+.about-manifesto-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 520px) {
+  .about-manifesto-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.manifesto-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.manifesto-num {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 1;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.manifesto-content strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
+.manifesto-content p {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* Inspiration Easter Egg Box */
+.about-inspiration-box {
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.inspiration-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.btn-outline-inspire {
+  background: var(--bg-surface);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-outline-inspire:hover {
+  background: var(--primary);
+  color: #ffffff;
+  transform: rotate(-3deg) scale(1.05);
+}
+
+.inspiration-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inspiration-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inspiration-emoji {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.inspiration-cat {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.inspiration-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 2px 0 0 0;
+}
+
+.inspiration-addr {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.inspiration-desc {
+  font-size: 11.5px;
+  color: var(--text-main);
+  line-height: 1.35;
+  margin: 2px 0 0 0;
+}
+
+.inspiration-notes {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 2px 0 0 0;
+  line-height: 1.35;
+}
+
+.inspiration-actions {
+  margin-top: 6px;
+  display: flex;
+}
+
+.more-menu-item-highlight {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.more-menu-item-highlight svg {
+  color: var(--primary);
+}
+
+/* Floating Emoji Confetti Animation */
+.confetti-particle {
+  position: fixed;
+  z-index: 999999;
+  pointer-events: none;
+  font-size: 24px;
+  user-select: none;
+  animation: floatUpAndFade 1.6s ease-out forwards;
+}
+
+@keyframes floatUpAndFade {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.6) rotate(0deg);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translate(var(--dx, 20px), -60px) scale(1.3) rotate(var(--rot, 45deg));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--dx, 20px) * 1.5), -140px) scale(0.9) rotate(calc(var(--rot, 45deg) * 2));
+  }
+}
+
 /* Sidebar Footer */
 .sidebar-footer {
   padding: 10px 14px;

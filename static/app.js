@@ -2098,6 +2098,11 @@
       modal.classList.remove('hidden');
       if (window.lucide) window.lucide.createIcons();
 
+      // Ensure inspiration card is populated on first open
+      if (!this._currentInspiration && window.bListHelpers) {
+        this.rollInspiration();
+      }
+
       try {
         const info = await ApiClient.fetchAppInfo();
         if (info && info.version) {
@@ -2120,12 +2125,256 @@
       }
     },
 
+    openShareBListModal() {
+      const modal = document.getElementById('share-blist-modal');
+      if (!modal) return;
+
+      const appUrl = window.location.origin + '/';
+      const input = document.getElementById('share-blist-url-input');
+      if (input) input.value = appUrl;
+
+      // Check native share support
+      const nativeContainer = document.getElementById('native-share-container');
+      if (nativeContainer) {
+        if (navigator.share) {
+          nativeContainer.classList.remove('hidden');
+        } else {
+          nativeContainer.classList.add('hidden');
+        }
+      }
+
+      modal.classList.remove('hidden');
+      if (window.lucide) window.lucide.createIcons();
+    },
+
+    closeShareBListModal() {
+      const modal = document.getElementById('share-blist-modal');
+      if (modal) modal.classList.add('hidden');
+    },
+
+    async copyBListLink() {
+      const appUrl = window.location.origin + '/';
+      const btnText = document.getElementById('copy-blist-btn-text');
+      
+      let copied = false;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(appUrl);
+          copied = true;
+        } catch (_) {}
+      }
+
+      if (!copied) {
+        const input = document.getElementById('share-blist-url-input');
+        if (input) {
+          input.select();
+          document.execCommand('copy');
+          copied = true;
+        }
+      }
+
+      if (btnText) {
+        const originalText = btnText.textContent;
+        btnText.textContent = '✓ Copied!';
+        setTimeout(() => {
+          btnText.textContent = originalText;
+        }, 2000);
+      }
+
+      ToastManager.show('📋 bList link copied to clipboard!', 'success');
+    },
+
+    async shareBListViaNative() {
+      const appUrl = window.location.origin + '/';
+      const shareData = {
+        title: 'bList - Visual Map Bucket List & Trip Planner',
+        text: 'Save places from Instagram & Maps, organize trips, and explore your travel bucket list on a clean interactive map with bList! 🗺️✨',
+        url: appUrl
+      };
+
+      if (navigator.share) {
+        try {
+          await navigator.share(shareData);
+          ToastManager.show('✨ Shared bList successfully!', 'success');
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            await this.copyBListLink();
+          }
+        }
+      } else {
+        await this.copyBListLink();
+      }
+    },
+
+    async shareBListVia(platform) {
+      const appUrl = window.location.origin + '/';
+      const links = window.bListHelpers && typeof window.bListHelpers.generateShareLinks === 'function'
+        ? window.bListHelpers.generateShareLinks(appUrl)
+        : {
+            sms: `sms:?&body=${encodeURIComponent(`Check out bList for travel maps & bucket lists: ${appUrl}`)}`,
+            whatsapp: `https://api.whatsapp.com/send?text=${encodeURIComponent(`Check out bList: ${appUrl}`)}`,
+            messenger: `fb-messenger://share/?link=${encodeURIComponent(appUrl)}`,
+            twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out bList — visual travel bucket list & map trip planner! 🗺️✨ ${appUrl}`)}`,
+            email: `mailto:?subject=${encodeURIComponent('Check out bList!')}&body=${encodeURIComponent(`Hey!\n\nI thought you would love bList for saving places and organizing travel bucket lists on a map:\n\n${appUrl}`)}`
+          };
+
+      if (platform === 'sms') {
+        window.location.href = links.sms;
+      } else if (platform === 'whatsapp') {
+        window.open(links.whatsapp, '_blank', 'noopener,noreferrer');
+      } else if (platform === 'messenger') {
+        window.open(`https://www.facebook.com/dialog/send?link=${encodeURIComponent(appUrl)}&app_id=291494419107518&redirect_uri=${encodeURIComponent(appUrl)}`, '_blank', 'noopener,noreferrer');
+      } else if (platform === 'instagram') {
+        // Copy text & link for Instagram Story / DM
+        const igText = `Check out bList for travel bucket lists! 🗺️ ${appUrl}`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          try {
+            await navigator.clipboard.writeText(igText);
+          } catch (_) {}
+        }
+        ToastManager.show('📸 Link copied! Opening Instagram to share...', 'info');
+        setTimeout(() => {
+          window.open('https://instagram.com/', '_blank', 'noopener,noreferrer');
+        }, 600);
+      } else if (platform === 'twitter') {
+        window.open(links.twitter, '_blank', 'noopener,noreferrer');
+      } else if (platform === 'email') {
+        window.location.href = links.email;
+      }
+    },
+
+    toggleShareQrCode() {
+      const box = document.getElementById('share-qr-box');
+      const img = document.getElementById('share-qr-img');
+      const label = document.getElementById('qr-toggle-label');
+      if (!box || !img) return;
+
+      const isHidden = box.classList.contains('hidden');
+      if (isHidden) {
+        const appUrl = encodeURIComponent(window.location.origin + '/');
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${appUrl}&margin=8`;
+        box.classList.remove('hidden');
+        if (label) label.textContent = 'Hide QR Code';
+      } else {
+        box.classList.add('hidden');
+        if (label) label.textContent = 'Show QR Code for Phone Scan';
+      }
+    },
+
+    // Interactive Easter Egg & Whimsical Logo Clicker
+    _aboutLogoClicks: 0,
+    handleAboutLogoClick(event) {
+      this._aboutLogoClicks = (this._aboutLogoClicks || 0) + 1;
+      const clicks = this._aboutLogoClicks;
+
+      const trigger = document.getElementById('about-logo-trigger');
+      if (trigger) {
+        trigger.style.transform = `scale(${1 + (clicks % 4) * 0.15}) rotate(${((clicks * 25) % 90) - 45}deg)`;
+        setTimeout(() => {
+          trigger.style.transform = '';
+        }, 300);
+      }
+
+      if (clicks === 1) {
+        ToastManager.show('🧭 Ready for adventure!', 'info');
+      } else if (clicks === 3) {
+        ToastManager.show('🗺️ Wanderlust tingling!', 'info');
+        this.spawnConfettiBurst();
+      } else if (clicks >= 5) {
+        const secretBadge = document.getElementById('about-secret-badge');
+        if (secretBadge) secretBadge.style.display = 'inline-flex';
+        ToastManager.show('🏆 Master Wanderer Unlocked! Zero-AI, 100% Pure Deterministic Map Magic!', 'success');
+        this.spawnConfettiBurst(20);
+        this._aboutLogoClicks = 0;
+      }
+    },
+
+    spawnConfettiBurst(count = 10) {
+      const emojis = ['✨', '📍', '✈️', '🍜', '🗺️', '🎒', '🏔️', '🧭', '🗼', '🏖️', '🏮', '🛵', '☕'];
+      for (let i = 0; i < count; i++) {
+        const span = document.createElement('span');
+        span.className = 'confetti-particle';
+        span.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+        span.style.left = `${Math.random() * 80 + 10}vw`;
+        span.style.top = `${Math.random() * 40 + 30}vh`;
+        span.style.setProperty('--dx', `${(Math.random() - 0.5) * 100}px`);
+        span.style.setProperty('--rot', `${(Math.random() - 0.5) * 180}deg`);
+        document.body.appendChild(span);
+        setTimeout(() => {
+          if (span.parentNode) span.parentNode.removeChild(span);
+        }, 1600);
+      }
+    },
+
+    // Whimsical Inspiration Wonder Generator
+    _currentInspiration: null,
+    rollInspiration() {
+      if (!window.bListHelpers || typeof window.bListHelpers.getRandomInspiration !== 'function') return;
+      const currentIdx = this._currentInspiration ? this._currentInspiration.index : -1;
+      const next = window.bListHelpers.getRandomInspiration(currentIdx);
+      if (!next) return;
+
+      this._currentInspiration = next;
+      const emojiEl = document.getElementById('inspire-emoji');
+      const catEl = document.getElementById('inspire-cat');
+      const titleEl = document.getElementById('inspire-title');
+      const addrEl = document.getElementById('inspire-addr');
+      const descEl = document.getElementById('inspire-desc');
+      const notesEl = document.getElementById('inspire-notes');
+
+      if (emojiEl) emojiEl.textContent = next.emoji;
+      if (catEl) catEl.textContent = next.category;
+      if (titleEl) titleEl.textContent = next.title;
+      if (addrEl) addrEl.textContent = `📍 ${next.address}`;
+      if (descEl) descEl.textContent = next.description;
+      if (notesEl) notesEl.innerHTML = `💡 <em>${Utils.escapeHtml(next.notes)}</em>`;
+
+      const card = document.getElementById('inspiration-card');
+      if (card) {
+        card.style.animation = 'none';
+        card.offsetHeight; // Trigger reflow
+        card.style.animation = 'bounceIn 0.35s ease';
+      }
+    },
+
+    async addCurrentInspirationToMap() {
+      if (!this._currentInspiration) return;
+      const item = this._currentInspiration;
+      const activeListId = State.selectedListId && State.selectedListId > 0 ? State.selectedListId : 1;
+
+      const payload = {
+        list_id: activeListId,
+        title: item.title,
+        description: item.description,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        category: item.category,
+        emoji: item.emoji,
+        address: item.address,
+        notes: item.notes,
+        visited: false
+      };
+
+      try {
+        await ApiClient.createPin(payload);
+        ToastManager.show(`📍 "${item.title}" saved to your bucket list!`, 'success');
+        this.closeAboutModal();
+        await App.loadData();
+        // Fly to new place on map
+        MapController.flyToCoordinates(item.latitude, item.longitude, 12);
+      } catch (err) {
+        ToastManager.show(`Could not save place: ${err.message}`, 'error');
+      }
+    },
+
     handleBackdropClick(e, modalId) {
       if (e.target.id === modalId) {
         const modal = document.getElementById(modalId);
         if (modal) {
           if (modalId === 'about-modal') {
             this.closeAboutModal();
+          } else if (modalId === 'share-blist-modal') {
+            this.closeShareBListModal();
           } else {
             modal.classList.add('hidden');
           }
@@ -2988,6 +3237,17 @@
   // About & Info
   window.openAboutModal = () => ModalManager.openAboutModal();
   window.closeAboutModal = () => ModalManager.closeAboutModal();
+  window.handleAboutLogoClick = (e) => ModalManager.handleAboutLogoClick(e);
+  window.rollInspiration = () => ModalManager.rollInspiration();
+  window.addCurrentInspirationToMap = () => ModalManager.addCurrentInspirationToMap();
+
+  // Share bList
+  window.openShareBListModal = () => ModalManager.openShareBListModal();
+  window.closeShareBListModal = () => ModalManager.closeShareBListModal();
+  window.copyBListLink = () => ModalManager.copyBListLink();
+  window.shareBListViaNative = () => ModalManager.shareBListViaNative();
+  window.shareBListVia = (platform) => ModalManager.shareBListVia(platform);
+  window.toggleShareQrCode = () => ModalManager.toggleShareQrCode();
 
   // Import
   window.openImportModal = () => ImportModalController.openModal();

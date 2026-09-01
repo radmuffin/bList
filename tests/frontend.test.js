@@ -22,6 +22,10 @@ const {
   optimizeTour2Opt,
   formatFileSize,
   getOpeningStatus,
+  generateShareLinks,
+  getRandomInspiration,
+  MANIFESTO_RULES,
+  INSPIRATIONS,
   APP_INFO,
   getAppInfo
 } = require('../static/helpers.js');
@@ -956,6 +960,59 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       const openPins = filterPins(pins, { openNowOnly: true });
       assert.strictEqual(openPins.length, 1);
       assert.strictEqual(openPins[0].title, '24/7 Diner');
+    });
+  });
+
+  describe('Social & Messaging Share Links Generator (generateShareLinks)', () => {
+    it('should generate formatted share URLs with safe encoded parameters', () => {
+      const links = generateShareLinks('https://blist-radmuffin.fly.dev/', {
+        title: 'bList - Visual Map Bucket List',
+        text: 'Check out bList!'
+      });
+
+      assert.strictEqual(links.url, 'https://blist-radmuffin.fly.dev/');
+      assert.ok(links.sms.startsWith('sms:?&body='));
+      assert.ok(links.whatsapp.includes('api.whatsapp.com/send?text='));
+      assert.ok(links.messenger.includes('fb-messenger://share/?link='));
+      assert.ok(links.twitter.includes('twitter.com/intent/tweet?text='));
+      assert.ok(links.email.startsWith('mailto:?subject='));
+      assert.ok(links.qrUrl.includes('api.qrserver.com/v1/create-qr-code'));
+    });
+
+    it('should fallback safely when invalid or empty URL is provided', () => {
+      const links = generateShareLinks('');
+      assert.strictEqual(links.url, 'https://blist-radmuffin.fly.dev/');
+      assert.ok(links.whatsapp.includes('blist-radmuffin.fly.dev'));
+    });
+  });
+
+  describe('Whimsical Inspiration Generator (getRandomInspiration & MANIFESTO_RULES)', () => {
+    it('should return a valid random inspiration spot with full coordinates and notes', () => {
+      const item = getRandomInspiration();
+      assert.ok(item);
+      assert.ok(item.title);
+      assert.ok(item.emoji);
+      assert.ok(typeof item.latitude === 'number');
+      assert.ok(typeof item.longitude === 'number');
+      assert.ok(item.address);
+      assert.ok(item.notes);
+    });
+
+    it('should respect excludeIndex to avoid immediate consecutive duplicates', () => {
+      const item1 = getRandomInspiration();
+      const item2 = getRandomInspiration(item1.index);
+      if (INSPIRATIONS.length > 1) {
+        assert.notStrictEqual(item1.index, item2.index);
+      }
+    });
+
+    it('should contain 4 whimsical manifesto rules', () => {
+      assert.strictEqual(MANIFESTO_RULES.length, 4);
+      assert.strictEqual(MANIFESTO_RULES[0].rule, 1);
+      assert.ok(MANIFESTO_RULES[0].title.includes('Pin First'));
+      assert.ok(MANIFESTO_RULES[1].title.includes('Zero AI'));
+      assert.ok(MANIFESTO_RULES[2].title.includes('Noodles'));
+      assert.ok(MANIFESTO_RULES[3].title.includes('Your Data'));
     });
   });
 

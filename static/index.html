@@ -169,6 +169,10 @@
                 <i data-lucide="download"></i>
                 <span>Export GeoJSON</span>
               </button>
+              <button type="button" class="more-menu-item more-menu-item-highlight" onclick="openShareBListModal(); closeMobileMoreMenu();">
+                <i data-lucide="share-2"></i>
+                <span>Share bList!</span>
+              </button>
               <button type="button" class="more-menu-item" onclick="openAboutModal(); closeMobileMoreMenu();">
                 <i data-lucide="info"></i>
                 <span>About bList</span>
@@ -659,12 +663,98 @@
     </div>
   </div>
 
+  <!-- Share bList Modal -->
+  <div id="share-blist-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="share-blist-modal-title" onclick="handleModalBackdropClick(event, 'share-blist-modal')">
+    <div class="modal-card modal-share-blist">
+      <div class="modal-header">
+        <div class="share-blist-header-title">
+          <span class="share-logo-icon">✨</span>
+          <h2 id="share-blist-modal-title">Share bList!</h2>
+        </div>
+        <button class="btn-close" onclick="closeShareBListModal()" aria-label="Close modal">&times;</button>
+      </div>
+
+      <div class="share-blist-modal-body">
+        <p class="share-blist-intro">
+          Spread the word! Share bList with travel buddies, friends, and fellow adventurers.
+        </p>
+
+        <!-- Direct Copy Link Section -->
+        <div class="share-link-box">
+          <label class="share-link-label" for="share-blist-url-input">App / PWA Link</label>
+          <div class="share-link-input-group">
+            <input type="text" id="share-blist-url-input" class="share-link-input" readonly value="https://blist-radmuffin.fly.dev/">
+            <button type="button" class="btn btn-primary btn-copy-share" id="btn-copy-blist-link" onclick="copyBListLink()">
+              <i data-lucide="copy"></i>
+              <span id="copy-blist-btn-text">Copy Link</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Native Share Button (if supported) -->
+        <div id="native-share-container" class="native-share-wrapper">
+          <button type="button" class="btn btn-native-share" onclick="shareBListViaNative()">
+            <i data-lucide="share-2"></i>
+            <span>Share via Apps / Messages...</span>
+          </button>
+        </div>
+
+        <!-- Quick Social & Messaging Grid -->
+        <div class="share-social-section">
+          <span class="share-social-heading">QUICK SHARE TO</span>
+          <div class="share-social-grid">
+            <button type="button" class="share-social-btn share-sms" onclick="shareBListVia('sms')" title="Share via Text / SMS">
+              <span class="social-icon">💬</span>
+              <span class="social-label">Text / SMS</span>
+            </button>
+            <button type="button" class="share-social-btn share-whatsapp" onclick="shareBListVia('whatsapp')" title="Share via WhatsApp">
+              <span class="social-icon">📱</span>
+              <span class="social-label">WhatsApp</span>
+            </button>
+            <button type="button" class="share-social-btn share-messenger" onclick="shareBListVia('messenger')" title="Share via Messenger">
+              <span class="social-icon">⚡</span>
+              <span class="social-label">Messenger</span>
+            </button>
+            <button type="button" class="share-social-btn share-instagram" onclick="shareBListVia('instagram')" title="Share to Instagram">
+              <span class="social-icon">📸</span>
+              <span class="social-label">Instagram</span>
+            </button>
+            <button type="button" class="share-social-btn share-twitter" onclick="shareBListVia('twitter')" title="Share on X / Twitter">
+              <span class="social-icon">🐦</span>
+              <span class="social-label">X / Twitter</span>
+            </button>
+            <button type="button" class="share-social-btn share-email" onclick="shareBListVia('email')" title="Share via Email">
+              <span class="social-icon">✉️</span>
+              <span class="social-label">Email</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- QR Code Card -->
+        <div class="share-qr-section">
+          <button type="button" class="btn-toggle-qr" onclick="toggleShareQrCode()">
+            <i data-lucide="qr-code"></i>
+            <span id="qr-toggle-label">Show QR Code for Phone Scan</span>
+          </button>
+          <div id="share-qr-box" class="share-qr-box hidden">
+            <img id="share-qr-img" class="share-qr-img" alt="bList PWA QR Code" src="" loading="lazy">
+            <p class="qr-subtext">Scan with any phone camera to instantly open bList!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeShareBListModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- About Modal -->
   <div id="about-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="about-modal-title" onclick="handleModalBackdropClick(event, 'about-modal')">
     <div class="modal-card modal-about">
       <div class="modal-header">
         <div class="about-header-title">
-          <span class="about-logo-icon">🗺️</span>
+          <button type="button" class="about-logo-icon interactive-logo-egg" id="about-logo-trigger" onclick="handleAboutLogoClick()" title="Tap for good travel karma!" aria-label="Interactive map logo">🗺️</button>
           <h2 id="about-modal-title">About bList</h2>
         </div>
         <button class="btn-close" onclick="closeAboutModal()" aria-label="Close modal">&times;</button>
@@ -675,11 +765,95 @@
           <div class="about-badge-row">
             <span class="app-version-badge" id="about-version-badge">v0.1.0</span>
             <span class="app-status-badge"><span class="status-dot"></span> Active</span>
+            <span class="app-fun-badge" id="about-secret-badge" style="display: none;">🏆 Master Wanderer</span>
           </div>
           <p class="about-tagline">Visual Map Bucket List &amp; Trip Planner</p>
           <p class="about-desc">
             A fast, private, and deterministic travel bucket list application. Easily save places from Google Maps, Instagram, Apple Maps, and travel articles, organize trips into custom collections, and explore on an interactive map.
           </p>
+        </div>
+
+        <!-- Share bList Spotlight Banner -->
+        <div class="about-share-banner">
+          <div class="share-banner-content">
+            <span class="share-banner-sparkle">✨</span>
+            <div class="share-banner-text">
+              <h4 class="share-banner-title">Love bList? Share it with friends!</h4>
+              <p class="share-banner-desc">Help fellow travelers map their dreams without the AI noise.</p>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm btn-share-about" onclick="openShareBListModal()">
+            <i data-lucide="share-2"></i>
+            <span>Share bList!</span>
+          </button>
+        </div>
+
+        <!-- Whimsical Traveler's Manifesto -->
+        <div class="about-section">
+          <h3 class="about-section-heading">
+            <i data-lucide="compass"></i>
+            <span>The Bucket List Manifesto</span>
+          </h3>
+          <div class="about-manifesto-grid">
+            <div class="manifesto-card">
+              <span class="manifesto-num">01</span>
+              <div class="manifesto-content">
+                <strong>Pin First, Wander Forever</strong>
+                <p>Save places the moment inspiration strikes. Real adventures happen outside the algorithm.</p>
+              </div>
+            </div>
+            <div class="manifesto-card">
+              <span class="manifesto-num">02</span>
+              <div class="manifesto-content">
+                <strong>Zero AI Hallucinations</strong>
+                <p>100% deterministic parsing &amp; OSM geocoding. Real spots that actually exist with zero fake hype.</p>
+              </div>
+            </div>
+            <div class="manifesto-card">
+              <span class="manifesto-num">03</span>
+              <div class="manifesto-content">
+                <strong>Back-Alley Noodles Rule</strong>
+                <p>The best food &amp; hidden gems are discovered by curious travelers, not sponsored tourist traps.</p>
+              </div>
+            </div>
+            <div class="manifesto-card">
+              <span class="manifesto-num">04</span>
+              <div class="manifesto-content">
+                <strong>Your Data, Your Journey</strong>
+                <p>Anonymous device tokens, zero trackers, full offline-ready PWA, and instant GeoJSON exports.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Wonder Inspiration Easter Egg -->
+        <div class="about-section about-inspiration-box">
+          <div class="inspiration-header">
+            <h3 class="about-section-heading">
+              <i data-lucide="sparkles"></i>
+              <span>Need Inspiration?</span>
+            </h3>
+            <button type="button" class="btn btn-sm btn-outline-inspire" id="btn-inspire-roll" onclick="rollInspiration()">
+              <i data-lucide="dices"></i>
+              <span>Inspire Me!</span>
+            </button>
+          </div>
+          <div class="inspiration-card" id="inspiration-card">
+            <div class="inspiration-badge-row">
+              <span class="inspiration-emoji" id="inspire-emoji">🏮</span>
+              <span class="inspiration-cat" id="inspire-cat">Food &amp; Drink</span>
+            </div>
+            <h4 class="inspiration-title" id="inspire-title">Jiufen Old Street</h4>
+            <p class="inspiration-addr" id="inspire-addr">📍 Ruifang District, New Taipei City, Taiwan</p>
+            <p class="inspiration-desc" id="inspire-desc">Atmospheric lantern-lit mountain village with legendary taro balls and tea houses.</p>
+            <p class="inspiration-notes" id="inspire-notes">💡 <em>Inspired Spirited Away vibes! Try the herbal rice cakes and sip Oolong at Amei Tea House.</em></p>
+            <div class="inspiration-actions">
+              <button type="button" class="btn btn-sm btn-primary" id="btn-add-inspire-place" onclick="addCurrentInspirationToMap()">
+                <i data-lucide="plus-circle"></i>
+                <span>Save to Bucket List</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="about-section">
@@ -726,7 +900,7 @@
           <div class="about-meta-grid">
             <div class="meta-item">
               <span class="meta-label">Backend Engine</span>
-              <span class="meta-value">Rust &amp; Axum 0.7</span>
+              <span class="meta-value">Rust &amp; Axum 0.7 ⚡</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">Database</span>
@@ -737,8 +911,8 @@
               <span class="meta-value">OpenStreetMap &amp; Leaflet</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">Platform</span>
-              <span class="meta-value">PWA &amp; Web</span>
+              <span class="meta-label">Philosophy</span>
+              <span class="meta-value">0% AI • 100% Deterministic</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">License</span>

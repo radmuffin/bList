@@ -1053,6 +1053,162 @@
   }
 
   /**
+   * Curated collection of whimsical, iconic bucket list destinations for the inspiration easter egg.
+   */
+  const INSPIRATIONS = [
+    {
+      title: "Jiufen Old Street",
+      emoji: "🏮",
+      category: "Food & Drink",
+      latitude: 25.1099,
+      longitude: 121.8452,
+      address: "Ruifang District, New Taipei City, Taiwan",
+      description: "Atmospheric lantern-lit mountain village with legendary taro balls and tea houses.",
+      notes: "Inspired Spirited Away vibes! Try the herbal rice cakes and sip Oolong at Amei Tea House."
+    },
+    {
+      title: "Chefchaouen Blue City",
+      emoji: "💙",
+      category: "Sightseeing",
+      latitude: 35.1688,
+      longitude: -5.2636,
+      address: "Chefchaouen, Morocco",
+      description: "Enchanting medina washed in vibrant shades of cobalt and powder blue nestled in the Rif Mountains.",
+      notes: "Get lost in the blue alleys early in the morning before crowds arrive."
+    },
+    {
+      title: "Fushimi Inari Taisha",
+      emoji: "⛩️",
+      category: "Culture",
+      latitude: 34.9671,
+      longitude: 135.7727,
+      address: "Fushimi Ward, Kyoto, Japan",
+      description: "Thousands of vermilion torii gates winding through sacred forest paths up Mount Inari.",
+      notes: "Hike past the summit during twilight for breathtaking Kyoto panorama."
+    },
+    {
+      title: "Blue Lagoon Geothermal Spa",
+      emoji: "♨️",
+      category: "Nature & Outdoors",
+      latitude: 63.8804,
+      longitude: -22.4495,
+      address: "Grindavík, Iceland",
+      description: "Mineral-rich milky blue geothermal seawater surrounded by black lava fields.",
+      notes: "Pre-book the silica mud mask experience. Unforgettable during snow season."
+    },
+    {
+      title: "Cinque Terre Coastal Trail",
+      emoji: "🌊",
+      category: "Nature & Outdoors",
+      latitude: 44.1461,
+      longitude: 9.6439,
+      address: "Liguria, Italy",
+      description: "Five cliffside pastel fishing villages connected by coastal hiking paths overlooking the Mediterranean.",
+      notes: "Grab freshly fried calamari in a paper cone in Riomaggiore at sunset."
+    },
+    {
+      title: "Banff Moraine Lake",
+      emoji: "🏔️",
+      category: "Nature & Outdoors",
+      latitude: 51.3217,
+      longitude: -116.1860,
+      address: "Banff National Park, Alberta, Canada",
+      description: "Glacially fed azure lake reflecting the dramatic Valley of the Ten Peaks.",
+      notes: "Canoe on the turquoise water at sunrise for mirrored mountain reflections."
+    },
+    {
+      title: "Sidi Bou Said",
+      emoji: "☕",
+      category: "Cafe",
+      latitude: 36.8703,
+      longitude: 10.3417,
+      address: "Carthage, Tunis, Tunisia",
+      description: "Cliffside village overlooking the Gulf of Tunis with whitewashed walls and electric blue doors.",
+      notes: "Sip traditional pine-nut mint tea at Café des Délices while watching Mediterranean boats."
+    },
+    {
+      title: "Horseshoe Bend",
+      emoji: "🏜️",
+      category: "Sightseeing",
+      latitude: 36.8790,
+      longitude: -111.5105,
+      address: "Page, Arizona, USA",
+      description: "Dramatic 1,000-foot sheer canyon drop carved into a horseshoe curve by the Colorado River.",
+      notes: "Best photographed with a wide-angle lens 1 hour before sunset."
+    },
+    {
+      title: "Bagan Ancient Pagodas",
+      emoji: "🎈",
+      category: "Culture",
+      latitude: 21.1717,
+      longitude: 94.8585,
+      address: "Mandalay Region, Myanmar",
+      description: "Archaeological landscape dotted with over 2,000 ancient Buddhist temples and stupas.",
+      notes: "Hot air balloon flight over the misty temple plains at sunrise."
+    },
+    {
+      title: "Giant's Causeway",
+      emoji: "🗿",
+      category: "Nature & Outdoors",
+      latitude: 55.2408,
+      longitude: -6.5116,
+      address: "Bushmills, County Antrim, Northern Ireland",
+      description: "40,000 interlocking basalt hexagonal columns created by ancient volcanic fissures.",
+      notes: "Walk the Shepherd's Steps cliff path for panoramic Atlantic views."
+    }
+  ];
+
+  /**
+   * Generates formatted share URLs for various social and messaging platforms.
+   */
+  function generateShareLinks(url, options = {}) {
+    const safeUrl = sanitizeUrl(url) || 'https://blist-radmuffin.fly.dev/';
+    const title = options.title || 'bList - Visual Map Bucket List & Trip Planner';
+    const text = options.text || `Check out bList — a fast, private travel bucket list & map trip planner! 🗺️✨\n${safeUrl}`;
+    const encodedUrl = encodeURIComponent(safeUrl);
+    const encodedText = encodeURIComponent(text);
+    const encodedTitle = encodeURIComponent(title);
+
+    return {
+      url: safeUrl,
+      text,
+      sms: `sms:?&body=${encodeURIComponent(`Check out bList for travel bucket lists & map planning: ${safeUrl}`)}`,
+      whatsapp: `https://api.whatsapp.com/send?text=${encodeURIComponent(`Check out bList: ${safeUrl}`)}`,
+      messenger: `fb-messenger://share/?link=${encodedUrl}`,
+      twitter: `https://twitter.com/intent/tweet?text=${encodedText}`,
+      email: `mailto:?subject=${encodedTitle}&body=${encodeURIComponent(`Hey!\n\nI thought you'd love bList for saving places and organizing travel bucket lists on a visual map:\n\n${safeUrl}\n\nHappy travels! 🗺️✈️`)}`,
+      telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(title)}`,
+      qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodedUrl}&margin=10`
+    };
+  }
+
+  /**
+   * Returns a random or indexed bucket list inspiration.
+   */
+  function getRandomInspiration(excludeIndex = -1) {
+    if (INSPIRATIONS.length === 0) return null;
+    let index;
+    if (INSPIRATIONS.length === 1) {
+      index = 0;
+    } else {
+      do {
+        index = Math.floor(Math.random() * INSPIRATIONS.length);
+      } while (index === excludeIndex && INSPIRATIONS.length > 1);
+    }
+    return { ...INSPIRATIONS[index], index };
+  }
+
+  /**
+   * The 4 playful manifesto rules of bList.
+   */
+  const MANIFESTO_RULES = [
+    { rule: 1, title: 'Pin First, Explore Forever', desc: 'Save places whenever inspiration strikes. Real adventures happen outside the algorithm.' },
+    { rule: 2, title: 'Zero AI Hallucinations', desc: '100% deterministic parsing & OpenStreetMap coords. Places that actually exist with zero fluff.' },
+    { rule: 3, title: 'Back-Alley Noodles Rule', desc: 'The best discoveries aren\'t on generic top-10 sponsored lists.' },
+    { rule: 4, title: 'Your Data, Your Journey', desc: 'Private multi-device sync, zero trackers, full GeoJSON/CSV export ownership.' }
+  ];
+
+  /**
    * Application metadata, version, and repository/support links.
    */
   const APP_INFO = Object.freeze({
@@ -1096,6 +1252,10 @@
     formatFileSize,
     parseTimeToMinutes,
     formatMinutesToTime,
-    getOpeningStatus
+    getOpeningStatus,
+    generateShareLinks,
+    getRandomInspiration,
+    MANIFESTO_RULES,
+    INSPIRATIONS
   };
 });
