@@ -686,19 +686,101 @@
       State.map = L.map('map', {
         zoomControl: true,
         tap: true,
-        maxZoom: 19
+        maxZoom: 19,
+        doubleClickZoom: false
       }).setView([20.0, 0.0], 2);
 
       State.markerLayer = L.layerGroup().addTo(State.map);
 
       this.applyLayer(State.currentLayerName, false);
 
-      // Click on map to add place manually with reverse-geocoding
-      State.map.on('click', (e) => {
-        const lat = e.latlng.lat.toFixed(6);
-        const lon = e.latlng.lng.toFixed(6);
+      let lastModalOpenTime = 0;
+      const triggerManualPin = (latlng) => {
+        const now = Date.now();
+        if (now - lastModalOpenTime < 600) return;
+        lastModalOpenTime = now;
+        const lat = latlng.lat.toFixed(6);
+        const lon = latlng.lng.toFixed(6);
         ModalManager.openManualPinModal(lat, lon);
+      };
+
+      // Double-click / double-tap on map to add place manually
+      State.map.on('dblclick', (e) => {
+        if (e.originalEvent && e.originalEvent.target && e.originalEvent.target.closest && e.originalEvent.target.closest('.leaflet-marker-icon, .leaflet-popup, .leaflet-control')) {
+          return;
+        }
+        triggerManualPin(e.latlng);
       });
+
+      // Tap and hold (long-press) / Right-click on map to add place manually
+      State.map.on('contextmenu', (e) => {
+        if (e.originalEvent) {
+          e.originalEvent.preventDefault();
+          if (e.originalEvent.target && e.originalEvent.target.closest && e.originalEvent.target.closest('.leaflet-marker-icon, .leaflet-popup, .leaflet-control')) {
+            return;
+          }
+        }
+        triggerManualPin(e.latlng);
+      });
+
+      // Touch hold / long-press handler for mobile touchscreens
+      let touchTimer = null;
+      let touchStartPos = null;
+      const mapEl = document.getElementById('map');
+      if (mapEl) {
+        mapEl.addEventListener('touchstart', (e) => {
+          if (e.touches.length !== 1) {
+            clearTimeout(touchTimer);
+            touchTimer = null;
+            return;
+          }
+          if (e.target && e.target.closest && e.target.closest('.leaflet-marker-icon, .leaflet-popup, .leaflet-control, .fab, .mobile-view-toggle, .bottom-nav')) {
+            clearTimeout(touchTimer);
+            touchTimer = null;
+            return;
+          }
+          const touch = e.touches[0];
+          touchStartPos = { x: touch.clientX, y: touch.clientY };
+          clearTimeout(touchTimer);
+          touchTimer = setTimeout(() => {
+            if (!State.map || !touchStartPos) return;
+            const containerRect = mapEl.getBoundingClientRect();
+            const point = L.point(
+              touchStartPos.x - containerRect.left,
+              touchStartPos.y - containerRect.top
+            );
+            const latlng = State.map.containerPointToLatLng(point);
+            if (navigator.vibrate) {
+              try { navigator.vibrate(40); } catch (_) {}
+            }
+            triggerManualPin(latlng);
+          }, 500);
+        }, { passive: true });
+
+        mapEl.addEventListener('touchmove', (e) => {
+          if (!touchTimer || !touchStartPos || e.touches.length !== 1) {
+            clearTimeout(touchTimer);
+            touchTimer = null;
+            return;
+          }
+          const touch = e.touches[0];
+          const dist = Math.hypot(touch.clientX - touchStartPos.x, touch.clientY - touchStartPos.y);
+          if (dist > 10) {
+            // User is panning or scrolling the map
+            clearTimeout(touchTimer);
+            touchTimer = null;
+          }
+        }, { passive: true });
+
+        const cancelTouch = () => {
+          clearTimeout(touchTimer);
+          touchTimer = null;
+          touchStartPos = null;
+        };
+
+        mapEl.addEventListener('touchend', cancelTouch, { passive: true });
+        mapEl.addEventListener('touchcancel', cancelTouch, { passive: true });
+      }
     },
 
     applyLayer(layerKey, persistManualChoice = true) {
@@ -1036,6 +1118,14 @@
     },
 
     selectList(listId) {
+      if (listId === '__new_list__') {
+        const listSelect = document.getElementById('list-select');
+        if (listSelect) {
+          listSelect.value = State.currentListFilter;
+        }
+        ModalManager.openNewListModal();
+        return;
+      }
       State.currentListFilter = String(listId);
       UIManager.renderAll();
       MapController.resetMapView();
@@ -1385,6 +1475,10 @@
           `;
         });
 
+        optionsHtml += `
+          <option value="__new_list__">➕ Create New List / Trip...</option>
+        `;
+
         listSelect.innerHTML = optionsHtml;
       }
 
@@ -1565,17 +1659,30 @@
       const backdrop = document.getElementById('sidebar-backdrop');
       const btnMap = document.getElementById('btn-show-map');
       const btnList = document.getElementById('btn-show-list');
+      const headerAddBtn = document.getElementById('btn-add-place');
 
       if (view === 'list') {
         if (sidebar) sidebar.classList.add('mobile-open');
         if (backdrop) backdrop.classList.add('active');
         if (btnMap) btnMap.classList.remove('active');
         if (btnList) btnList.classList.add('active');
+        if (headerAddBtn) {
+          const textSpan = headerAddBtn.querySelector('.btn-text');
+          if (textSpan) textSpan.textContent = 'New List';
+          headerAddBtn.title = 'Create New List or Trip';
+          headerAddBtn.setAttribute('aria-label', 'Create New List or Trip');
+        }
       } else {
         if (sidebar) sidebar.classList.remove('mobile-open');
         if (backdrop) backdrop.classList.remove('active');
         if (btnMap) btnMap.classList.add('active');
         if (btnList) btnList.classList.remove('active');
+        if (headerAddBtn) {
+          const textSpan = headerAddBtn.querySelector('.btn-text');
+          if (textSpan) textSpan.textContent = 'Add';
+          headerAddBtn.title = 'Add Place';
+          headerAddBtn.setAttribute('aria-label', 'Add Place');
+        }
         setTimeout(() => State.map && State.map.invalidateSize(), 150);
       }
     },
@@ -1601,7 +1708,9 @@
     },
 
     handleHeaderAddClick() {
-      if (window.innerWidth <= 768) {
+      if (State.currentMobileView === 'list') {
+        ModalManager.openNewListModal();
+      } else if (window.innerWidth <= 768) {
         this.toggleMobileQuickAdd();
       } else {
         ModalManager.openManualPinModal();

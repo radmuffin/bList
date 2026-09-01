@@ -750,6 +750,21 @@ body {
   text-decoration: underline;
 }
 
+.btn-new-list-highlight {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  transition: all var(--transition-fast);
+}
+
+.btn-new-list-highlight:hover {
+  background-color: var(--primary);
+  color: #ffffff;
+  text-decoration: none;
+}
+
 .custom-select-container {
   position: relative;
   display: flex;

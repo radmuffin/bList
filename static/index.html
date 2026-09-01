@@ -82,15 +82,15 @@
             <div class="theme-menu hidden" id="theme-menu" role="menu">
               <button class="theme-opt" data-theme-val="light" onclick="setTheme('light')" role="menuitem">
                 <i data-lucide="sun"></i>
-                <span>☀️ Light</span>
+                <span>Light</span>
               </button>
               <button class="theme-opt" data-theme-val="dark" onclick="setTheme('dark')" role="menuitem">
                 <i data-lucide="moon"></i>
-                <span>🌙 Dark</span>
+                <span>Dark</span>
               </button>
               <button class="theme-opt active" data-theme-val="auto" onclick="setTheme('auto')" role="menuitem">
                 <i data-lucide="monitor"></i>
-                <span>💻 Auto (System)</span>
+                <span>Auto (System)</span>
               </button>
             </div>
           </div>
@@ -103,7 +103,7 @@
             <i data-lucide="sparkles" class="btn-icon"></i>
             <span class="btn-text desktop-only">Surprise Me</span>
           </button>
-          <button class="btn btn-primary header-add-btn" id="btn-add-place" onclick="openManualPinModal()" title="Add place" aria-label="Add Place">
+          <button class="btn btn-primary header-add-btn" id="btn-add-place" onclick="handleHeaderAddClick()" title="Add place" aria-label="Add Place">
             <i data-lucide="plus" class="btn-icon"></i>
             <span class="btn-text">Add</span>
           </button>
@@ -145,29 +145,33 @@
                 </div>
               </div>
               <div class="more-menu-divider"></div>
+              <button type="button" class="more-menu-item" onclick="openNewListModal(); closeMobileMoreMenu();">
+                <i data-lucide="folder-plus"></i>
+                <span>New List / Trip</span>
+              </button>
               <button type="button" class="more-menu-item" onclick="openManualPinModal(); closeMobileMoreMenu();">
                 <i data-lucide="plus-circle"></i>
-                <span>✏️ Add Place Manually</span>
+                <span>Add Place Manually</span>
               </button>
               <button type="button" class="more-menu-item" onclick="openImportModal(); closeMobileMoreMenu();">
                 <i data-lucide="upload-cloud"></i>
-                <span>📥 Import Places (Takeout/CSV)</span>
+                <span>Import Places (Takeout/CSV)</span>
               </button>
               <button type="button" class="more-menu-item" onclick="openSyncModal(); closeMobileMoreMenu();">
                 <i data-lucide="smartphone"></i>
-                <span>📱 Device Sync</span>
+                <span>Device Sync</span>
               </button>
               <button type="button" class="more-menu-item" onclick="openGoogleMapsRoute(); closeMobileMoreMenu();">
                 <i data-lucide="navigation"></i>
-                <span>🚗 Google Maps Route</span>
+                <span>Google Maps Route</span>
               </button>
               <button type="button" class="more-menu-item" onclick="exportData('geojson'); closeMobileMoreMenu();">
                 <i data-lucide="download"></i>
-                <span>📥 Export GeoJSON</span>
+                <span>Export GeoJSON</span>
               </button>
               <button type="button" class="more-menu-item" onclick="openAboutModal(); closeMobileMoreMenu();">
                 <i data-lucide="info"></i>
-                <span>ℹ️ About bList</span>
+                <span>About bList</span>
               </button>
             </div>
           </div>
@@ -225,9 +229,9 @@
             <div class="list-selector-header">
               <span class="section-label">TRIP / COLLECTION</span>
               <div class="list-actions-group">
-                <button class="btn-link-action" onclick="openImportModal()" title="Import places from Google Takeout, CSV, KML">📥 Import</button>
-                <button class="btn-link-action" id="share-list-btn" onclick="openShareListModal()" title="Share / Collaborate on this list">🔗 Share</button>
-                <button class="btn-link-action" onclick="openNewListModal()" title="Create New List">+ New</button>
+                <button class="btn-link-action" onclick="openImportModal()" title="Import places from Google Takeout, CSV, KML">Import</button>
+                <button class="btn-link-action" id="share-list-btn" onclick="openShareListModal()" title="Share / Collaborate on this list">Share</button>
+                <button class="btn-link-action btn-new-list-highlight" onclick="openNewListModal()" title="Create New List or Trip">+ New List</button>
               </div>
             </div>
             <div class="custom-select-container">
@@ -388,7 +392,7 @@
 
         <div class="map-overlay-tip desktop-only">
           <i data-lucide="mouse-pointer-click"></i>
-          <span>Click anywhere on map to add a place</span>
+          <span>Double-click or press & hold map to add a place</span>
         </div>
       </main>
     </div>
