@@ -312,7 +312,7 @@ checksum = "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890"
 [[package]]
 name = "fly_common"
 version = "0.1.0"
-source = "git+https://github.com/radmuffin/fly-common#a63fa39cd24010c7c9f9db4af76863ee61481a3e"
+source = "git+https://github.com/radmuffin/fly-common#c1895e1c4f8b0ec250a7f1350eb9f241d6594427"
 dependencies = [
  "async-trait",
  "axum",
