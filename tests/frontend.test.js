@@ -24,6 +24,7 @@ const {
   getOpeningStatus,
   generateShareLinks,
   generateQrSvg,
+  detectSwipeGesture,
   getRandomInspiration,
   MANIFESTO_RULES,
   INSPIRATIONS,
@@ -1158,6 +1159,87 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
 
       const res2 = generateQrSvg(null);
       assert.deepStrictEqual(res2, { svg: '', dataUrl: '', size: 0, moduleCount: 0 });
+    });
+  });
+
+  describe('Mobile Touch & Swipe Gesture Navigation (detectSwipeGesture)', () => {
+    it('should detect left-edge right swipe to open mobile drawer panel', () => {
+      const res = detectSwipeGesture({
+        startX: 15, // Started at left edge
+        startY: 300,
+        endX: 120, // Swiped right +105px
+        endY: 310,
+        screenWidth: 375
+      });
+
+      assert.strictEqual(res.isSwipe, true);
+      assert.strictEqual(res.direction, 'right');
+      assert.strictEqual(res.isLeftEdge, true);
+      assert.strictEqual(res.isRightEdge, false);
+      assert.strictEqual(res.deltaX, 105);
+    });
+
+    it('should detect swipe left anywhere on open drawer to close panel', () => {
+      const res = detectSwipeGesture({
+        startX: 250,
+        startY: 200,
+        endX: 100, // Swiped left -150px
+        endY: 205,
+        screenWidth: 375
+      });
+
+      assert.strictEqual(res.isSwipe, true);
+      assert.strictEqual(res.direction, 'left');
+      assert.strictEqual(res.isLeftEdge, false);
+      assert.strictEqual(res.deltaX, -150);
+    });
+
+    it('should detect downward swipe for modal dismiss gesture', () => {
+      const res = detectSwipeGesture({
+        startX: 180,
+        startY: 50,
+        endX: 185,
+        endY: 160, // Swiped down +110px
+        screenWidth: 375
+      });
+
+      assert.strictEqual(res.isSwipe, true);
+      assert.strictEqual(res.direction, 'down');
+      assert.strictEqual(res.deltaY, 110);
+    });
+
+    it('should reject ambiguous diagonal drags and vertical list scrolls', () => {
+      // Vertical list scroll (Y moves 120px, X moves 30px)
+      const scrollRes = detectSwipeGesture({
+        startX: 100,
+        startY: 100,
+        endX: 130,
+        endY: 220,
+        maxPerpendicular: 60
+      });
+      // Should not be recognized as a horizontal drawer swipe
+      assert.notStrictEqual(scrollRes.direction, 'right');
+      assert.notStrictEqual(scrollRes.direction, 'left');
+
+      // Ambiguous diagonal movement
+      const diagonalRes = detectSwipeGesture({
+        startX: 100,
+        startY: 100,
+        endX: 180,
+        endY: 180
+      });
+      assert.strictEqual(diagonalRes.isSwipe, false);
+    });
+
+    it('should reject small micro-movements below minimum threshold', () => {
+      const res = detectSwipeGesture({
+        startX: 100,
+        startY: 100,
+        endX: 115,
+        endY: 105,
+        minDistance: 45
+      });
+      assert.strictEqual(res.isSwipe, false);
     });
   });
 

@@ -3245,6 +3245,147 @@
     }
   };
 
+  // ==========================================================================
+  // 12b. Mobile Swipe Gesture Navigation
+  // ==========================================================================
+  const SwipeNavigationManager = {
+    touchStartX: 0,
+    touchStartY: 0,
+    touchStartTime: 0,
+    sidebarEl: null,
+
+    init() {
+      this.sidebarEl = document.getElementById('sidebar');
+      this.setupGlobalSwipe();
+      this.setupSidebarDrag();
+      this.setupModalSwipe();
+    },
+
+    setupGlobalSwipe() {
+      document.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        this.touchStartX = e.touches[0].clientX;
+        this.touchStartY = e.touches[0].clientY;
+        this.touchStartTime = Date.now();
+      }, { passive: true });
+
+      document.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length !== 1 || window.innerWidth > 768) return;
+        const endX = e.changedTouches[0].clientX;
+        const endY = e.changedTouches[0].clientY;
+        const elapsed = Date.now() - this.touchStartTime;
+        if (elapsed > 700) return; // Ignore long presses/stalls
+
+        const gesture = window.bListHelpers && typeof window.bListHelpers.detectSwipeGesture === 'function'
+          ? window.bListHelpers.detectSwipeGesture({
+              startX: this.touchStartX,
+              startY: this.touchStartY,
+              endX,
+              endY,
+              minDistance: 45,
+              maxPerpendicular: 60,
+              edgeThreshold: 45,
+              screenWidth: window.innerWidth
+            })
+          : null;
+
+        if (!gesture || !gesture.isSwipe) return;
+
+        const isSidebarOpen = this.sidebarEl && this.sidebarEl.classList.contains('mobile-open');
+
+        // Edge swipe right on map -> Open list/places drawer
+        if (!isSidebarOpen && gesture.direction === 'right' && gesture.isLeftEdge) {
+          UIManager.showMobileView('list');
+        }
+
+        // Swipe left on open sidebar -> Close drawer and return to map
+        if (isSidebarOpen && gesture.direction === 'left') {
+          UIManager.showMobileView('map');
+        }
+      }, { passive: true });
+    },
+
+    setupSidebarDrag() {
+      if (!this.sidebarEl) return;
+      let startX = 0;
+      let currentX = 0;
+      let isTracking = false;
+
+      this.sidebarEl.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1 || window.innerWidth > 768) return;
+        if (!this.sidebarEl.classList.contains('mobile-open')) return;
+        startX = e.touches[0].clientX;
+        currentX = startX;
+        isTracking = true;
+      }, { passive: true });
+
+      this.sidebarEl.addEventListener('touchmove', (e) => {
+        if (!isTracking || e.touches.length !== 1 || window.innerWidth > 768) return;
+        currentX = e.touches[0].clientX;
+        const diffX = currentX - startX;
+        if (diffX < 0) {
+          // Dragging left (towards closing)
+          this.sidebarEl.style.transition = 'none';
+          this.sidebarEl.style.transform = `translateX(${diffX}px)`;
+        }
+      }, { passive: true });
+
+      const handleTouchEnd = () => {
+        if (!isTracking) return;
+        isTracking = false;
+        this.sidebarEl.style.transition = '';
+        const diffX = currentX - startX;
+        if (diffX < -55) {
+          // Swiped past threshold -> close drawer
+          UIManager.showMobileView('map');
+          this.sidebarEl.style.transform = '';
+        } else {
+          // Spring back open
+          this.sidebarEl.style.transform = '';
+        }
+      };
+
+      this.sidebarEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+      this.sidebarEl.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    },
+
+    setupModalSwipe() {
+      // Swiping down on mobile modals to dismiss
+      const modalContainers = document.querySelectorAll('.modal');
+      modalContainers.forEach((modal) => {
+        let modalStartY = 0;
+        let modalStartX = 0;
+        let isModalTracking = false;
+        const content = modal.querySelector('.modal-content') || modal;
+
+        content.addEventListener('touchstart', (e) => {
+          if (e.touches.length !== 1 || window.innerWidth > 768) return;
+          const rect = content.getBoundingClientRect();
+          const relativeY = e.touches[0].clientY - rect.top;
+          if (relativeY <= 80 || e.target.closest('.modal-header') || e.target.closest('.modal-drag-handle')) {
+            modalStartY = e.touches[0].clientY;
+            modalStartX = e.touches[0].clientX;
+            isModalTracking = true;
+          }
+        }, { passive: true });
+
+        content.addEventListener('touchend', (e) => {
+          if (!isModalTracking || e.changedTouches.length !== 1 || window.innerWidth > 768) return;
+          isModalTracking = false;
+          const endY = e.changedTouches[0].clientY;
+          const endX = e.changedTouches[0].clientX;
+          const deltaY = endY - modalStartY;
+          const deltaX = Math.abs(endX - modalStartX);
+
+          // Swipe down (> 60px downwards, vertical movement dominates)
+          if (deltaY > 60 && deltaY > deltaX * 1.4) {
+            modal.classList.add('hidden');
+          }
+        }, { passive: true });
+      });
+    }
+  };
+
   const App = {
     async loadData() {
       try {
@@ -3271,6 +3412,7 @@
     ThemeManager.init();
     MapController.init();
     OfflineManager.init();
+    SwipeNavigationManager.init();
 
     await handleIncomingSyncLink();
     await handleIncomingJoinLink();

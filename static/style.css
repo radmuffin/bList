@@ -3377,12 +3377,26 @@ label {
   }
 
   .drawer-mobile-header {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px 10px 16px;
+    padding: 14px 16px 10px 16px;
     border-bottom: 1px solid var(--border-color);
     background-color: var(--bg-surface);
+  }
+
+  .drawer-swipe-indicator {
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 9999px;
+    background-color: var(--border-color);
+    opacity: 0.75;
+    pointer-events: none;
   }
 
   .sidebar-header {

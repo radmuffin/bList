@@ -1801,6 +1801,69 @@
     return { ...APP_INFO };
   }
 
+  /**
+   * Evaluates touch coordinates to detect deliberate swipe gestures.
+   * Prevents false triggers from vertical scrolling, pinch-to-zoom, or diagonal drags.
+   */
+  function detectSwipeGesture(options = {}) {
+    const {
+      startX = 0,
+      startY = 0,
+      endX = 0,
+      endY = 0,
+      minDistance = 45,
+      maxPerpendicular = 60,
+      edgeThreshold = 45,
+      screenWidth = 375
+    } = options;
+
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    const isLeftEdge = startX <= edgeThreshold;
+    const isRightEdge = startX >= screenWidth - edgeThreshold;
+
+    // Horizontal swipe (Left or Right)
+    if (absX >= minDistance && absY <= maxPerpendicular && absX > absY * 1.25) {
+      const direction = deltaX > 0 ? 'right' : 'left';
+      return {
+        isSwipe: true,
+        direction,
+        deltaX,
+        deltaY,
+        distance: absX,
+        isLeftEdge,
+        isRightEdge
+      };
+    }
+
+    // Vertical swipe (Up or Down)
+    if (absY >= minDistance && absX <= maxPerpendicular && absY > absX * 1.25) {
+      const direction = deltaY > 0 ? 'down' : 'up';
+      return {
+        isSwipe: true,
+        direction,
+        deltaX,
+        deltaY,
+        distance: absY,
+        isLeftEdge,
+        isRightEdge
+      };
+    }
+
+    return {
+      isSwipe: false,
+      direction: null,
+      deltaX,
+      deltaY,
+      distance: Math.max(absX, absY),
+      isLeftEdge,
+      isRightEdge
+    };
+  }
+
   return {
     APP_INFO,
     getAppInfo,
@@ -1829,6 +1892,7 @@
     getOpeningStatus,
     generateShareLinks,
     generateQrSvg,
+    detectSwipeGesture,
     getRandomInspiration,
     MANIFESTO_RULES,
     INSPIRATIONS,
