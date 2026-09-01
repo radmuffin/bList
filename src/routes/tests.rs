@@ -383,6 +383,23 @@ async fn test_routes_pin_query_filters_and_search() {
     let found = res.data.unwrap();
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].title, "Sagrada Familia");
+
+    // Bounding box query via bbox string
+    let query = ListPinsQuery {
+        list_id: Some(1),
+        bbox: Some("2.1700,41.4000,2.1800,41.4100".to_string()),
+        ..Default::default()
+    };
+    let (status, Json(res)) = list_pins(
+        State(state.clone()),
+        UserToken("test-token".to_string()),
+        Query(query),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let bbox_pins = res.data.unwrap();
+    assert_eq!(bbox_pins.len(), 1);
+    assert_eq!(bbox_pins[0].title, "Sagrada Familia");
 }
 
 #[tokio::test]

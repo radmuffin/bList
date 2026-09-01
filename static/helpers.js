@@ -424,7 +424,99 @@
   }
 
   /**
-   * Filters a list of pins based on trip list, status, category, tag, priority, day group, and search query.
+   * Helper to parse and normalize bounding box bounds options.
+   * Supports:
+   *  - Object: { minLat, maxLat, minLng, maxLng } / { south, north, west, east } / { _southWest, _northEast }
+   *  - Leaflet LatLngBounds instance (getSouth, getNorth, getWest, getEast methods)
+   *  - Array: [minLng, minLat, maxLng, maxLat] or [[minLat, minLng], [maxLat, maxLng]]
+   */
+  function parseBounds(bounds) {
+    if (!bounds || (typeof bounds !== 'object' && !Array.isArray(bounds))) {
+      return null;
+    }
+
+    let minLat, maxLat, minLng, maxLng;
+
+    if (Array.isArray(bounds)) {
+      if (bounds.length === 4 && bounds.every(v => v !== null && v !== undefined && v !== '' && !isNaN(Number(v)))) {
+        // [minLng, minLat, maxLng, maxLat]
+        minLng = Number(bounds[0]);
+        minLat = Number(bounds[1]);
+        maxLng = Number(bounds[2]);
+        maxLat = Number(bounds[3]);
+      } else if (bounds.length === 2) {
+        // [[minLat, minLng], [maxLat, maxLng]] or [{lat, lng}, {lat, lng}]
+        const p1 = bounds[0];
+        const p2 = bounds[1];
+        if (Array.isArray(p1) && Array.isArray(p2) && p1.length >= 2 && p2.length >= 2) {
+          const lat1 = Number(p1[0]), lng1 = Number(p1[1]);
+          const lat2 = Number(p2[0]), lng2 = Number(p2[1]);
+          if (Number.isFinite(lat1) && Number.isFinite(lng1) && Number.isFinite(lat2) && Number.isFinite(lng2)) {
+            minLat = Math.min(lat1, lat2);
+            maxLat = Math.max(lat1, lat2);
+            minLng = Math.min(lng1, lng2);
+            maxLng = Math.max(lng1, lng2);
+          }
+        } else if (p1 && p2 && typeof p1 === 'object' && typeof p2 === 'object') {
+          const lat1 = Number(p1.lat ?? p1.latitude);
+          const lng1 = Number(p1.lng ?? p1.longitude);
+          const lat2 = Number(p2.lat ?? p2.latitude);
+          const lng2 = Number(p2.lng ?? p2.longitude);
+          if (Number.isFinite(lat1) && Number.isFinite(lng1) && Number.isFinite(lat2) && Number.isFinite(lng2)) {
+            minLat = Math.min(lat1, lat2);
+            maxLat = Math.max(lat1, lat2);
+            minLng = Math.min(lng1, lng2);
+            maxLng = Math.max(lng1, lng2);
+          }
+        }
+      }
+    } else {
+      // Object checks
+      if (typeof bounds.getSouth === 'function' && typeof bounds.getNorth === 'function' &&
+          typeof bounds.getWest === 'function' && typeof bounds.getEast === 'function') {
+        minLat = Number(bounds.getSouth());
+        maxLat = Number(bounds.getNorth());
+        minLng = Number(bounds.getWest());
+        maxLng = Number(bounds.getEast());
+      } else if (typeof bounds.getSouthWest === 'function' && typeof bounds.getNorthEast === 'function') {
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+        if (sw && ne) {
+          minLat = Number(sw.lat ?? sw.latitude);
+          minLng = Number(sw.lng ?? sw.longitude);
+          maxLat = Number(ne.lat ?? ne.latitude);
+          maxLng = Number(ne.lng ?? ne.longitude);
+        }
+      } else {
+        const rawMinLat = bounds.minLat ?? bounds.min_lat ?? bounds.south ?? bounds._southWest?.lat ?? bounds.sw?.lat;
+        const rawMaxLat = bounds.maxLat ?? bounds.max_lat ?? bounds.north ?? bounds._northEast?.lat ?? bounds.ne?.lat;
+        const rawMinLng = bounds.minLng ?? bounds.min_lng ?? bounds.west ?? bounds._southWest?.lng ?? bounds.sw?.lng;
+        const rawMaxLng = bounds.maxLng ?? bounds.max_lng ?? bounds.east ?? bounds._northEast?.lng ?? bounds.ne?.lng;
+
+        if (rawMinLat !== undefined && rawMaxLat !== undefined && rawMinLng !== undefined && rawMaxLng !== undefined) {
+          minLat = Number(rawMinLat);
+          maxLat = Number(rawMaxLat);
+          minLng = Number(rawMinLng);
+          maxLng = Number(rawMaxLng);
+        }
+      }
+    }
+
+    if (!Number.isFinite(minLat) || !Number.isFinite(maxLat) || !Number.isFinite(minLng) || !Number.isFinite(maxLng)) {
+      return null;
+    }
+
+    if (minLat > maxLat) {
+      const tmp = minLat;
+      minLat = maxLat;
+      maxLat = tmp;
+    }
+
+    return { minLat, maxLat, minLng, maxLng };
+  }
+
+  /**
+   * Filters a list of pins based on trip list, status, category, tag, priority, day group, search query, and spatial bounding box.
    */
   function filterPins(pins, options = {}) {
     if (!Array.isArray(pins)) return [];
@@ -437,7 +529,8 @@
       priorityOnly = false,
       dayGroup = null,
       openNowOnly = false,
-      search = ''
+      search = '',
+      bounds = null
     } = options;
 
     let result = pins;
@@ -507,6 +600,30 @@
         const matchTags = pin.tags && pin.tags.toLowerCase().includes(query);
         return matchTitle || matchAddress || matchNotes || matchDesc || matchCategory || matchTags;
       });
+    }
+
+    // 9. Spatial bounding box filter
+    if (bounds) {
+      const parsed = parseBounds(bounds);
+      if (parsed) {
+        const { minLat, maxLat, minLng, maxLng } = parsed;
+        result = result.filter(pin => {
+          if (!pin || !validateCoordinates(pin.latitude, pin.longitude)) {
+            return false;
+          }
+          const lat = Number(pin.latitude);
+          const lng = Number(pin.longitude);
+
+          const matchLat = lat >= minLat && lat <= maxLat;
+          let matchLng;
+          if (minLng <= maxLng) {
+            matchLng = lng >= minLng && lng <= maxLng;
+          } else {
+            matchLng = lng >= minLng || lng <= maxLng;
+          }
+          return matchLat && matchLng;
+        });
+      }
     }
 
     return result;

@@ -614,6 +614,86 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
     });
   });
 
+  describe('Spatial Bounding Box Filtering (filterPins with bounds)', () => {
+    const spatialPins = [
+      { id: 1, title: 'Tokyo Tower', latitude: 35.6586, longitude: 139.7454, category: 'Sightseeing', visited: true },
+      { id: 2, title: 'Kyoto Imperial Palace', latitude: 35.0254, longitude: 135.7621, category: 'Sightseeing', visited: false },
+      { id: 3, title: 'Eiffel Tower', latitude: 48.8584, longitude: 2.2945, category: 'Sightseeing', visited: false },
+      { id: 4, title: 'Statue of Liberty', latitude: 40.6892, longitude: -74.0445, category: 'Sightseeing', visited: true },
+      { id: 5, title: 'Boundary Pin Exact', latitude: 35.0, longitude: 135.0, category: 'General', visited: false },
+      { id: 6, title: 'Invalid Pin Coords', latitude: null, longitude: 139.7, category: 'General', visited: false },
+      { id: 7, title: 'Date Line East', latitude: 0.0, longitude: 179.0, category: 'General', visited: false },
+      { id: 8, title: 'Date Line West', latitude: 0.0, longitude: -179.0, category: 'General', visited: false }
+    ];
+
+    it('should filter pins within object bounding box { minLat, maxLat, minLng, maxLng }', () => {
+      const bounds = { minLat: 35.0, maxLat: 36.0, minLng: 135.0, maxLng: 140.0 };
+      const filtered = filterPins(spatialPins, { bounds });
+      assert.strictEqual(filtered.length, 3);
+      assert.deepStrictEqual(filtered.map(p => p.id), [1, 2, 5]);
+    });
+
+    it('should filter pins within array bounding box [minLng, minLat, maxLng, maxLat]', () => {
+      const bounds = [135.0, 35.0, 140.0, 36.0];
+      const filtered = filterPins(spatialPins, { bounds });
+      assert.strictEqual(filtered.length, 3);
+      assert.deepStrictEqual(filtered.map(p => p.title), ['Tokyo Tower', 'Kyoto Imperial Palace', 'Boundary Pin Exact']);
+    });
+
+    it('should filter pins using nested array format [[minLat, minLng], [maxLat, maxLng]]', () => {
+      const bounds = [[35.0, 135.0], [36.0, 140.0]];
+      const filtered = filterPins(spatialPins, { bounds });
+      assert.strictEqual(filtered.length, 3);
+    });
+
+    it('should filter pins using Leaflet LatLngBounds object methods', () => {
+      const bounds = {
+        getSouth: () => 35.0,
+        getNorth: () => 36.0,
+        getWest: () => 135.0,
+        getEast: () => 140.0
+      };
+      const filtered = filterPins(spatialPins, { bounds });
+      assert.strictEqual(filtered.length, 3);
+    });
+
+    it('should include pins sitting exactly on bounding box edges', () => {
+      const bounds = { minLat: 35.0, maxLat: 35.0, minLng: 135.0, maxLng: 135.0 };
+      const filtered = filterPins(spatialPins, { bounds });
+      assert.strictEqual(filtered.length, 1);
+      assert.strictEqual(filtered[0].title, 'Boundary Pin Exact');
+    });
+
+    it('should exclude pins with invalid or missing coordinates when bounds is active', () => {
+      const bounds = { minLat: -90, maxLat: 90, minLng: -180, maxLng: 180 };
+      const filtered = filterPins(spatialPins, { bounds });
+      assert.ok(!filtered.some(p => p.id === 6));
+    });
+
+    it('should combine spatial bounds filter with category and status filters', () => {
+      const bounds = { minLat: 35.0, maxLat: 36.0, minLng: 135.0, maxLng: 140.0 };
+      const filtered = filterPins(spatialPins, {
+        bounds,
+        category: 'Sightseeing',
+        status: 'visited'
+      });
+      assert.strictEqual(filtered.length, 1);
+      assert.strictEqual(filtered[0].title, 'Tokyo Tower');
+    });
+
+    it('should handle anti-meridian (180th meridian) bounding boxes where minLng > maxLng', () => {
+      const bounds = { minLat: -10.0, maxLat: 10.0, minLng: 170.0, maxLng: -170.0 };
+      const filtered = filterPins(spatialPins, { bounds });
+      assert.strictEqual(filtered.length, 2);
+      assert.deepStrictEqual(filtered.map(p => p.id), [7, 8]);
+    });
+
+    it('should ignore malformed or non-numeric bounds objects and retain other filters', () => {
+      const filtered = filterPins(spatialPins, { bounds: { minLat: 'invalid' }, category: 'Sightseeing' });
+      assert.strictEqual(filtered.length, 4);
+    });
+  });
+
   describe('Pin Sorting (sortPins)', () => {
     const pins = [
       { id: 1, title: 'Zebra Safari', category: 'Nature', latitude: 10.0, longitude: 10.0 },

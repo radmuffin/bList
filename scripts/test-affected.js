@@ -219,7 +219,7 @@ function main() {
     if (!passed) process.exit(1);
   } else if (plan.rustModules.size > 0) {
     const filter = Array.from(plan.rustModules).join(' ');
-    passed = passed && runCommand(`cargo test ${filter}`, `Targeted Rust Tests (${Array.from(plan.rustModules).join(', ')})`);
+    passed = passed && runCommand(`cargo test -- ${filter}`, `Targeted Rust Tests (${Array.from(plan.rustModules).join(', ')})`);
     if (!passed) process.exit(1);
   }
 

@@ -607,13 +607,34 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
 
     conn.execute_batch(
         r#"
-        CREATE VIRTUAL TABLE IF NOT EXISTS rtree_pins_index USING rtree(
+        CREATE VIRTUAL TABLE IF NOT EXISTS pins_rtree USING rtree(
             id,
-            minLon, maxLon,
-            minLat, maxLat
+            min_lat, max_lat,
+            min_lng, max_lng
         );
-        INSERT OR IGNORE INTO rtree_pins_index(id, minLon, maxLon, minLat, maxLat)
-        SELECT id, longitude, longitude, latitude, latitude FROM pins;
+        INSERT OR IGNORE INTO pins_rtree(id, min_lat, max_lat, min_lng, max_lng)
+        SELECT id, latitude, latitude, longitude, longitude FROM pins;
+
+        CREATE TRIGGER IF NOT EXISTS pins_rtree_insert AFTER INSERT ON pins
+        BEGIN
+            INSERT OR REPLACE INTO pins_rtree (id, min_lat, max_lat, min_lng, max_lng)
+            VALUES (NEW.id, NEW.latitude, NEW.latitude, NEW.longitude, NEW.longitude);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS pins_rtree_update AFTER UPDATE OF latitude, longitude ON pins
+        BEGIN
+            UPDATE pins_rtree SET
+                min_lat = NEW.latitude,
+                max_lat = NEW.latitude,
+                min_lng = NEW.longitude,
+                max_lng = NEW.longitude
+            WHERE id = NEW.id;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS pins_rtree_delete AFTER DELETE ON pins
+        BEGIN
+            DELETE FROM pins_rtree WHERE id = OLD.id;
+        END;
         "#,
     )?;
 
@@ -763,28 +784,19 @@ pub fn list_pins(
     let mut sql = String::new();
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-    let use_rtree = if let (Some(min_lon), Some(max_lon), Some(min_lat), Some(max_lat)) = (
-        query.viewport_min_lon,
-        query.viewport_max_lon,
-        query.viewport_min_lat,
-        query.viewport_max_lat,
-    ) {
-        min_lon <= max_lon && min_lat <= max_lat
-    } else {
-        false
-    };
+    let bbox_opt = query.get_bbox();
 
-    if use_rtree {
+    if let Some((min_lat, max_lat, min_lng, max_lng)) = bbox_opt {
         sql.push_str(
             "SELECT p.id, p.list_id, p.title, p.description, p.latitude, p.longitude, p.category, p.emoji, p.tags, p.priority, p.day_group, p.custom_order, p.opening_hours, p.source_url, p.image_url, p.address, p.notes, p.visited, p.created_at \
              FROM pins p \
-             INNER JOIN rtree_pins_index r ON r.id = p.id \
-             WHERE r.minLon >= ? AND r.maxLon <= ? AND r.minLat >= ? AND r.maxLat <= ?"
+             INNER JOIN pins_rtree r ON r.id = p.id \
+             WHERE r.min_lat >= ? AND r.max_lat <= ? AND r.min_lng >= ? AND r.max_lng <= ?"
         );
-        params_vec.push(Box::new(query.viewport_min_lon.unwrap()));
-        params_vec.push(Box::new(query.viewport_max_lon.unwrap()));
-        params_vec.push(Box::new(query.viewport_min_lat.unwrap()));
-        params_vec.push(Box::new(query.viewport_max_lat.unwrap()));
+        params_vec.push(Box::new(min_lat));
+        params_vec.push(Box::new(max_lat));
+        params_vec.push(Box::new(min_lng));
+        params_vec.push(Box::new(max_lng));
 
         if let Some(tok) = user_token {
             sql.push_str(
@@ -1067,8 +1079,8 @@ pub fn create_pin(conn: &Connection, req: &CreatePinRequest) -> Result<Pin> {
     let id = conn.last_insert_rowid();
 
     conn.execute(
-        "INSERT INTO rtree_pins_index(id, minLon, maxLon, minLat, maxLat) VALUES (?, ?, ?, ?, ?)",
-        params![id, req.longitude, req.longitude, req.latitude, req.latitude],
+        "INSERT OR REPLACE INTO pins_rtree(id, min_lat, max_lat, min_lng, max_lng) VALUES (?, ?, ?, ?, ?)",
+        params![id, req.latitude, req.latitude, req.longitude, req.longitude],
     )?;
 
     Ok(Pin {
@@ -1142,8 +1154,8 @@ pub fn create_pins_batch(
             let id = tx.last_insert_rowid();
 
             tx.execute(
-                "INSERT INTO rtree_pins_index(id, minLon, maxLon, minLat, maxLat) VALUES (?, ?, ?, ?, ?)",
-                params![id, req.longitude, req.longitude, req.latitude, req.latitude],
+                "INSERT OR REPLACE INTO pins_rtree(id, min_lat, max_lat, min_lng, max_lng) VALUES (?, ?, ?, ?, ?)",
+                params![id, req.latitude, req.latitude, req.longitude, req.longitude],
             )?;
 
             inserted_pins.push(Pin {
@@ -1274,7 +1286,7 @@ pub fn toggle_visited(conn: &Connection, id: i64) -> Result<Option<Pin>> {
 }
 
 pub fn delete_pin(conn: &Connection, id: i64) -> Result<bool> {
-    conn.execute("DELETE FROM rtree_pins_index WHERE id = ?", params![id])?;
+    conn.execute("DELETE FROM pins_rtree WHERE id = ?", params![id])?;
     let rows_affected = conn.execute("DELETE FROM pins WHERE id = ?", params![id])?;
     Ok(rows_affected > 0)
 }
@@ -1316,4 +1328,140 @@ pub fn get_categories(
         categories.push(cat?);
     }
     Ok(categories)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pins_rtree_creation_and_sync() {
+        let conn = init_db(":memory:").expect("init db");
+
+        // 1. Verify pins_rtree table exists
+        let count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='pins_rtree'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("check table");
+        assert_eq!(count, 1);
+
+        // 2. Insert pin and verify R-Tree sync
+        let pin = create_pin(
+            &conn,
+            &CreatePinRequest {
+                list_id: Some(1),
+                title: "Mount Fuji".to_string(),
+                latitude: 35.3606,
+                longitude: 138.7274,
+                ..Default::default()
+            },
+        )
+        .expect("create pin");
+
+        let (min_lat, max_lat, min_lng, max_lng): (f64, f64, f64, f64) = conn
+            .query_row(
+                "SELECT min_lat, max_lat, min_lng, max_lng FROM pins_rtree WHERE id = ?",
+                params![pin.id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .expect("fetch rtree row");
+
+        assert!((min_lat - 35.3606).abs() < 0.0001);
+        assert!((max_lat - 35.3606).abs() < 0.0001);
+        assert!((min_lng - 138.7274).abs() < 0.0001);
+        assert!((max_lng - 138.7274).abs() < 0.0001);
+
+        // 3. Update pin coordinates and verify R-Tree sync
+        update_pin(
+            &conn,
+            pin.id,
+            &UpdatePinRequest {
+                latitude: Some(35.3610),
+                longitude: Some(138.7280),
+                ..Default::default()
+            },
+        )
+        .expect("update pin");
+
+        let (updated_min_lat, _, updated_min_lng, _): (f64, f64, f64, f64) = conn
+            .query_row(
+                "SELECT min_lat, max_lat, min_lng, max_lng FROM pins_rtree WHERE id = ?",
+                params![pin.id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .expect("fetch updated rtree row");
+
+        assert!((updated_min_lat - 35.3610).abs() < 0.0001);
+        assert!((updated_min_lng - 138.7280).abs() < 0.0001);
+
+        // 4. Delete pin and verify R-Tree sync
+        let deleted = delete_pin(&conn, pin.id).expect("delete pin");
+        assert!(deleted);
+
+        let rtree_count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM pins_rtree WHERE id = ?",
+                params![pin.id],
+                |r| r.get(0),
+            )
+            .expect("count rtree");
+        assert_eq!(rtree_count, 0);
+    }
+
+    #[test]
+    fn test_bbox_spatial_queries() {
+        let conn = init_db(":memory:").expect("init db");
+
+        // Tokyo pin
+        create_pin(
+            &conn,
+            &CreatePinRequest {
+                list_id: Some(1),
+                title: "Tokyo Tower".to_string(),
+                latitude: 35.6586,
+                longitude: 139.7454,
+                ..Default::default()
+            },
+        )
+        .expect("create tokyo");
+
+        // Paris pin
+        create_pin(
+            &conn,
+            &CreatePinRequest {
+                list_id: Some(1),
+                title: "Eiffel Tower".to_string(),
+                latitude: 48.8584,
+                longitude: 2.2945,
+                ..Default::default()
+            },
+        )
+        .expect("create paris");
+
+        // Query with bbox string format: "min_lng,min_lat,max_lng,max_lat" (Japan region)
+        let query_bbox = ListPinsQuery {
+            list_id: Some(1),
+            bbox: Some("130.0,30.0,145.0,45.0".to_string()),
+            ..Default::default()
+        };
+        let japan_pins = list_pins(&conn, &query_bbox, None).expect("list japan");
+        assert_eq!(japan_pins.len(), 1);
+        assert_eq!(japan_pins[0].title, "Tokyo Tower");
+
+        // Query with individual min_lat, max_lat, min_lng, max_lng parameters (Europe region)
+        let query_coords = ListPinsQuery {
+            list_id: Some(1),
+            min_lat: Some(40.0),
+            max_lat: Some(55.0),
+            min_lng: Some(0.0),
+            max_lng: Some(10.0),
+            ..Default::default()
+        };
+        let europe_pins = list_pins(&conn, &query_coords, None).expect("list europe");
+        assert_eq!(europe_pins.len(), 1);
+        assert_eq!(europe_pins[0].title, "Eiffel Tower");
+    }
 }

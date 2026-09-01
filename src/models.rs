@@ -204,6 +204,16 @@ pub struct ListPinsQuery {
     pub day_group: Option<i64>,
     pub search: Option<String>,
     #[serde(default)]
+    pub bbox: Option<String>,
+    #[serde(default)]
+    pub min_lat: Option<f64>,
+    #[serde(default)]
+    pub max_lat: Option<f64>,
+    #[serde(default)]
+    pub min_lng: Option<f64>,
+    #[serde(default)]
+    pub max_lng: Option<f64>,
+    #[serde(default)]
     pub viewport_min_lon: Option<f64>,
     #[serde(default)]
     pub viewport_max_lon: Option<f64>,
@@ -211,6 +221,48 @@ pub struct ListPinsQuery {
     pub viewport_min_lat: Option<f64>,
     #[serde(default)]
     pub viewport_max_lat: Option<f64>,
+}
+
+impl ListPinsQuery {
+    /// Resolves spatial bounding box filter as `(min_lat, max_lat, min_lng, max_lng)`
+    pub fn get_bbox(&self) -> Option<(f64, f64, f64, f64)> {
+        if let (Some(min_lat), Some(max_lat), Some(min_lng), Some(max_lng)) =
+            (self.min_lat, self.max_lat, self.min_lng, self.max_lng)
+        {
+            if min_lat <= max_lat && min_lng <= max_lng {
+                return Some((min_lat, max_lat, min_lng, max_lng));
+            }
+        }
+
+        if let Some(ref bbox_str) = self.bbox {
+            let parts: Vec<&str> = bbox_str.split(',').map(|s| s.trim()).collect();
+            if parts.len() == 4 {
+                if let (Ok(min_lng), Ok(min_lat), Ok(max_lng), Ok(max_lat)) = (
+                    parts[0].parse::<f64>(),
+                    parts[1].parse::<f64>(),
+                    parts[2].parse::<f64>(),
+                    parts[3].parse::<f64>(),
+                ) {
+                    if min_lat <= max_lat && min_lng <= max_lng {
+                        return Some((min_lat, max_lat, min_lng, max_lng));
+                    }
+                }
+            }
+        }
+
+        if let (Some(min_lon), Some(max_lon), Some(min_lat), Some(max_lat)) = (
+            self.viewport_min_lon,
+            self.viewport_max_lon,
+            self.viewport_min_lat,
+            self.viewport_max_lat,
+        ) {
+            if min_lat <= max_lat && min_lon <= max_lon {
+                return Some((min_lat, max_lat, min_lon, max_lon));
+            }
+        }
+
+        None
+    }
 }
 
 pub use fly_common::models::ApiResponse;

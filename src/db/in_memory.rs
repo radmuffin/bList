@@ -265,6 +265,15 @@ impl PinRepository for InMemoryStorage {
                         }
                     }
                 }
+                if let Some((min_lat, max_lat, min_lng, max_lng)) = query.get_bbox() {
+                    if p.latitude < min_lat
+                        || p.latitude > max_lat
+                        || p.longitude < min_lng
+                        || p.longitude > max_lng
+                    {
+                        return false;
+                    }
+                }
                 true
             })
             .cloned()

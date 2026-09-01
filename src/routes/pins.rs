@@ -302,3 +302,26 @@ pub async fn get_categories(
         ),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_list_pins_query_bbox_parsing() {
+        let q1 = ListPinsQuery {
+            bbox: Some("130.0,30.0,145.0,45.0".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(q1.get_bbox(), Some((30.0, 45.0, 130.0, 145.0)));
+
+        let q2 = ListPinsQuery {
+            min_lat: Some(30.0),
+            max_lat: Some(45.0),
+            min_lng: Some(130.0),
+            max_lng: Some(145.0),
+            ..Default::default()
+        };
+        assert_eq!(q2.get_bbox(), Some((30.0, 45.0, 130.0, 145.0)));
+    }
+}
