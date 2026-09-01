@@ -306,9 +306,9 @@
 
           <!-- Status & Priority Filters -->
           <div class="filter-tabs">
-            <button class="filter-tab active" data-status="all" onclick="setStatusFilter('all')">All (<span id="count-all">0</span>)</button>
-            <button class="filter-tab" data-status="bucket" onclick="setStatusFilter('bucket')">🎯 Want to Go (<span id="count-bucket">0</span>)</button>
-            <button class="filter-tab" data-status="visited" onclick="setStatusFilter('visited')">✅ Visited (<span id="count-visited">0</span>)</button>
+            <button class="filter-tab active" data-status="all" onclick="setStatusFilter('all')">All (<span id="count-all"><span class="inline-count-spinner"></span></span>)</button>
+            <button class="filter-tab" data-status="bucket" onclick="setStatusFilter('bucket')">🎯 Want to Go (<span id="count-bucket"><span class="inline-count-spinner"></span></span>)</button>
+            <button class="filter-tab" data-status="visited" onclick="setStatusFilter('visited')">✅ Visited (<span id="count-visited"><span class="inline-count-spinner"></span></span>)</button>
             <button class="filter-tab filter-tab-priority" id="tab-priority-filter" onclick="togglePriorityFilter()" title="Filter Must-See places">⭐ Must-See</button>
             <button class="filter-tab open-now-tab" id="tab-open-now-filter" onclick="toggleOpenNowFilter()" title="Filter places open right now">🟢 Open Now</button>
           </div>
@@ -423,7 +423,7 @@
           </button>
           <button class="toggle-pill" id="btn-show-list" onclick="showMobileView('list')">
             <i data-lucide="list"></i>
-            <span>List (<span id="mobile-count">0</span>)</span>
+            <span>List (<span id="mobile-count"><span class="inline-count-spinner"></span></span>)</span>
           </button>
         </div>
 

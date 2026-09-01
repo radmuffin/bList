@@ -1748,6 +1748,22 @@ body {
   border-color: var(--success);
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.inline-count-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  vertical-align: middle;
+  margin-top: -2px;
+}
+
 .custom-pin-marker i,
 .custom-pin-marker svg {
   transform: rotate(45deg);
