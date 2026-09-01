@@ -121,6 +121,13 @@ test.describe('bList Visual & E2E Suite', () => {
 
     const aboutModal = page.locator('#about-modal');
     await expect(aboutModal).toBeVisible();
+
+    // Verify default badges panel is visible
+    await expect(aboutModal.locator('#about-panel-explorer')).toBeVisible();
+
+    // Switch to Creator & Contact tab
+    await aboutModal.locator('#tab-btn-creator').click();
+    await expect(aboutModal.locator('#about-panel-creator')).toBeVisible();
     await expect(aboutModal.locator('a[href*="github.com/radmuffin/bList"]').first()).toBeVisible();
 
     // Close modal via close button
