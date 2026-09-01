@@ -2042,6 +2042,102 @@ label {
   margin-left: auto;
 }
 
+/* More Options Collapsible Accordion */
+.more-options-accordion {
+  margin: 14px 0 10px 0;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  transition: all 0.2s ease;
+}
+
+.more-options-accordion[open] {
+  border-style: solid;
+  border-color: var(--border-color);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.more-options-accordion summary.btn-more-details {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-light);
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--radius-md);
+  transition: background-color 0.18s ease, color 0.18s ease, filter 0.18s ease;
+  list-style: none;
+}
+
+.more-options-accordion summary.btn-more-details::-webkit-details-marker {
+  display: none;
+}
+
+.more-options-accordion summary.btn-more-details:hover {
+  filter: brightness(0.96);
+  text-decoration: none;
+}
+
+.more-options-accordion[open] summary.btn-more-details {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.more-options-accordion[open] summary.btn-more-details:hover {
+  color: var(--text-main);
+}
+
+.more-details-closed,
+.more-details-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.more-options-accordion .more-details-open {
+  display: none;
+}
+
+.more-options-accordion[open] .more-details-open {
+  display: inline-flex;
+}
+
+.more-options-accordion[open] .more-details-closed {
+  display: none;
+}
+
+.details-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.more-options-content {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fadeInDetails 0.2s ease;
+}
+
+@keyframes fadeInDetails {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ==========================================================================
    About Modal & Sidebar Footer
    ========================================================================== */

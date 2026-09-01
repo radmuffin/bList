@@ -1669,6 +1669,7 @@
       if (deleteBtn) deleteBtn.classList.add('hidden');
 
       this.updateModalPlusCodePreview();
+      if (window.lucide) window.lucide.createIcons();
       document.getElementById('pin-modal').classList.remove('hidden');
     },
 
@@ -1695,7 +1696,16 @@
 
       const moreOptions = document.getElementById('pin-more-options');
       if (moreOptions) {
-        moreOptions.open = Boolean(pin.notes || pin.image_url || pin.source_url || pin.opening_hours);
+        moreOptions.open = Boolean(
+          pin.emoji ||
+          pin.tags ||
+          pin.priority ||
+          (pin.day_group && parseInt(pin.day_group, 10) > 0) ||
+          pin.opening_hours ||
+          pin.image_url ||
+          pin.source_url ||
+          pin.notes
+        );
       }
 
       const submitBtn = document.getElementById('btn-submit-pin');
@@ -1713,6 +1723,7 @@
       }
 
       this.updateModalPlusCodePreview();
+      if (window.lucide) window.lucide.createIcons();
       document.getElementById('pin-modal').classList.remove('hidden');
     },
 
