@@ -1552,15 +1552,27 @@
             ? window.bListHelpers.formatStreetAddress(pin.address, pin.title)
             : (pin.address || '');
 
+          const catColor = CONFIG.CATEGORY_COLORS[pin.category] || '#2563eb';
+          const catEmoji = pin.emoji || CONFIG.CATEGORY_EMOJIS[pin.category] || '📍';
+
+          const heroBannerHtml = safeThumb
+            ? `<img src="${Utils.escapeHtml(safeThumb)}" class="pin-card-thumb" alt="${Utils.escapeHtml(
+                pin.title
+              )}" onerror="this.outerHTML='<div class=\\'pin-card-banner-placeholder\\' style=\\'--banner-color: ${catColor};\\'><div class=\\'banner-pattern-overlay\\'></div><div class=\\'banner-category-chip\\'><span class=\\'banner-chip-emoji\\'>${catEmoji}</span><span class=\\'banner-chip-text\\'>${Utils.escapeHtml(
+                pin.category || 'Place'
+              )}</span></div><div class=\\'banner-watermark-symbol\\'>${catEmoji}</div></div>'">`
+            : `<div class="pin-card-banner-placeholder" style="--banner-color: ${catColor};">
+                <div class="banner-pattern-overlay"></div>
+                <div class="banner-category-chip">
+                  <span class="banner-chip-emoji">${catEmoji}</span>
+                  <span class="banner-chip-text">${Utils.escapeHtml(pin.category || 'Place')}</span>
+                </div>
+                <div class="banner-watermark-symbol">${catEmoji}</div>
+              </div>`;
+
           return `
                   <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
-                    ${
-                      safeThumb
-                        ? `<img src="${Utils.escapeHtml(safeThumb)}" class="pin-card-thumb" alt="${Utils.escapeHtml(
-                            pin.title
-                          )}" onerror="this.style.display='none'">`
-                        : ''
-                    }
+                    ${heroBannerHtml}
                     <div class="pin-card-body">
                       <div class="badges-row">
                         ${this.renderBadgesHtml(pin, { distanceStr, weather: weatherCached, assignedList })}
