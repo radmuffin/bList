@@ -13,7 +13,6 @@ use axum::{
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -83,29 +82,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let static_service =
         ServeDir::new("static").fallback(ServeFile::new("static/index.html"));
 
-    let cors = CorsLayer::new()
-        .allow_methods([
-            axum::http::Method::GET,
-            axum::http::Method::POST,
-            axum::http::Method::PUT,
-            axum::http::Method::PATCH,
-            axum::http::Method::DELETE,
-            axum::http::Method::OPTIONS,
-        ])
-        .allow_headers([
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::ACCEPT,
-            axum::http::header::AUTHORIZATION,
-            axum::http::HeaderName::from_static("x-user-token"),
-        ])
-        .allow_origin(tower_http::cors::Any);
-
     let app = Router::new()
         .route("/health", get(routes::health_check))
         .nest("/api", api_router)
         .fallback_service(static_service)
-        .layer(axum::middleware::from_fn(set_security_headers))
-        .layer(cors)
+        .layer(axum::middleware::from_fn(fly_common::security::set_security_headers))
+        .layer(fly_common::security::standard_cors_layer())
         .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state);
 
@@ -122,25 +104,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, app).await?;
 
     Ok(())
-}
-
-async fn set_security_headers(
-    req: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> axum::response::Response {
-    let mut response = next.run(req).await;
-    let headers = response.headers_mut();
-    headers.insert(
-        axum::http::header::X_CONTENT_TYPE_OPTIONS,
-        axum::http::HeaderValue::from_static("nosniff"),
-    );
-    headers.insert(
-        axum::http::header::X_FRAME_OPTIONS,
-        axum::http::HeaderValue::from_static("SAMEORIGIN"),
-    );
-    headers.insert(
-        axum::http::header::REFERRER_POLICY,
-        axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
-    );
-    response
 }

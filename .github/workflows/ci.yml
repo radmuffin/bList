@@ -71,7 +71,7 @@ jobs:
 
       - name: Install Playwright OS Deps Only
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium webkit
+        run: sudo npx playwright install-deps chromium webkit
 
       - name: Run Playwright E2E & Visual Tests
         run: npm run test:e2e

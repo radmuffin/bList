@@ -16,10 +16,7 @@ use crate::models::{
 /// - busy_timeout = 5000ms for busy lock retry
 /// - foreign_keys = ON for relational integrity
 pub fn configure_pragmas(conn: &Connection) -> Result<()> {
-    let _ = conn.pragma_update(None, "journal_mode", "WAL");
-    let _ = conn.pragma_update(None, "synchronous", "NORMAL");
-    let _ = conn.pragma_update(None, "busy_timeout", 5000);
-    let _ = conn.pragma_update(None, "foreign_keys", "ON");
+    fly_common::db::FlyDb::apply_pragmas(conn)?;
     let _ = conn.busy_timeout(std::time::Duration::from_millis(5000));
     Ok(())
 }

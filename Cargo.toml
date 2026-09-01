@@ -18,4 +18,8 @@ chrono = { version = "0.4", features = ["serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.0", features = ["v4"] }
+fly_common = { git = "https://github.com/radmuffin/fly-common" }
 
+# Local development override
+[patch."https://github.com/radmuffin/fly-common"]
+fly_common = { path = "../fly-common" }

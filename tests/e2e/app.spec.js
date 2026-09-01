@@ -54,8 +54,13 @@ test.describe('bList Visual & E2E Suite', () => {
   });
 
   test('should create a place and display streamlined card and readable plus code', async ({ page, isMobile }) => {
-    // Open Add Place Modal
-    await page.locator('#btn-add-place').click();
+    // Open Add Place Modal (on mobile, trigger from more menu since header button toggles quick-add)
+    if (isMobile) {
+      await page.locator('#mobile-more-btn').click();
+      await page.locator('#mobile-more-menu').getByRole('button', { name: /Add Place Manually/i }).click();
+    } else {
+      await page.locator('#btn-add-place').click();
+    }
 
     const modal = page.locator('#pin-modal');
     await expect(modal).toBeVisible();
