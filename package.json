@@ -17,6 +17,7 @@
     "cap:build:ios": "npx cap sync ios && npx cap open ios",
     "test:unit": "node --test tests/*.test.js",
     "test:e2e": "playwright test",
+    "test:affected": "node scripts/test-affected.js",
     "test": "node --test tests/*.test.js"
   },
   "keywords": [
