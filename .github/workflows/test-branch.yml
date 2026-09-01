@@ -1,0 +1,169 @@
+name: Parallel Test Suite (Branch & On-Demand)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch or Git ref to test'
+        required: true
+        default: 'main'
+  push:
+    branches-ignore:
+      - main
+      - trunk
+      - master
+  pull_request:
+    branches:
+      - '**'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # 1. Backend Rust Unit & Integration Tests
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run Backend Unit & Integration Tests
+        run: cargo test --verbose
+
+  # 2. Backend Linting, Typecheck & Formatting
+  backend-lint:
+    name: Backend Lints & Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Install Rust toolchain with components
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check code
+        run: cargo check --verbose
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy Linter
+        run: cargo clippy --all-targets -- -D warnings
+
+  # 3. Frontend Unit & Accessibility Tests
+  frontend-unit-a11y:
+    name: Frontend Unit & A11y Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run Frontend Unit & Accessibility Tests
+        run: npm test
+
+  # 4. Playwright E2E Tests in Parallel Matrix across Browsers/Devices
+  e2e-matrix:
+    name: E2E (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - 'Desktop Chrome'
+          - 'Mobile Pixel'
+          - 'Mobile Safari'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Get Playwright Version
+        id: playwright-version
+        run: echo "version=$(npx playwright --version)" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Browsers & Deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Install Playwright OS Deps Only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: sudo npx playwright install-deps chromium webkit
+
+      - name: Run Playwright Test for Project
+        run: npx playwright test --project="${{ matrix.project }}"
+
+      - name: Upload Playwright Artifacts on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: playwright-report/
+          retention-days: 7
+
+  # 5. Parallel Test Suite Summary Gate
+  all-tests-passed:
+    name: All Parallel Tests Passed
+    needs: [backend-test, backend-lint, frontend-unit-a11y, e2e-matrix]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate Upstream Job Results
+        run: |
+          if [ "${{ needs.backend-test.result }}" != "success" ] || \
+             [ "${{ needs.backend-lint.result }}" != "success" ] || \
+             [ "${{ needs.frontend-unit-a11y.result }}" != "success" ] || \
+             [ "${{ needs.e2e-matrix.result }}" != "success" ]; then
+            echo "❌ One or more test jobs failed in parallel suite!"
+            exit 1
+          fi
+          echo "🎉 All parallel test suites and checks passed successfully!"

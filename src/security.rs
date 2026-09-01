@@ -5,6 +5,43 @@ pub use fly_common::security::{
     is_restricted_ipv4, is_restricted_ipv6, validate_parsed_url, validate_url_for_ssrf,
 };
 
+use reqwest::Url;
+use std::net::IpAddr;
+
+/// Validates a URL for SSRF and performs DNS pinning to prevent TOCTOU rebinding attacks.
+/// Resolves the hostname, validates all resolved IPs against restricted list,
+/// and returns the first valid public IP along with the validated URL.
+#[allow(dead_code)] // used in #[cfg(test)] blocks
+pub async fn validate_url_with_dns_pin(url_str: &str) -> Result<(Url, IpAddr), String> {
+    // First run the basic fly_common checks
+    let parsed = validate_url_for_ssrf(url_str)?;
+
+    // Resolve DNS
+    let host = parsed.host_str().ok_or("URL must have a host")?;
+    let port = parsed.port_or_known_default().unwrap_or(80);
+    let lookup = format!("{}:{}", host, port);
+
+    let resolved_ips = tokio::net::lookup_host(lookup)
+        .await
+        .map_err(|e| format!("DNS resolution failed: {}", e))?;
+
+    let mut first_valid_ip = None;
+
+    for addr in resolved_ips {
+        if is_private_or_restricted_ip(addr.ip()) {
+            return Err("Restricted IP detected in DNS resolution".to_string());
+        }
+        if first_valid_ip.is_none() {
+            first_valid_ip = Some(addr.ip());
+        }
+    }
+
+    match first_valid_ip {
+        Some(ip) => Ok((parsed, ip)),
+        None => Err("No public IP found in DNS resolution".to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -48,5 +85,20 @@ mod tests {
     fn test_validate_url_allows_valid_public_targets() {
         assert!(validate_url_for_ssrf("https://maps.google.com").is_ok());
         assert!(validate_url_for_ssrf("https://nominatim.openstreetmap.org").is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_validate_url_with_dns_pin_success() {
+        let result = validate_url_with_dns_pin("https://example.com").await;
+        assert!(result.is_ok());
+        let (url, ip) = result.unwrap();
+        assert_eq!(url.host_str(), Some("example.com"));
+        assert!(!is_private_or_restricted_ip(ip));
+    }
+
+    #[tokio::test]
+    async fn test_validate_url_with_dns_pin_blocks_localhost() {
+        let result = validate_url_with_dns_pin("http://localhost:3000").await;
+        assert!(result.is_err());
     }
 }

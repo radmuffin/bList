@@ -1,6 +1,37 @@
 use crate::models::ImportItem;
 use regex::Regex;
 use serde_json::Value;
+use std::sync::LazyLock;
+
+// ---------------------------------------------------------------------------
+// Compiled-once regex constants (LazyLock — stable since Rust 1.80)
+// ---------------------------------------------------------------------------
+
+/// KML `<Placemark>` block extractor.
+static RE_KML_PLACEMARK: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<Placemark\b[^>]*>(.*?)</Placemark>").unwrap());
+/// KML `<name>` extractor (within a Placemark block).
+static RE_KML_NAME: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<name>(.*?)</name>").unwrap());
+/// KML `<description>` extractor.
+static RE_KML_DESC: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<description>(.*?)</description>").unwrap());
+/// KML `<coordinates>` extractor.
+static RE_KML_COORDS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<coordinates>\s*([^\s<]+)").unwrap());
+/// KML `<address>` extractor.
+static RE_KML_ADDRESS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<address>(.*?)</address>").unwrap());
+
+/// Google Maps `/@lat,lon` pattern.
+static RE_URL_AT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"/@(-?\d+\.\d+),(-?\d+\.\d+)").unwrap());
+/// Google Maps `!3dlat!4dlon` embed pattern.
+static RE_URL_EMBED: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)").unwrap());
+/// Generic `?q=lat,lon` / `?ll=lat,lon` query-string pattern.
+static RE_URL_QUERY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)").unwrap());
 
 /// Detect and parse import data in various formats:
 /// - Google Takeout JSON ("Saved Places.json")
@@ -515,24 +546,19 @@ fn parse_csv_row(line: &str, delimiter: char) -> Vec<String> {
 /// Parse KML / XML format (Google My Maps, Google Earth, Maps.me)
 pub fn parse_kml_data(raw: &str) -> Result<Vec<ImportItem>, String> {
     let mut items = Vec::new();
-    let placemark_re = Regex::new(r"(?s)<Placemark\b[^>]*>(.*?)</Placemark>").unwrap();
-    let name_re = Regex::new(r"(?s)<name>(.*?)</name>").unwrap();
-    let desc_re = Regex::new(r"(?s)<description>(.*?)</description>").unwrap();
-    let coords_re = Regex::new(r"(?s)<coordinates>\s*([^\s<]+)").unwrap();
-    let address_re = Regex::new(r"(?s)<address>(.*?)</address>").unwrap();
 
-    for cap in placemark_re.captures_iter(raw) {
+    for cap in RE_KML_PLACEMARK.captures_iter(raw) {
         let block = &cap[1];
 
-        let name = name_re
+        let name = RE_KML_NAME
             .captures(block)
             .map(|c| clean_xml_text(&c[1]))
             .filter(|s| !s.is_empty());
-        let desc = desc_re
+        let desc = RE_KML_DESC
             .captures(block)
             .map(|c| clean_xml_text(&c[1]))
             .filter(|s| !s.is_empty());
-        let addr = address_re
+        let addr = RE_KML_ADDRESS
             .captures(block)
             .map(|c| clean_xml_text(&c[1]))
             .filter(|s| !s.is_empty());
@@ -540,7 +566,7 @@ pub fn parse_kml_data(raw: &str) -> Result<Vec<ImportItem>, String> {
         let mut lat = None;
         let mut lon = None;
 
-        if let Some(c_cap) = coords_re.captures(block) {
+        if let Some(c_cap) = RE_KML_COORDS.captures(block) {
             let coord_str = &c_cap[1];
             let parts: Vec<&str> = coord_str.split(',').collect();
             if parts.len() >= 2 {
@@ -603,8 +629,7 @@ fn clean_xml_text(raw: &str) -> String {
 /// Extract GPS coordinates from Google Maps and common map URLs
 pub fn extract_coordinates_from_url(url: &str) -> Option<(f64, f64)> {
     // 1. Match /@lat,lon,zoom or /@lat,lon
-    let re_at = Regex::new(r"/@(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
-    if let Some(caps) = re_at.captures(url) {
+    if let Some(caps) = RE_URL_AT.captures(url) {
         if let (Ok(lat), Ok(lon)) = (caps[1].parse::<f64>(), caps[2].parse::<f64>()) {
             if is_valid_lat_lon(lat, lon) {
                 return Some((lat, lon));
@@ -613,8 +638,7 @@ pub fn extract_coordinates_from_url(url: &str) -> Option<(f64, f64)> {
     }
 
     // 2. Match !3dlat!4dlon (Google Maps place URLs)
-    let re_embed = Regex::new(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)").unwrap();
-    if let Some(caps) = re_embed.captures(url) {
+    if let Some(caps) = RE_URL_EMBED.captures(url) {
         if let (Ok(lat), Ok(lon)) = (caps[1].parse::<f64>(), caps[2].parse::<f64>()) {
             if is_valid_lat_lon(lat, lon) {
                 return Some((lat, lon));
@@ -623,8 +647,7 @@ pub fn extract_coordinates_from_url(url: &str) -> Option<(f64, f64)> {
     }
 
     // 3. Match ?q=lat,lon or &q=lat,lon or ?ll=lat,lon
-    let re_query = Regex::new(r"[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)").unwrap();
-    if let Some(caps) = re_query.captures(url) {
+    if let Some(caps) = RE_URL_QUERY.captures(url) {
         if let (Ok(lat), Ok(lon)) = (caps[1].parse::<f64>(), caps[2].parse::<f64>()) {
             if is_valid_lat_lon(lat, lon) {
                 return Some((lat, lon));

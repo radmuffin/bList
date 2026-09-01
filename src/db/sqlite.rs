@@ -605,6 +605,18 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
         )?;
     }
 
+    conn.execute_batch(
+        r#"
+        CREATE VIRTUAL TABLE IF NOT EXISTS rtree_pins_index USING rtree(
+            id,
+            minLon, maxLon,
+            minLat, maxLat
+        );
+        INSERT OR IGNORE INTO rtree_pins_index(id, minLon, maxLon, minLat, maxLat)
+        SELECT id, longitude, longitude, latitude, latitude FROM pins;
+        "#,
+    )?;
+
     Ok(conn)
 }
 
@@ -748,19 +760,51 @@ pub fn list_pins(
     query: &ListPinsQuery,
     user_token: Option<&str>,
 ) -> Result<Vec<Pin>> {
-    let mut sql = String::from(
-        "SELECT p.id, p.list_id, p.title, p.description, p.latitude, p.longitude, p.category, p.emoji, p.tags, p.priority, p.day_group, p.custom_order, p.opening_hours, p.source_url, p.image_url, p.address, p.notes, p.visited, p.created_at \
-         FROM pins p"
-    );
+    let mut sql = String::new();
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-    if let Some(tok) = user_token {
-        sql.push_str(
-            " INNER JOIN device_lists dl ON p.list_id = dl.list_id WHERE dl.user_token = ?",
-        );
-        params_vec.push(Box::new(tok.to_string()));
+    let use_rtree = if let (Some(min_lon), Some(max_lon), Some(min_lat), Some(max_lat)) = (
+        query.viewport_min_lon,
+        query.viewport_max_lon,
+        query.viewport_min_lat,
+        query.viewport_max_lat,
+    ) {
+        min_lon <= max_lon && min_lat <= max_lat
     } else {
-        sql.push_str(" WHERE 1=1");
+        false
+    };
+
+    if use_rtree {
+        sql.push_str(
+            "SELECT p.id, p.list_id, p.title, p.description, p.latitude, p.longitude, p.category, p.emoji, p.tags, p.priority, p.day_group, p.custom_order, p.opening_hours, p.source_url, p.image_url, p.address, p.notes, p.visited, p.created_at \
+             FROM pins p \
+             INNER JOIN rtree_pins_index r ON r.id = p.id \
+             WHERE r.minLon >= ? AND r.maxLon <= ? AND r.minLat >= ? AND r.maxLat <= ?"
+        );
+        params_vec.push(Box::new(query.viewport_min_lon.unwrap()));
+        params_vec.push(Box::new(query.viewport_max_lon.unwrap()));
+        params_vec.push(Box::new(query.viewport_min_lat.unwrap()));
+        params_vec.push(Box::new(query.viewport_max_lat.unwrap()));
+
+        if let Some(tok) = user_token {
+            sql.push_str(
+                " AND p.list_id IN (SELECT list_id FROM device_lists WHERE user_token = ?)",
+            );
+            params_vec.push(Box::new(tok.to_string()));
+        }
+    } else {
+        sql.push_str(
+            "SELECT p.id, p.list_id, p.title, p.description, p.latitude, p.longitude, p.category, p.emoji, p.tags, p.priority, p.day_group, p.custom_order, p.opening_hours, p.source_url, p.image_url, p.address, p.notes, p.visited, p.created_at \
+             FROM pins p"
+        );
+        if let Some(tok) = user_token {
+            sql.push_str(
+                " INNER JOIN device_lists dl ON p.list_id = dl.list_id WHERE dl.user_token = ?",
+            );
+            params_vec.push(Box::new(tok.to_string()));
+        } else {
+            sql.push_str(" WHERE 1=1");
+        }
     }
 
     if let Some(list_id) = query.list_id {
@@ -1022,6 +1066,11 @@ pub fn create_pin(conn: &Connection, req: &CreatePinRequest) -> Result<Pin> {
 
     let id = conn.last_insert_rowid();
 
+    conn.execute(
+        "INSERT INTO rtree_pins_index(id, minLon, maxLon, minLat, maxLat) VALUES (?, ?, ?, ?, ?)",
+        params![id, req.longitude, req.longitude, req.latitude, req.latitude],
+    )?;
+
     Ok(Pin {
         id,
         list_id,
@@ -1091,6 +1140,12 @@ pub fn create_pins_batch(
             ])?;
 
             let id = tx.last_insert_rowid();
+
+            tx.execute(
+                "INSERT INTO rtree_pins_index(id, minLon, maxLon, minLat, maxLat) VALUES (?, ?, ?, ?, ?)",
+                params![id, req.longitude, req.longitude, req.latitude, req.latitude],
+            )?;
+
             inserted_pins.push(Pin {
                 id,
                 list_id,
@@ -1219,6 +1274,7 @@ pub fn toggle_visited(conn: &Connection, id: i64) -> Result<Option<Pin>> {
 }
 
 pub fn delete_pin(conn: &Connection, id: i64) -> Result<bool> {
+    conn.execute("DELETE FROM rtree_pins_index WHERE id = ?", params![id])?;
     let rows_affected = conn.execute("DELETE FROM pins WHERE id = ?", params![id])?;
     Ok(rows_affected > 0)
 }

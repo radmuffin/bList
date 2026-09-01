@@ -790,6 +790,10 @@ impl LinkScraper for BListScraper {
 
     fn can_handle(&self, url: &str) -> bool {
         let lower = url.to_lowercase();
+        // NOTE: localhost/127.0.0.1 are matched here intentionally to handle bList-to-bList
+        // deep-link sharing (e.g. from the PWA share target). BListScraper::scrape() only
+        // parses query parameters from the URL — it makes NO outbound HTTP requests — so
+        // accepting localhost URLs here does not introduce SSRF risk.
         lower.contains("blist")
             || lower.contains("localhost")
             || lower.contains("127.0.0.1")

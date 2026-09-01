@@ -203,6 +203,14 @@ pub struct ListPinsQuery {
     pub tag: Option<String>,
     pub day_group: Option<i64>,
     pub search: Option<String>,
+    #[serde(default)]
+    pub viewport_min_lon: Option<f64>,
+    #[serde(default)]
+    pub viewport_max_lon: Option<f64>,
+    #[serde(default)]
+    pub viewport_min_lat: Option<f64>,
+    #[serde(default)]
+    pub viewport_max_lat: Option<f64>,
 }
 
 pub use fly_common::models::ApiResponse;

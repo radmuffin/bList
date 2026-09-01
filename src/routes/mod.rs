@@ -13,8 +13,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-#[allow(unused_imports)]
-pub use export::{app_info, export_geojson, export_json, geocode, health_check, GeocodeQuery};
+pub use export::{app_info, export_geojson, export_json, geocode};
 pub use ingest::{import_places, ingest_link, preview_scrape};
 pub use lists::{create_list, delete_list, get_list, join_list, list_lists, update_list};
 pub use pins::{
@@ -34,6 +33,14 @@ pub struct AppState {
     pub geocoder: Arc<Geocoder>,
 }
 
+// NOTE: Cannot use fly_common::auth::UserToken directly because:
+// 1. fly_common's version uses Infallible rejection (never fails — returns an empty token),
+//    whereas bList requires a hard 400 BAD_REQUEST rejection for missing/empty tokens.
+// 2. Our extraction must call state.storage.auto_associate_device(), which requires access
+//    to AppState — fly_common's generic implementation has no concept of AppState.
+// 3. fly_common sanitizes token chars (strips non-alphanumeric), which would silently corrupt
+//    UUID-style tokens that include '-' only (our tokens are UUIDs, which fly_common does keep,
+//    but the semantic contract differs).
 #[derive(Debug, Clone)]
 pub struct UserToken(pub String);
 

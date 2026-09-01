@@ -185,6 +185,10 @@ pub struct MapboxGeocoder {
 }
 
 impl MapboxGeocoder {
+    // NOTE: This uses a plain reqwest client rather than build_safe_http_client because
+    // MapboxGeocoder only ever calls fixed Mapbox API endpoints (not user-supplied URLs),
+    // so SSRF is not a concern here. If the base_url becomes configurable at runtime
+    // from user input, switch to build_safe_http_client.
     #[allow(dead_code)]
     pub fn new(access_token: impl Into<String>) -> Self {
         let client = reqwest::Client::builder()
@@ -323,6 +327,10 @@ pub struct GooglePlacesGeocoder {
 }
 
 impl GooglePlacesGeocoder {
+    // NOTE: This uses a plain reqwest client rather than build_safe_http_client because
+    // GooglePlacesGeocoder only ever calls fixed Google Geocoding API endpoints (not
+    // user-supplied URLs), so SSRF is not a concern here. If the endpoint URL becomes
+    // configurable at runtime from user input, switch to build_safe_http_client.
     #[allow(dead_code)]
     pub fn new(api_key: impl Into<String>) -> Self {
         let client = reqwest::Client::builder()
@@ -640,7 +648,7 @@ impl Geocoder {
         // 3. Delegate to underlying provider
         let result = self.provider.geocode(safe_query).await?;
 
-        // 3. Populate cache
+        // 4. Populate cache
         self.cache.insert_forward(safe_query, result.clone());
 
         Ok(result)

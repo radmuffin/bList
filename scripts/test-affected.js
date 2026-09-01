@@ -51,7 +51,7 @@ function getChangedFiles() {
 
   // 3. Diff against base branch (e.g. origin/main or HEAD~1)
   try {
-    const diffBase = execSync(`git diff --name-only ${baseBranch}...HEAD`, { encoding: 'utf8' }).trim();
+    const diffBase = execSync(`git diff --name-only ${baseBranch}...HEAD`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
     if (diffBase) {
       diffBase.split('\n').forEach((f) => {
         const trimmed = f.trim();
@@ -60,7 +60,7 @@ function getChangedFiles() {
     }
   } catch (_) {
     try {
-      const diffHead = execSync('git diff --name-only HEAD~1', { encoding: 'utf8' }).trim();
+      const diffHead = execSync('git diff --name-only HEAD~1', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
       if (diffHead) {
         diffHead.split('\n').forEach((f) => {
           const trimmed = f.trim();

@@ -11,18 +11,6 @@ use super::{check_permission_or_err, AppState, UserToken};
 use crate::models::{ApiResponse, GeoLocation, ListPinsQuery, Pin};
 
 #[debug_handler]
-#[allow(dead_code)]
-pub async fn health_check() -> (StatusCode, Json<serde_json::Value>) {
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({
-            "status": "healthy",
-            "version": env!("CARGO_PKG_VERSION")
-        })),
-    )
-}
-
-#[debug_handler]
 pub async fn app_info() -> (StatusCode, Json<serde_json::Value>) {
     (
         StatusCode::OK,

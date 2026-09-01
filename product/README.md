@@ -21,6 +21,10 @@ Our four product pillars defining the roadmap and feature priorities:
 
 ### ⚙️ [Technical Guidelines & Architecture](./tech-specs/)
 - [**Architecture & Performance Guidelines**](./tech-specs/architecture-guidelines.md) — Rust Axum 0.7 best practices, SQLite WAL mode, Leaflet map rendering optimizations, and PWA offline storage standards.
+- [**bList Next-Gen Product & Architecture Blueprint**](./tech-specs/blist-nextgen-product-architecture.md) — Multi-year vision for spatial R-Tree indexing, offline vector mapping, client-side TSP route optimization, and real-time multiplayer co-planning.
+- [**fly-common Micro-Kernel Architecture Roadmap**](./tech-specs/fly-common-architecture-roadmap.md) — Distributed multi-region LiteFS replication, Fly 6PN internal mesh pub/sub, zero-knowledge WebAuthn identity, and edge media processing.
+- [**Universal Importer Specification**](./tech-specs/universal-importer-spec.md) — Architecture for parsing Google Takeout, KML/KMZ, GPX, and GeoJSON files.
+- [**Visual Markers & Multi-Tagging Specification**](./tech-specs/visual-markers-and-tags-spec.md) — Taxonomy, color palettes, and interactive pin rendering standards.
 
 ---
 
@@ -30,3 +34,4 @@ Our four product pillars defining the roadmap and feature priorities:
 2. **Sub-100ms Response Times**: Rust Axum backend + SQLite WAL mode provides instant, deterministic execution.
 3. **No Heavy Frontend Framework Bloat**: Pure vanilla ES6+ JS and CSS with Leaflet.js ensures fast mobile loading and low memory overhead.
 4. **Data Sovereignty & Portability**: Zero vendor lock-in. Full GeoJSON, KML, and JSON exports with seamless 1-click import.
+5. **Hardened Security & Observability**: DNS pinning SSRF protection (`validate_url_with_dns_pin` in `src/security.rs`) resolves hostnames and verifies target IPs before connection to eliminate TOCTOU DNS rebinding risks, paired with native Prometheus telemetry via the `/metrics` endpoint (`src/metrics.rs`).

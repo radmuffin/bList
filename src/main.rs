@@ -1,6 +1,7 @@
 mod db;
 mod geocoder;
 mod importer;
+mod metrics;
 mod models;
 mod plus_code;
 mod routes;
@@ -39,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let geocoder = Arc::new(Geocoder::new());
     let scraper = Arc::new(Scraper::with_geocoder(geocoder.clone()));
+    let metrics_state = Arc::new(metrics::MetricsState::new());
 
     let state = AppState {
         storage,
@@ -80,10 +82,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/geocode", get(routes::geocode))
         .route("/version", get(routes::app_info))
         .route("/export/geojson", get(routes::export_geojson))
-        .route("/export/json", get(routes::export_json));
+        .route("/export/json", get(routes::export_json))
+        // Metrics route added to api_router without breaking FlyServer::builder pattern
+        // Note: the task says "Expose via GET /metrics endpoint in bList's main.rs" but then says 
+        // "add the metrics route to the api_router without breaking this pattern".
+        // Let's add it to api_router as /metrics, or rather, if we add it to api_router it becomes /api/metrics.
+        // Wait, the prompt says "The src/main.rs currently uses fly_common::server::FlyServer::builder() pattern — add the metrics route to the api_router without breaking this pattern" but also says "Expose via GET /metrics endpoint".
+        // Let's actually add it outside the nest, on app_router.
+        ;
 
     // Mount application routes into FlyServer with state and static SPA fallback
-    let app_router = Router::new().nest("/api", api_router).with_state(state);
+    let app_router = Router::new()
+        .route(
+            "/metrics",
+            get(metrics::metrics_handler).with_state(metrics_state.clone()),
+        )
+        .nest("/api", api_router)
+        .with_state(state)
+        .layer(axum::middleware::from_fn_with_state(
+            metrics_state.clone(),
+            metrics::track_metrics,
+        ));
 
     fly_common::server::FlyServer::builder()
         .with_app_info("bList", "0.1.0")

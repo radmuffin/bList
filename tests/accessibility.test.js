@@ -191,6 +191,61 @@ describe('Accessibility & UI Layout Contract Tests', () => {
         );
       });
     });
+
+    it('should have 100% balanced and correctly nested HTML container tags without mismatches', () => {
+      const regex = /<\/?([a-z0-9-]+)(?:\s+[^>]*)?\/?>/gi;
+      let match;
+      const stack = [];
+      const selfClosing = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr', '!doctype']);
+      const errors = [];
+
+      while ((match = regex.exec(html)) !== null) {
+        const line = html.substring(0, match.index).split('\n').length;
+        const fullTag = match[0];
+        const tagName = match[1].toLowerCase();
+        const isClosing = fullTag.startsWith('</');
+        const isSelf = fullTag.endsWith('/>') || selfClosing.has(tagName) || tagName.startsWith('!');
+
+        if (isSelf) continue;
+
+        if (isClosing) {
+          if (stack.length === 0) {
+            errors.push(`Extra closing tag </${tagName}> at line ${line}`);
+          } else {
+            const top = stack.pop();
+            if (top.tag !== tagName) {
+              errors.push(`Mismatch at line ${line}: expected </${top.tag}> (from line ${top.line}), but found </${tagName}>`);
+            }
+          }
+        } else {
+          stack.push({ tag: tagName, line });
+        }
+      }
+
+      if (stack.length > 0) {
+        stack.forEach((s) => errors.push(`Unclosed <${s.tag}> opened at line ${s.line}`));
+      }
+
+      assert.deepStrictEqual(errors, [], `HTML tag nesting errors detected: ${errors.join('; ')}`);
+    });
+
+    it('should preserve .main-content and #map within .app-layout', () => {
+      const appLayoutIdx = html.indexOf('class="app-layout"');
+      const headerIdx = html.indexOf('class="app-header"');
+      const headerActionsIdx = html.indexOf('class="header-actions"');
+      const mainContentIdx = html.indexOf('class="main-content"');
+      const mapIdx = html.indexOf('id="map"');
+
+      assert.ok(appLayoutIdx !== -1, '.app-layout must exist');
+      assert.ok(headerIdx !== -1, '.app-header must exist');
+      assert.ok(headerActionsIdx !== -1, '.header-actions must exist');
+      assert.ok(mainContentIdx !== -1, '.main-content must exist');
+      assert.ok(mapIdx !== -1, '#map must exist');
+
+      assert.ok(appLayoutIdx < headerIdx, '.app-header must be inside .app-layout');
+      assert.ok(headerIdx < headerActionsIdx, '.header-actions must be inside .app-header');
+      assert.ok(headerIdx < mainContentIdx, '.main-content must follow .app-header');
+      assert.ok(mainContentIdx < mapIdx, '#map must be inside .main-content');
+    });
   });
 });
-

@@ -13,6 +13,7 @@ bList is a lightweight, zero-AI, deterministic bucket list map web application w
 - **Frontend**: Single-Page Application (SPA) built using vanilla CSS, modern ES6+ JS, and **Leaflet.js** for map rendering. No build steps (webpack/vite) are needed for the frontend.
 - **Scraper & Geocoder**: Deterministic parsing of scraped page content (`reqwest`, `scraper`) with OpenStreetMap (Nominatim API) geocoding backup.
 - **Multi-Device Sync**: Anonymous cryptographic sync tokens (`X-User-Token` / `blist_device_token`) allow syncing across devices and sharing collaborative trip lists via random UUIDv4 share tokens.
+- **Telemetry & Monitoring**: Native Prometheus `/metrics` endpoint (`src/metrics.rs`) exposing HTTP request metrics (`2xx`, `4xx`, `5xx`) and service uptime.
 
 ---
 
@@ -38,8 +39,9 @@ Axum routes require all futures to be `Send`. Therefore:
 - Keep transaction locks brief. Since WAL mode is active, reads do not block writes, but concurrent writes will serialize.
 - Always use parameterized queries (`params![]` / `?`) to prevent SQL injection.
 
-### 3. SSRF & Security Headers
-- All external HTTP requests (ingest, metadata preview, geocoding) must be validated through `src/security.rs` (`validate_url_for_ssrf` / `build_safe_http_client`) to block private IPv4 (RFC 1918, 169.254.x), IPv6 (ULA, loopback), internal cloud metadata hostnames, and unsafe redirects.
+### 3. SSRF, Telemetry & Security Headers
+- All external HTTP requests (ingest, metadata preview, geocoding) must be validated through `src/security.rs` (`validate_url_for_ssrf`, `validate_url_with_dns_pin`, `build_safe_http_client`) to block private IPv4 (RFC 1918, 169.254.x), IPv6 (ULA, loopback), internal cloud metadata hostnames, and unsafe redirects. DNS pinning (`validate_url_with_dns_pin`) resolves hostnames and validates all resolved IP addresses before connection to prevent Time-of-Check to Time-of-Use (TOCTOU) DNS rebinding attacks.
+- **Prometheus Telemetry**: The `/metrics` endpoint is implemented in `src/metrics.rs` to report request counts (`2xx`, `4xx`, `5xx`) and uptime. Route HTTP traffic through the `track_metrics` middleware.
 - Security response headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`) are attached globally via Axum middleware in `src/main.rs`.
 
 ### 4. iOS/Android PWA Share Target & UI Specificity
@@ -85,20 +87,39 @@ Maps device user tokens to lists for multi-device sync, row-level access control
 
 ---
 
+## ⚡ Agent Testing & Concurrency Protocol (CRITICAL)
+
+To maximize agent throughput, prevent local CPU/RAM starvation, and eliminate test flakiness during concurrent multi-agent or subagent execution:
+
+> [!IMPORTANT]
+> **Agents MUST NOT run the full heavy test suite (e.g. `npm run test:e2e` across all browsers) locally.**
+> Follow this two-step verification rule:
+>
+> 1. **Step 1: Rapid Local Affected Check (<5s)**
+>    Run `npm run test:affected` locally. This inspects your diff and runs only the specific Rust modules, frontend unit tests, or single Playwright spec directly modified.
+> 2. **Step 2: Offload Full Test Suite to Parallel CI**
+>    Push your branch and trigger the GitHub Actions parallel workflow:
+>    ```bash
+>    npm run test:branch-ci
+>    # or: gh workflow run test-branch.yml -f branch=$(git branch --show-current)
+>    ```
+>    GitHub Actions executes backend unit tests, formatting/clippy checks, frontend unit tests, and the multi-browser Playwright matrix (**Desktop Chrome**, **Mobile Pixel**, **Mobile Safari**) in parallel on dedicated runners without consuming local machine resources.
+
+---
+
 ## 🚀 Key Commands & CI/CD Pipeline
 
-- **⚡ Run affected tests only**: `npm run test:affected` (evaluates git diffs and runs only impacted frontend/backend suites)
+- **⚡ Fast local affected test check (Preferred for agents)**: `npm run test:affected` (evaluates git diffs and runs only impacted suites)
+- **🌐 Run full parallel test suite on branch in CI**: `npm run test:branch-ci` (dispatches `.github/workflows/test-branch.yml`)
 - **🪝 Install git pre-push hook**: `npm run setup:hooks` (runs `npm run test:affected` automatically before every `git push`)
 - **Build/Check local backend**: `cargo check && cargo test`
 - **Run linter**: `cargo clippy --all-targets`
 - **Check formatting**: `cargo fmt --all -- --check`
 - **Run frontend unit & a11y tests**: `npm test`
-- **Run E2E Playwright tests**: `npm run test:e2e`
 - **Run local server**: `cargo run` (accessible locally on port `3000`)
 - **Docker build**: Multi-stage build with `cargo-chef` dependency caching (`docker build -t blist .`)
 - **Deploy locally via Fly CLI**: `fly deploy --local-only`
-- **CI/CD Workflow (`.github/workflows/ci.yml`)**:
-  - Runs `backend` and `frontend-e2e` in parallel across all matrix checks.
-  - Caches Playwright browser binaries in `~/.cache/ms-playwright`.
-  - Deployment to Fly.io (`deploy` job) strictly gates on all tests passing on the `main` branch.
-- **Deploy manually to staging**: Run the "CD - Deploy to Staging" workflow dispatch in GitHub Actions or `fly deploy --app blist-staging-radmuffin --local-only`.
+- **CI/CD Workflows**:
+  - **Branch & On-Demand CI (`.github/workflows/test-branch.yml`)**: Runs 5 parallel jobs (Backend tests, Lints/Clippy, Frontend unit/a11y, and Playwright matrix across 3 browsers).
+  - **Production CI/CD (`.github/workflows/ci.yml`)**: Runs all checks and gates deployment to Fly.io on `main`.
+  - **Deploy to Staging (`.github/workflows/deploy-staging.yml`)**: Workflow dispatch deploying any specified branch to `blist-staging-radmuffin`.
