@@ -648,11 +648,13 @@
 
         <!-- Copy Link Row -->
         <div class="share-link-box">
-          <input type="text" id="share-link-input" readonly class="share-link-field">
-          <button type="button" class="btn btn-primary" id="btn-copy-list-link" onclick="copyShareLink()">
-            <i data-lucide="copy" class="btn-icon"></i>
-            <span>Copy</span>
-          </button>
+          <div class="share-link-input-group">
+            <input type="text" id="share-link-input" readonly class="share-link-input" aria-label="Share Link URL">
+            <button type="button" class="btn btn-primary btn-copy-share" id="btn-copy-list-link" onclick="copyShareLink()">
+              <i data-lucide="copy"></i>
+              <span>Copy</span>
+            </button>
+          </div>
         </div>
 
         <!-- Quick Social & Messaging Grid -->
@@ -660,27 +662,27 @@
           <span class="share-social-heading">QUICK SHARE TO</span>
           <div class="share-social-grid">
             <button type="button" class="share-social-btn share-sms" onclick="shareListVia('sms')" title="Share via Text / SMS">
-              <span class="social-icon">💬</span>
+              <i data-lucide="message-square" class="social-icon"></i>
               <span class="social-label">Text / SMS</span>
             </button>
             <button type="button" class="share-social-btn share-whatsapp" onclick="shareListVia('whatsapp')" title="Share via WhatsApp">
-              <span class="social-icon">📱</span>
+              <i data-lucide="phone" class="social-icon"></i>
               <span class="social-label">WhatsApp</span>
             </button>
             <button type="button" class="share-social-btn share-messenger" onclick="shareListVia('messenger')" title="Share via Messenger">
-              <span class="social-icon">⚡</span>
+              <i data-lucide="zap" class="social-icon"></i>
               <span class="social-label">Messenger</span>
             </button>
             <button type="button" class="share-social-btn share-instagram" onclick="shareListVia('instagram')" title="Share to Instagram">
-              <span class="social-icon">📸</span>
+              <i data-lucide="camera" class="social-icon"></i>
               <span class="social-label">Instagram</span>
             </button>
             <button type="button" class="share-social-btn share-twitter" onclick="shareListVia('twitter')" title="Share on X / Twitter">
-              <span class="social-icon">🐦</span>
+              <i data-lucide="share-2" class="social-icon"></i>
               <span class="social-label">X / Twitter</span>
             </button>
             <button type="button" class="share-social-btn share-email" onclick="shareListVia('email')" title="Share via Email">
-              <span class="social-icon">✉️</span>
+              <i data-lucide="mail" class="social-icon"></i>
               <span class="social-label">Email</span>
             </button>
           </div>
@@ -698,8 +700,8 @@
           </div>
         </div>
       </div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" onclick="closeShareListModal()">Done</button>
+      <div class="modal-actions modal-actions-right">
+        <button type="button" class="btn btn-secondary" onclick="closeShareListModal()" style="min-width: 90px;">Done</button>
       </div>
     </div>
   </div>
@@ -722,11 +724,13 @@
 
         <!-- Copy Link Row -->
         <div class="share-link-box">
-          <input type="text" id="share-place-link-input" readonly class="share-link-field">
-          <button type="button" class="btn btn-primary" id="btn-copy-place-link" onclick="copySharePlaceLink()">
-            <i data-lucide="copy" class="btn-icon"></i>
-            <span>Copy</span>
-          </button>
+          <div class="share-link-input-group">
+            <input type="text" id="share-place-link-input" readonly class="share-link-input" aria-label="Share Place Link URL">
+            <button type="button" class="btn btn-primary btn-copy-share" id="btn-copy-place-link" onclick="copySharePlaceLink()">
+              <i data-lucide="copy"></i>
+              <span>Copy</span>
+            </button>
+          </div>
         </div>
 
         <!-- Quick Social & Messaging Grid -->
@@ -734,27 +738,27 @@
           <span class="share-social-heading">QUICK SHARE TO</span>
           <div class="share-social-grid">
             <button type="button" class="share-social-btn share-sms" onclick="sharePlaceVia('sms')" title="Share via Text / SMS">
-              <span class="social-icon">💬</span>
+              <i data-lucide="message-square" class="social-icon"></i>
               <span class="social-label">Text / SMS</span>
             </button>
             <button type="button" class="share-social-btn share-whatsapp" onclick="sharePlaceVia('whatsapp')" title="Share via WhatsApp">
-              <span class="social-icon">📱</span>
+              <i data-lucide="phone" class="social-icon"></i>
               <span class="social-label">WhatsApp</span>
             </button>
             <button type="button" class="share-social-btn share-messenger" onclick="sharePlaceVia('messenger')" title="Share via Messenger">
-              <span class="social-icon">⚡</span>
+              <i data-lucide="zap" class="social-icon"></i>
               <span class="social-label">Messenger</span>
             </button>
             <button type="button" class="share-social-btn share-instagram" onclick="sharePlaceVia('instagram')" title="Share to Instagram">
-              <span class="social-icon">📸</span>
+              <i data-lucide="camera" class="social-icon"></i>
               <span class="social-label">Instagram</span>
             </button>
             <button type="button" class="share-social-btn share-twitter" onclick="sharePlaceVia('twitter')" title="Share on X / Twitter">
-              <span class="social-icon">🐦</span>
+              <i data-lucide="share-2" class="social-icon"></i>
               <span class="social-label">X / Twitter</span>
             </button>
             <button type="button" class="share-social-btn share-email" onclick="sharePlaceVia('email')" title="Share via Email">
-              <span class="social-icon">✉️</span>
+              <i data-lucide="mail" class="social-icon"></i>
               <span class="social-label">Email</span>
             </button>
           </div>
@@ -772,8 +776,8 @@
           </div>
         </div>
       </div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" onclick="closeSharePlaceModal()">Done</button>
+      <div class="modal-actions modal-actions-right">
+        <button type="button" class="btn btn-secondary" onclick="closeSharePlaceModal()" style="min-width: 90px;">Done</button>
       </div>
     </div>
   </div>

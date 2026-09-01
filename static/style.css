@@ -2040,6 +2040,11 @@ label {
   align-items: center;
   gap: 8px;
   margin-left: auto;
+  justify-content: flex-end;
+}
+
+.modal-actions.modal-actions-right {
+  justify-content: flex-end;
 }
 
 /* More Options Collapsible Accordion */
@@ -2465,29 +2470,46 @@ label {
 
 .share-link-input-group {
   display: flex;
+  align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .share-link-input {
   flex: 1;
-  font-family: monospace;
-  font-size: 12px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  min-width: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 12.5px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  background: var(--bg-main);
+  background: var(--bg-input);
   color: var(--text-main);
   outline: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
   user-select: all;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.share-link-input:focus {
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
 }
 
 .btn-copy-share {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 10px 16px;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 13px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 .native-share-wrapper {
