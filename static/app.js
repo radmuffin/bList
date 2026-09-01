@@ -1570,11 +1570,12 @@
           const assignedList = Utils.getListNameForPin(pin);
           const weatherCached =
             State.weatherCache[`${pin.latitude.toFixed(2)},${pin.longitude.toFixed(2)}`];
-                const streetAddress = (window.bListHelpers && window.bListHelpers.formatStreetAddress)
-                  ? window.bListHelpers.formatStreetAddress(pin.address, pin.title)
-                  : (pin.address || '');
+          const safeThumb = pin.image_url ? Utils.sanitizeUrl(pin.image_url) : '';
+          const streetAddress = (window.bListHelpers && window.bListHelpers.formatStreetAddress)
+            ? window.bListHelpers.formatStreetAddress(pin.address, pin.title)
+            : (pin.address || '');
 
-                return `
+          return `
                   <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
                     ${
                       safeThumb
