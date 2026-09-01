@@ -1039,8 +1039,8 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(MANIFESTO_RULES.length, 4);
       assert.strictEqual(MANIFESTO_RULES[0].rule, 1);
       assert.ok(MANIFESTO_RULES[0].title.includes('Pin First'));
-      assert.ok(MANIFESTO_RULES[1].title.includes('Zero AI'));
-      assert.ok(MANIFESTO_RULES[2].title.includes('Noodles'));
+      assert.ok(MANIFESTO_RULES[1].title.includes('Reliable'));
+      assert.ok(MANIFESTO_RULES[2].title.includes('Discoveries'));
       assert.ok(MANIFESTO_RULES[3].title.includes('Your Data'));
     });
   });

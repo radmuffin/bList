@@ -1597,10 +1597,10 @@
    * The 4 playful manifesto rules of bList.
    */
   const MANIFESTO_RULES = [
-    { rule: 1, title: 'Pin First, Explore Forever', desc: 'Save places whenever inspiration strikes. Real adventures happen outside the algorithm.' },
-    { rule: 2, title: 'Zero AI Hallucinations', desc: '100% deterministic parsing & OpenStreetMap coords. Places that actually exist with zero fluff.' },
-    { rule: 3, title: 'Back-Alley Noodles Rule', desc: 'The best discoveries aren\'t on generic top-10 sponsored lists.' },
-    { rule: 4, title: 'Your Data, Your Journey', desc: 'Private multi-device sync, zero trackers, full GeoJSON/CSV export ownership.' }
+    { rule: 1, title: 'Pin First, Wander Forever', desc: 'Save places whenever inspiration strikes. Real adventures start with simple pins.' },
+    { rule: 2, title: 'Fast, Reliable & Deterministic', desc: 'Precise OpenStreetMap coordinates and instant previews. Real spots that accurately exist without fluff or delay.' },
+    { rule: 3, title: 'Back-Alley Discoveries Rule', desc: 'The best hidden gems and noodle shops are found by curious travelers, not sponsored ad feeds.' },
+    { rule: 4, title: 'Your Data, Your Journey', desc: 'Private multi-device sync, zero trackers, full offline PWA support, and open GeoJSON/CSV exports.' }
   ];
 
   /**

@@ -321,7 +321,25 @@ impl UserRepository for SqliteRepository {
         req: &UpdateUserProfileRequest,
     ) -> std::result::Result<UserProfile, StorageError> {
         let conn = self.conn.lock().unwrap();
-        let current = self.get_user_profile(user_token)?;
+        let mut stmt = conn
+            .prepare("SELECT user_token, name, avatar, color FROM users WHERE user_token = ?")
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+
+        let current = stmt
+            .query_row(params![user_token], |row| {
+                Ok(UserProfile {
+                    user_token: row.get(0)?,
+                    name: row.get(1)?,
+                    avatar: row.get(2)?,
+                    color: row.get(3)?,
+                })
+            })
+            .unwrap_or_else(|_| UserProfile {
+                user_token: user_token.to_string(),
+                name: "".to_string(),
+                avatar: "🧭".to_string(),
+                color: "#3b82f6".to_string(),
+            });
 
         let new_name = req.name.as_deref().unwrap_or(&current.name).trim().to_string();
         let new_avatar = req.avatar.as_deref().unwrap_or(&current.avatar).trim().to_string();
@@ -384,12 +402,7 @@ impl UserRepository for SqliteRepository {
             })
         }).map_err(|e| StorageError::Database(e.to_string()))?;
 
-        let mut result = Vec::new();
-        for r in rows {
-            if let Ok(c) = r {
-                result.push(c);
-            }
-        }
+        let result: Vec<Collaborator> = rows.flatten().collect();
         Ok(result)
     }
 }

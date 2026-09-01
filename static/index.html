@@ -957,168 +957,258 @@
           </p>
         </div>
 
-        <!-- Share bList Spotlight Banner -->
-        <div class="about-share-banner">
-          <div class="share-banner-content">
-            <span class="share-banner-sparkle">✨</span>
-            <div class="share-banner-text">
-              <h4 class="share-banner-title">Love bList? Share it with friends!</h4>
-              <p class="share-banner-desc">Help fellow travelers map their dreams without the AI noise.</p>
-            </div>
-          </div>
-          <button type="button" class="btn btn-primary btn-sm btn-share-about" onclick="openShareBListModal()">
-            <i data-lucide="share-2"></i>
-            <span>Share bList!</span>
+        <!-- Decomposed Nav Tabs -->
+        <div class="about-tabs-nav" role="tablist" aria-label="About Sections">
+          <button type="button" class="about-tab-btn active" id="tab-btn-explorer" onclick="switchAboutTab('explorer')" role="tab" aria-selected="true" aria-controls="about-panel-explorer">
+            <span>🏆 Badges &amp; Inspiration</span>
+          </button>
+          <button type="button" class="about-tab-btn" id="tab-btn-features" onclick="switchAboutTab('features')" role="tab" aria-selected="false" aria-controls="about-panel-features">
+            <span>🗺️ How It Works</span>
+          </button>
+          <button type="button" class="about-tab-btn" id="tab-btn-tech" onclick="switchAboutTab('tech')" role="tab" aria-selected="false" aria-controls="about-panel-tech">
+            <span>⚡ Engine &amp; Speed</span>
+          </button>
+          <button type="button" class="about-tab-btn" id="tab-btn-creator" onclick="switchAboutTab('creator')" role="tab" aria-selected="false" aria-controls="about-panel-creator">
+            <span>👋 Creator &amp; Contact</span>
           </button>
         </div>
 
-        <!-- Whimsical Traveler's Manifesto -->
-        <div class="about-section">
-          <h3 class="about-section-heading">
-            <i data-lucide="compass"></i>
-            <span>The Bucket List Manifesto</span>
-          </h3>
-          <div class="about-manifesto-grid">
-            <div class="manifesto-card">
-              <span class="manifesto-num">01</span>
-              <div class="manifesto-content">
-                <strong>Pin First, Wander Forever</strong>
-                <p>Save places the moment inspiration strikes. Real adventures happen outside the algorithm.</p>
-              </div>
+        <!-- Tab 1: Badges & Inspiration -->
+        <div class="about-tab-panel active" id="about-panel-explorer" role="tabpanel" aria-labelledby="tab-btn-explorer">
+          <!-- Profile Quick-Card -->
+          <div class="about-profile-card">
+            <div class="about-profile-avatar" id="about-profile-avatar-preview">
+              <!-- Rendered via ProfileManager -->
             </div>
-            <div class="manifesto-card">
-              <span class="manifesto-num">02</span>
-              <div class="manifesto-content">
-                <strong>Zero AI Hallucinations</strong>
-                <p>100% deterministic parsing &amp; OSM geocoding. Real spots that actually exist with zero fake hype.</p>
-              </div>
-            </div>
-            <div class="manifesto-card">
-              <span class="manifesto-num">03</span>
-              <div class="manifesto-content">
-                <strong>Back-Alley Noodles Rule</strong>
-                <p>The best food &amp; hidden gems are discovered by curious travelers, not sponsored tourist traps.</p>
-              </div>
-            </div>
-            <div class="manifesto-card">
-              <span class="manifesto-num">04</span>
-              <div class="manifesto-content">
-                <strong>Your Data, Your Journey</strong>
-                <p>Anonymous device tokens, zero trackers, full offline-ready PWA, and instant GeoJSON exports.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Travel Milestones & Badges Section -->
-        <div class="about-section">
-          <div class="badges-section-header">
-            <h3 class="about-section-heading">
-              <i data-lucide="award"></i>
-              <span>Travel Milestones &amp; Badges</span>
-            </h3>
-            <span class="badge-count-pill" id="about-badges-count">0 / 11 Unlocked</span>
-          </div>
-          <div class="about-badges-grid" id="about-badges-grid">
-            <!-- Dynamically populated by ModalManager.renderBadges() -->
-          </div>
-        </div>
-
-        <!-- Interactive Wonder Inspiration Easter Egg -->
-        <div class="about-section about-inspiration-box">
-          <div class="inspiration-header">
-            <h3 class="about-section-heading">
-              <i data-lucide="sparkles"></i>
-              <span>Need Inspiration?</span>
-            </h3>
-            <button type="button" class="btn btn-sm btn-outline-inspire" id="btn-inspire-roll" onclick="rollInspiration()">
-              <i data-lucide="dices"></i>
-              <span>Inspire Me!</span>
-            </button>
-          </div>
-          <div class="inspiration-card" id="inspiration-card">
-            <div class="inspiration-badge-row">
-              <span class="inspiration-emoji" id="inspire-emoji">🏮</span>
-              <span class="inspiration-cat" id="inspire-cat">Food &amp; Drink</span>
-            </div>
-            <h4 class="inspiration-title" id="inspire-title">Jiufen Old Street</h4>
-            <p class="inspiration-addr" id="inspire-addr">📍 Ruifang District, New Taipei City, Taiwan</p>
-            <p class="inspiration-desc" id="inspire-desc">Atmospheric lantern-lit mountain village with legendary taro balls and tea houses.</p>
-            <p class="inspiration-notes" id="inspire-notes">💡 <em>Inspired Spirited Away vibes! Try the herbal rice cakes and sip Oolong at Amei Tea House.</em></p>
-            <div class="inspiration-actions">
-              <button type="button" class="btn btn-sm btn-primary" id="btn-add-inspire-place" onclick="addCurrentInspirationToMap()">
-                <i data-lucide="plus-circle"></i>
-                <span>Save to Bucket List</span>
+            <div class="about-profile-info">
+              <span class="about-profile-label">CURRENT EXPLORER PROFILE</span>
+              <h4 class="about-profile-name" id="about-profile-name">Explorer</h4>
+              <button type="button" class="btn-link-action" onclick="openUserProfileModal()" style="padding: 0; font-size: 12px; margin-top: 4px;">
+                <i data-lucide="palette" style="width: 13px; height: 13px; display: inline-block; vertical-align: -2px;"></i>
+                <span>Customize Avatar &amp; Profile</span>
               </button>
             </div>
           </div>
-        </div>
 
-        <div class="about-section">
-          <h3 class="about-section-heading">
-            <i data-lucide="message-square-code"></i>
-            <span>Contact Us &amp; Support</span>
-          </h3>
-          <p class="about-section-subtext">
-            Found a bug, want to request a feature, or have a question? Contact us directly or report issues on GitHub:
-          </p>
-          <div class="about-actions-grid">
-            <a href="https://github.com/radmuffin/bList/issues" target="_blank" rel="noopener noreferrer" class="about-btn-action primary-action" title="Open GitHub Issues">
-              <div class="action-icon-wrapper">
-                <i data-lucide="bug"></i>
-              </div>
-              <div class="action-text">
-                <span class="action-title">Contact Us / Issues</span>
-                <span class="action-desc">Report bugs, submit feedback, or request features</span>
-              </div>
-              <i data-lucide="external-link" class="action-arrow"></i>
-            </a>
+          <!-- Travel Milestones & Badges Section -->
+          <div class="about-section">
+            <div class="badges-section-header">
+              <h3 class="about-section-heading">
+                <i data-lucide="award"></i>
+                <span>Travel Milestones &amp; Badges</span>
+              </h3>
+              <span class="badge-count-pill" id="about-badges-count">0 / 11 Unlocked</span>
+            </div>
+            <div class="about-badges-grid" id="about-badges-grid">
+              <!-- Dynamically populated by ModalManager.renderBadges() -->
+            </div>
+          </div>
 
-            <a href="https://github.com/radmuffin/bList" target="_blank" rel="noopener noreferrer" class="about-btn-action secondary-action" title="Open GitHub Repository">
-              <div class="action-icon-wrapper">
-                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path>
-                  <path d="M9 18c-4.51 2-5-2-7-2"></path>
-                </svg>
+          <!-- Interactive Wonder Inspiration Easter Egg -->
+          <div class="about-section about-inspiration-box">
+            <div class="inspiration-header">
+              <h3 class="about-section-heading">
+                <i data-lucide="sparkles"></i>
+                <span>Wanderlust Inspiration</span>
+              </h3>
+              <button type="button" class="btn btn-sm btn-outline-inspire" id="btn-inspire-roll" onclick="rollInspiration()">
+                <i data-lucide="dices"></i>
+                <span>Inspire Me!</span>
+              </button>
+            </div>
+            <div class="inspiration-card" id="inspiration-card">
+              <div class="inspiration-badge-row">
+                <span class="inspiration-emoji" id="inspire-emoji">🏮</span>
+                <span class="inspiration-cat" id="inspire-cat">Food &amp; Drink</span>
               </div>
-              <div class="action-text">
-                <span class="action-title">GitHub Repository</span>
-                <span class="action-desc">radmuffin/bList &bull; Star, explore code &amp; contribute</span>
+              <h4 class="inspiration-title" id="inspire-title">Jiufen Old Street</h4>
+              <p class="inspiration-addr" id="inspire-addr">📍 Ruifang District, New Taipei City, Taiwan</p>
+              <p class="inspiration-desc" id="inspire-desc">Atmospheric lantern-lit mountain village with legendary taro balls and tea houses.</p>
+              <p class="inspiration-notes" id="inspire-notes">💡 <em>Inspired Spirited Away vibes! Try the herbal rice cakes and sip Oolong at Amei Tea House.</em></p>
+              <div class="inspiration-actions">
+                <button type="button" class="btn btn-sm btn-primary" id="btn-add-inspire-place" onclick="addCurrentInspirationToMap()">
+                  <i data-lucide="plus-circle"></i>
+                  <span>Save to Bucket List</span>
+                </button>
               </div>
-              <i data-lucide="external-link" class="action-arrow"></i>
-            </a>
+            </div>
           </div>
         </div>
 
-        <div class="about-section">
-          <h3 class="about-section-heading">
-            <i data-lucide="cpu"></i>
-            <span>System &amp; Architecture</span>
-          </h3>
-          <div class="about-meta-grid">
-            <div class="meta-item">
-              <span class="meta-label">Backend Engine</span>
-              <span class="meta-value">Rust &amp; Axum 0.7 ⚡</span>
+        <!-- Tab 2: How It Works & Rules -->
+        <div class="about-tab-panel hidden" id="about-panel-features" role="tabpanel" aria-labelledby="tab-btn-features">
+          <div class="about-section">
+            <h3 class="about-section-heading">
+              <i data-lucide="compass"></i>
+              <span>Core Tenets of bList</span>
+            </h3>
+            <div class="about-manifesto-grid">
+              <div class="manifesto-card">
+                <span class="manifesto-num">01</span>
+                <div class="manifesto-content">
+                  <strong>Pin First, Wander Forever</strong>
+                  <p>Save places whenever inspiration strikes. Real adventures start with simple pins.</p>
+                </div>
+              </div>
+              <div class="manifesto-card">
+                <span class="manifesto-num">02</span>
+                <div class="manifesto-content">
+                  <strong>Fast, Reliable &amp; Deterministic</strong>
+                  <p>Precise OpenStreetMap coordinates and instant previews. Real spots that accurately exist without fluff or delay.</p>
+                </div>
+              </div>
+              <div class="manifesto-card">
+                <span class="manifesto-num">03</span>
+                <div class="manifesto-content">
+                  <strong>Back-Alley Discoveries Rule</strong>
+                  <p>The best hidden gems and noodle shops are found by curious travelers, not sponsored ad feeds.</p>
+                </div>
+              </div>
+              <div class="manifesto-card">
+                <span class="manifesto-num">04</span>
+                <div class="manifesto-content">
+                  <strong>Your Data, Your Journey</strong>
+                  <p>Private multi-device sync, zero trackers, full offline PWA support, and open GeoJSON/CSV exports.</p>
+                </div>
+              </div>
             </div>
-            <div class="meta-item">
-              <span class="meta-label">Database</span>
-              <span class="meta-value">SQLite (WAL Mode)</span>
+          </div>
+
+          <div class="about-section">
+            <h3 class="about-section-heading">
+              <i data-lucide="layers"></i>
+              <span>Trip Planning Toolkit</span>
+            </h3>
+            <div class="about-feature-cards-grid">
+              <div class="feature-highlight-card">
+                <span class="feature-card-icon">⚡</span>
+                <div class="feature-card-text">
+                  <strong>1-Click Turn-by-Turn Routes</strong>
+                  <p>Instant TSP 2-Opt route optimizer and multi-stop Google Maps directions for road trips and day walking tours.</p>
+                </div>
+              </div>
+              <div class="feature-highlight-card">
+                <span class="feature-card-icon">📅</span>
+                <div class="feature-card-text">
+                  <strong>Day-by-Day Itineraries</strong>
+                  <p>Organize places into Day 1, Day 2, Day 3 groups with must-see ⭐ priority flags and custom trip icons.</p>
+                </div>
+              </div>
+              <div class="feature-highlight-card">
+                <span class="feature-card-icon">🕒</span>
+                <div class="feature-card-text">
+                  <strong>Live Opening Hours</strong>
+                  <p>Real-time indicators showing whether a venue is Open, Closing Soon, or Open 24/7 before you head out.</p>
+                </div>
+              </div>
+              <div class="feature-highlight-card">
+                <span class="feature-card-icon">👥</span>
+                <div class="feature-card-text">
+                  <strong>Real-Time Collaboration</strong>
+                  <p>Share private collection invite links and see avatar badges of fellow travelers planning together.</p>
+                </div>
+              </div>
             </div>
-            <div class="meta-item">
-              <span class="meta-label">Map Engine</span>
-              <span class="meta-value">OpenStreetMap &amp; Leaflet</span>
+          </div>
+        </div>
+
+        <!-- Tab 3: System & Architecture -->
+        <div class="about-tab-panel hidden" id="about-panel-tech" role="tabpanel" aria-labelledby="tab-btn-tech">
+          <div class="about-section">
+            <h3 class="about-section-heading">
+              <i data-lucide="cpu"></i>
+              <span>Engine &amp; Performance</span>
+            </h3>
+            <div class="about-meta-grid">
+              <div class="meta-item">
+                <span class="meta-label">Backend Engine</span>
+                <span class="meta-value">Rust &amp; Axum 0.7 ⚡</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Database</span>
+                <span class="meta-value">SQLite (WAL Mode)</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Map Engine</span>
+                <span class="meta-value">OpenStreetMap &amp; Leaflet</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Frontend</span>
+                <span class="meta-value">Vanilla ES6+ • Zero Build</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Sync Architecture</span>
+                <span class="meta-value">Anonymous Device Tokens</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">License</span>
+                <span class="meta-value">MIT Open Source</span>
+              </div>
             </div>
-            <div class="meta-item">
-              <span class="meta-label">Philosophy</span>
-              <span class="meta-value">0% AI • 100% Deterministic</span>
+          </div>
+        </div>
+
+        <!-- Tab 4: Creator & Contact -->
+        <div class="about-tab-panel hidden" id="about-panel-creator" role="tabpanel" aria-labelledby="tab-btn-creator">
+          <!-- Daniel Spiesman Creator Card -->
+          <div class="about-creator-card">
+            <div class="creator-header">
+              <div class="creator-avatar">👨‍💻</div>
+              <div class="creator-identity">
+                <h4 class="creator-name">Daniel Spiesman</h4>
+                <span class="creator-title">Creator &amp; Maintainer of bList</span>
+              </div>
             </div>
-            <div class="meta-item">
-              <span class="meta-label">License</span>
-              <span class="meta-value">MIT Open Source</span>
+            <p class="creator-bio">
+              Built with love for the open web, deep craftsmanship, and the pure joy of travel. I believe software should be blisteringly fast, respect your privacy, and just work effortlessly every single day.
+            </p>
+          </div>
+
+          <!-- Share bList Spotlight Banner -->
+          <div class="about-share-banner">
+            <div class="share-banner-content">
+              <span class="share-banner-sparkle">✨</span>
+              <div class="share-banner-text">
+                <h4 class="share-banner-title">Love bList? Share it with travel buddies!</h4>
+                <p class="share-banner-desc">Help friends and fellow travelers map trips cleanly and privately.</p>
+              </div>
             </div>
-            <div class="meta-item">
-              <span class="meta-label">Version</span>
-              <span class="meta-value" id="about-meta-version">v0.1.0</span>
+            <button type="button" class="btn btn-primary btn-sm btn-share-about" onclick="openShareBListModal()">
+              <i data-lucide="share-2"></i>
+              <span>Share bList!</span>
+            </button>
+          </div>
+
+          <div class="about-section">
+            <h3 class="about-section-heading">
+              <i data-lucide="message-square-code"></i>
+              <span>Community &amp; Support</span>
+            </h3>
+            <div class="about-actions-grid">
+              <a href="https://github.com/radmuffin/bList/issues" target="_blank" rel="noopener noreferrer" class="about-btn-action primary-action" title="Open GitHub Issues">
+                <div class="action-icon-wrapper">
+                  <i data-lucide="bug"></i>
+                </div>
+                <div class="action-text">
+                  <span class="action-title">Feedback &amp; Issues</span>
+                  <span class="action-desc">Report bugs, submit feedback, or request features</span>
+                </div>
+                <i data-lucide="external-link" class="action-arrow"></i>
+              </a>
+
+              <a href="https://github.com/radmuffin/bList" target="_blank" rel="noopener noreferrer" class="about-btn-action secondary-action" title="Open GitHub Repository">
+                <div class="action-icon-wrapper">
+                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path>
+                    <path d="M9 18c-4.51 2-5-2-7-2"></path>
+                  </svg>
+                </div>
+                <div class="action-text">
+                  <span class="action-title">GitHub Repository</span>
+                  <span class="action-desc">radmuffin/bList &bull; Star, explore code &amp; contribute</span>
+                </div>
+                <i data-lucide="external-link" class="action-arrow"></i>
+              </a>
             </div>
           </div>
         </div>

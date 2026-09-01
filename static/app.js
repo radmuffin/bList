@@ -2309,6 +2309,24 @@
       }, 500);
     },
 
+    switchAboutTab(tabName = 'explorer') {
+      const tabs = ['explorer', 'features', 'tech', 'creator'];
+      tabs.forEach((t) => {
+        const btn = document.getElementById(`tab-btn-${t}`);
+        const panel = document.getElementById(`about-panel-${t}`);
+        if (btn) {
+          const isActive = t === tabName;
+          btn.classList.toggle('active', isActive);
+          btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        }
+        if (panel) {
+          panel.classList.toggle('hidden', t !== tabName);
+          panel.classList.toggle('active', t === tabName);
+        }
+      });
+      if (window.lucide) window.lucide.createIcons();
+    },
+
     async openAboutModal() {
       const modal = document.getElementById('about-modal');
       if (!modal) return;
@@ -2316,8 +2334,14 @@
       modal.classList.remove('hidden');
       if (window.lucide) window.lucide.createIcons();
 
+      // Reset to default tab
+      this.switchAboutTab('explorer');
+
       // Populate badges & milestones
       this.renderBadges();
+
+      // Ensure profile preview in about modal is synced
+      ProfileManager.renderHeaderProfile();
 
       // Ensure inspiration card is populated on first open
       if (!this._currentInspiration && window.bListHelpers) {
@@ -3666,9 +3690,34 @@
       if (nameEl) {
         nameEl.textContent = this.profile.name.trim() ? this.profile.name.trim() : 'Profile';
       }
+
+      // Also update About modal profile preview if present
+      const aboutAvatar = document.getElementById('about-profile-avatar-preview');
+      const aboutName = document.getElementById('about-profile-name');
+      if (aboutAvatar) {
+        const aboutGen = window.bListHelpers && typeof window.bListHelpers.generateAvatarSvg === 'function'
+          ? window.bListHelpers.generateAvatarSvg({
+              avatar: this.profile.avatar,
+              color: this.profile.color,
+              name: this.profile.name,
+              size: 48
+            })
+          : null;
+        if (aboutGen && aboutGen.svg) {
+          aboutAvatar.innerHTML = aboutGen.svg;
+        } else {
+          aboutAvatar.textContent = this.profile.avatar || '🧭';
+        }
+      }
+      if (aboutName) {
+        aboutName.textContent = this.profile.name.trim() ? this.profile.name.trim() : 'Explorer';
+      }
     },
 
     openModal() {
+      // Seamlessly close About modal if open
+      ModalManager.closeAboutModal();
+
       this.draftAvatar = this.profile.avatar || '🧭';
       this.draftColor = this.profile.color || '#3b82f6';
 
@@ -3926,6 +3975,7 @@
   // About & Info
   window.openAboutModal = () => ModalManager.openAboutModal();
   window.closeAboutModal = () => ModalManager.closeAboutModal();
+  window.switchAboutTab = (tab) => ModalManager.switchAboutTab(tab);
   window.handleAboutLogoClick = (e) => ModalManager.handleAboutLogoClick(e);
   window.rollInspiration = () => ModalManager.rollInspiration();
   window.addCurrentInspirationToMap = () => ModalManager.addCurrentInspirationToMap();
