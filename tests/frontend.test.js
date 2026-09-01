@@ -17,6 +17,7 @@ const {
   getEffectiveTheme,
   encodePlusCode,
   extractLocality,
+  formatStreetAddress,
   formatDisplayPlusCode,
   optimizeTour2Opt,
   formatFileSize,
@@ -455,6 +456,32 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(extractLocality('Highland Park, Los Angeles, CA'), 'Los Angeles, CA');
       assert.strictEqual(extractLocality('4 Chome-2-8 Shibakoen, Minato City, Tokyo, Japan'), 'Tokyo, Japan');
       assert.strictEqual(extractLocality(''), '');
+    });
+
+    it('should format street address without title, city, county, state, or zip redundancies', () => {
+      // Nominatim reverse-geocoded address with title & BYU campus & county
+      const hbl = formatStreetAddress(
+        'Harold B. Lee Library, 2060, East 1080 North, BYU, Provo, Utah County, Utah, 84604, United States',
+        'Harold B. Lee Library'
+      );
+      assert.strictEqual(hbl, '2060 East 1080 North');
+
+      // Standard street + city state zip
+      const rugged = formatStreetAddress('397 E 200 N, Provo, UT 84606', 'Rugged Grounds');
+      assert.strictEqual(rugged, '397 E 200 N');
+
+      // POI with title in address
+      const spaceNeedle = formatStreetAddress('Space Needle, 400 Broad St, Seattle, WA 98109', 'Space Needle');
+      assert.strictEqual(spaceNeedle, '400 Broad St');
+
+      // International address
+      const tokyo = formatStreetAddress('Tokyo Tower, 4 Chome-2-8 Shibakoen, Minato City, Tokyo, Japan', 'Tokyo Tower');
+      assert.strictEqual(tokyo, '4 Chome-2-8 Shibakoen');
+
+      // Single segment / edge cases
+      assert.strictEqual(formatStreetAddress('123 Main St', 'Cafe'), '123 Main St');
+      assert.strictEqual(formatStreetAddress('', 'Cafe'), '');
+      assert.strictEqual(formatStreetAddress(null, 'Cafe'), '');
     });
   });
 

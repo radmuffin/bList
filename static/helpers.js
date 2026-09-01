@@ -638,6 +638,84 @@
   }
 
   /**
+   * Formats a full address into a concise street-level section.
+   * Strips redundant place title from the start and city/state/zip/country from the end
+   * to provide a compact, clean address row that pairs with Plus Code & locality.
+   */
+  function formatStreetAddress(address, title = '') {
+    if (!address || typeof address !== 'string') return '';
+    let raw = address.trim();
+    if (!raw) return '';
+
+    // Split into comma-separated segments
+    let segments = raw.split(',').map(s => s.trim()).filter(Boolean);
+    if (segments.length === 0) return '';
+
+    // 1. If first segment is the place title (or matches title prefix/suffix), strip it
+    if (title && typeof title === 'string' && segments.length > 1) {
+      const cleanTitle = title.trim().toLowerCase();
+      const firstSeg = segments[0].toLowerCase();
+      if (firstSeg === cleanTitle || cleanTitle.startsWith(firstSeg) || firstSeg.startsWith(cleanTitle)) {
+        segments.shift();
+      }
+    }
+
+    if (segments.length === 0) return '';
+    if (segments.length === 1) {
+      // If single segment is identical to title, return empty to avoid duplication
+      if (title && segments[0].toLowerCase() === title.trim().toLowerCase()) return '';
+      return segments[0];
+    }
+
+    // 2. Filter trailing country names
+    if (
+      segments.length > 1 &&
+      /^(USA|United States|United States of America|US|United Kingdom|UK|Canada|Australia|Germany|France|Japan|Italy|Spain|Mexico)$/i.test(segments[segments.length - 1])
+    ) {
+      segments.pop();
+    }
+
+    // 3. Filter trailing postal codes (e.g. 84604, 84604-1234, SW1A 1AA)
+    if (segments.length > 1) {
+      const last = segments[segments.length - 1];
+      if (/^\b(\d{4,6}(-\d{4})?|[A-Z]\d[A-Z]\s?\d[A-Z]\d)\b$/i.test(last.trim())) {
+        segments.pop();
+      }
+    }
+
+    // 4. Strip trailing state + zip (e.g. "UT 84604" -> "UT")
+    if (segments.length > 1) {
+      segments[segments.length - 1] = segments[segments.length - 1]
+        .replace(/\b\d{5}(-\d{4})?\b/g, '')
+        .replace(/\b[A-Z]\d[A-Z]\s?\d[A-Z]\d\b/g, '')
+        .replace(/\b\d{4,6}\b/g, '')
+        .trim();
+
+      if (!segments[segments.length - 1]) {
+        segments.pop();
+      }
+    }
+
+    // 5. Remove county/district segments
+    segments = segments.filter(seg => !/\b(County|Parish|Borough|District)\b/i.test(seg));
+
+    if (segments.length === 0) return '';
+
+    // 6. Handle street segments
+    // If the first segment is just a house/building number (e.g., "2060"), combine with road (segment 1)
+    if (/^\d+[a-zA-Z]?$/.test(segments[0]) && segments.length >= 2) {
+      return `${segments[0]} ${segments[1]}`.trim();
+    }
+
+    // If we have multiple segments left, the first is the street
+    if (segments.length >= 2) {
+      return segments[0];
+    }
+
+    return segments.join(', ').trim();
+  }
+
+  /**
    * Formats a Plus Code into Google Maps style (Short Local Code + Locality when address is available).
    * Example: "85GC68XX+RM", "Provo, UT" -> "68XX+RM Provo, UT"
    */
@@ -973,6 +1051,7 @@
     getEffectiveTheme,
     encodePlusCode,
     extractLocality,
+    formatStreetAddress,
     formatDisplayPlusCode,
     optimizeTour2Opt,
     formatFileSize,

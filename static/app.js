@@ -1414,6 +1414,9 @@
       const displayPlusCode = (window.bListHelpers && window.bListHelpers.formatDisplayPlusCode)
         ? window.bListHelpers.formatDisplayPlusCode(rawPlusCode, pin.address)
         : rawPlusCode;
+      const streetAddress = (window.bListHelpers && window.bListHelpers.formatStreetAddress)
+        ? window.bListHelpers.formatStreetAddress(pin.address, pin.title)
+        : (pin.address || '');
 
       return `
         <div class="pin-popup">
@@ -1431,9 +1434,9 @@
             
             <div class="popup-title">${Utils.escapeHtml(pin.title)}</div>
             ${
-              pin.address
+              streetAddress
                 ? `<div class="popup-address"><i data-lucide="map-pin" style="width: 12px; height: 12px;"></i> ${Utils.escapeHtml(
-                    pin.address
+                    streetAddress
                   )}</div>`
                 : ''
             }
@@ -1567,41 +1570,43 @@
           const assignedList = Utils.getListNameForPin(pin);
           const weatherCached =
             State.weatherCache[`${pin.latitude.toFixed(2)},${pin.longitude.toFixed(2)}`];
-          const safeThumb = pin.image_url ? Utils.sanitizeUrl(pin.image_url) : '';
+                const streetAddress = (window.bListHelpers && window.bListHelpers.formatStreetAddress)
+                  ? window.bListHelpers.formatStreetAddress(pin.address, pin.title)
+                  : (pin.address || '');
 
-          return `
-            <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
-              ${
-                safeThumb
-                  ? `<img src="${Utils.escapeHtml(safeThumb)}" class="pin-card-thumb" alt="${Utils.escapeHtml(
-                      pin.title
-                    )}" onerror="this.style.display='none'">`
-                  : ''
-              }
-              <div class="pin-card-body">
-                <div class="badges-row">
-                  ${this.renderBadgesHtml(pin, { distanceStr, weather: weatherCached, assignedList })}
-                </div>
-                <div class="pin-card-title">${Utils.escapeHtml(pin.title)}</div>
-                ${
-                  pin.address
-                    ? `<div class="pin-card-address">
-                        <i data-lucide="map-pin" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
-                        <span>${Utils.escapeHtml(pin.address)}</span>
-                      </div>`
-                    : ''
-                }
-                ${
-                  pin.notes
-                    ? `<div class="pin-card-notes">
-                        "${Utils.escapeHtml(pin.notes)}"
-                      </div>`
-                    : ''
-                }
-                ${this.renderActionsHtml(pin, false)}
-              </div>
-            </div>
-          `;
+                return `
+                  <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
+                    ${
+                      safeThumb
+                        ? `<img src="${Utils.escapeHtml(safeThumb)}" class="pin-card-thumb" alt="${Utils.escapeHtml(
+                            pin.title
+                          )}" onerror="this.style.display='none'">`
+                        : ''
+                    }
+                    <div class="pin-card-body">
+                      <div class="badges-row">
+                        ${this.renderBadgesHtml(pin, { distanceStr, weather: weatherCached, assignedList })}
+                      </div>
+                      <div class="pin-card-title">${Utils.escapeHtml(pin.title)}</div>
+                      ${
+                        streetAddress
+                          ? `<div class="pin-card-address">
+                              <i data-lucide="map-pin" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                              <span>${Utils.escapeHtml(streetAddress)}</span>
+                            </div>`
+                          : ''
+                      }
+                      ${
+                        pin.notes
+                          ? `<div class="pin-card-notes">
+                              "${Utils.escapeHtml(pin.notes)}"
+                            </div>`
+                          : ''
+                      }
+                      ${this.renderActionsHtml(pin, false)}
+                    </div>
+                  </div>
+                `;
         })
         .join('');
     },
