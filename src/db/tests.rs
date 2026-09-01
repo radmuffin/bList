@@ -1,6 +1,7 @@
 use super::*;
 use crate::models::{
     CreateListRequest, CreatePinRequest, ListPinsQuery, UpdateListRequest, UpdatePinRequest,
+    UpdateUserProfileRequest,
 };
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
@@ -955,5 +956,67 @@ fn test_find_duplicate_pin() {
         None,
     ).expect("diff list");
     assert!(diff_list.is_none());
+}
+
+#[test]
+fn test_user_profile_and_collaborators() {
+    let guard = TestDbGuard::new("user_profile");
+    let repo = SqliteRepository::open(&guard.path).expect("open repo");
+
+    let token_alice = "user-alice-123";
+    let token_bob = "user-bob-456";
+
+    // 1. Fetch default profile for new user
+    let alice_init = repo.get_user_profile(token_alice).expect("get profile");
+    assert_eq!(alice_init.name, "");
+    assert_eq!(alice_init.avatar, "🧭");
+
+    // 2. Update Alice profile
+    let alice_updated = repo.update_user_profile(
+        token_alice,
+        &UpdateUserProfileRequest {
+            name: Some("Alice Adventurer".to_string()),
+            avatar: Some("🦊".to_string()),
+            color: Some("#f97316".to_string()),
+        },
+    ).expect("update profile");
+    assert_eq!(alice_updated.name, "Alice Adventurer");
+    assert_eq!(alice_updated.avatar, "🦊");
+    assert_eq!(alice_updated.color, "#f97316");
+
+    // 3. Update Bob profile
+    repo.update_user_profile(
+        token_bob,
+        &UpdateUserProfileRequest {
+            name: Some("Bob Backpacker".to_string()),
+            avatar: Some("🎒".to_string()),
+            color: Some("#10b981".to_string()),
+        },
+    ).expect("update bob");
+
+    // 4. Create a shared list owned by Alice
+    let list = repo.create_list(
+        &CreateListRequest {
+            name: "Japan Trip 2026".to_string(),
+            icon: Some("⛩️".to_string()),
+        },
+        token_alice,
+    ).expect("create list");
+
+    // 5. Bob joins Alice's list via share token
+    let joined = repo.join_list(&list.share_token, token_bob).expect("join list");
+    assert!(joined.is_some());
+
+    // 6. Query collaborators for the list
+    let collabs = repo.get_list_collaborators(list.id).expect("get collaborators");
+    assert_eq!(collabs.len(), 2);
+
+    let owner = collabs.iter().find(|c| c.is_owner).expect("owner exists");
+    assert_eq!(owner.name, "Alice Adventurer");
+    assert_eq!(owner.avatar, "🦊");
+
+    let guest = collabs.iter().find(|c| !c.is_owner).expect("guest exists");
+    assert_eq!(guest.name, "Bob Backpacker");
+    assert_eq!(guest.avatar, "🎒");
 }
 

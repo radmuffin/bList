@@ -73,7 +73,11 @@
           </button>
         </form>
 
-        <div class="header-actions">
+          <button class="btn-user-avatar" id="user-profile-btn" onclick="openUserProfileModal()" title="Explorer Profile & Avatar" aria-label="Explorer Profile">
+            <div class="header-avatar-circle" id="header-avatar-circle">🧭</div>
+            <span class="header-user-name desktop-only" id="header-user-name">Profile</span>
+          </button>
+
           <!-- Theme Switcher Dropdown (Desktop) -->
           <div class="theme-switcher-wrapper desktop-only" id="theme-switcher-wrapper">
             <button class="btn-icon-header" id="theme-toggle-btn" onclick="toggleTheme()" title="Theme: Auto (System)" aria-label="Theme: Auto">
@@ -145,6 +149,10 @@
                 </div>
               </div>
               <div class="more-menu-divider"></div>
+              <button type="button" class="more-menu-item" onclick="openUserProfileModal(); closeMobileMoreMenu();">
+                <i data-lucide="user"></i>
+                <span>Your Profile & Avatar</span>
+              </button>
               <button type="button" class="more-menu-item" onclick="openNewListModal(); closeMobileMoreMenu();">
                 <i data-lucide="folder-plus"></i>
                 <span>New List / Trip</span>
@@ -244,6 +252,12 @@
                 <!-- Populated dynamically -->
               </select>
               <i data-lucide="chevron-down" class="select-arrow-icon"></i>
+            </div>
+
+            <!-- Collaborators bar for shared collaborative lists -->
+            <div class="list-collaborators-bar hidden" id="list-collaborators-bar">
+              <span class="collab-label">Collaborators:</span>
+              <div class="collab-avatar-stack" id="collab-avatar-stack"></div>
             </div>
           </div>
 
@@ -599,25 +613,148 @@
 
   <!-- Share / Collaborate List Modal -->
   <div id="share-list-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="share-modal-title" onclick="handleModalBackdropClick(event, 'share-list-modal')">
-    <div class="modal-card modal-sm">
+    <div class="modal-card modal-share-rich">
       <div class="modal-header">
-        <h2 id="share-modal-title">Share Trip Collection</h2>
+        <h2 id="share-modal-title">Share &amp; Collaborate</h2>
         <button class="btn-close" onclick="closeShareListModal()" aria-label="Close modal">&times;</button>
       </div>
-      <div class="share-modal-body" style="padding: 1rem 0;">
-        <p class="share-modal-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.4;">
-          Anyone with this link can view this trip collection and collaborate with you in real-time:
-        </p>
-        <div class="share-link-input-group" style="display: flex; gap: 0.5rem; align-items: center;">
-          <input type="text" id="share-link-input" readonly style="flex: 1; padding: 0.6rem 0.75rem; font-size: 0.85rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);">
-          <button type="button" class="btn btn-primary" onclick="copyShareLink()" style="white-space: nowrap;">
+      <div class="share-modal-body">
+        <div class="share-entity-banner" id="share-list-banner">
+          <span class="share-entity-icon" id="share-list-banner-icon">📍</span>
+          <div class="share-entity-text">
+            <h3 class="share-entity-title" id="share-list-banner-title">My Bucket List</h3>
+            <p class="share-entity-sub">Anyone with this invite can view and add places in real-time.</p>
+          </div>
+        </div>
+
+        <!-- Copy Link Row -->
+        <div class="share-link-box">
+          <input type="text" id="share-link-input" readonly class="share-link-field">
+          <button type="button" class="btn btn-primary" id="btn-copy-list-link" onclick="copyShareLink()">
             <i data-lucide="copy" class="btn-icon"></i>
             <span>Copy</span>
           </button>
         </div>
+
+        <!-- Quick Social & Messaging Grid -->
+        <div class="share-social-section">
+          <span class="share-social-heading">QUICK SHARE TO</span>
+          <div class="share-social-grid">
+            <button type="button" class="share-social-btn share-sms" onclick="shareListVia('sms')" title="Share via Text / SMS">
+              <span class="social-icon">💬</span>
+              <span class="social-label">Text / SMS</span>
+            </button>
+            <button type="button" class="share-social-btn share-whatsapp" onclick="shareListVia('whatsapp')" title="Share via WhatsApp">
+              <span class="social-icon">📱</span>
+              <span class="social-label">WhatsApp</span>
+            </button>
+            <button type="button" class="share-social-btn share-messenger" onclick="shareListVia('messenger')" title="Share via Messenger">
+              <span class="social-icon">⚡</span>
+              <span class="social-label">Messenger</span>
+            </button>
+            <button type="button" class="share-social-btn share-instagram" onclick="shareListVia('instagram')" title="Share to Instagram">
+              <span class="social-icon">📸</span>
+              <span class="social-label">Instagram</span>
+            </button>
+            <button type="button" class="share-social-btn share-twitter" onclick="shareListVia('twitter')" title="Share on X / Twitter">
+              <span class="social-icon">🐦</span>
+              <span class="social-label">X / Twitter</span>
+            </button>
+            <button type="button" class="share-social-btn share-email" onclick="shareListVia('email')" title="Share via Email">
+              <span class="social-icon">✉️</span>
+              <span class="social-label">Email</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- QR Code Section -->
+        <div class="share-qr-section">
+          <button type="button" class="btn-toggle-qr" onclick="toggleShareListQrCode()">
+            <i data-lucide="qr-code"></i>
+            <span id="qr-list-toggle-label">Show QR Code for Phone Scan</span>
+          </button>
+          <div id="share-list-qr-box" class="share-qr-box hidden">
+            <img id="share-list-qr-img" class="share-qr-img" alt="Trip Share QR Code" src="" loading="lazy">
+            <p class="qr-subtext">Scan with any phone camera to join this trip collection instantly!</p>
+          </div>
+        </div>
       </div>
-      <div class="modal-actions" style="margin-top: 1rem;">
+      <div class="modal-actions">
         <button type="button" class="btn btn-secondary" onclick="closeShareListModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Place Modal -->
+  <div id="share-place-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="share-place-title" onclick="handleModalBackdropClick(event, 'share-place-modal')">
+    <div class="modal-card modal-share-rich">
+      <div class="modal-header">
+        <h2 id="share-place-title">Share Place</h2>
+        <button class="btn-close" onclick="closeSharePlaceModal()" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="share-modal-body">
+        <div class="share-entity-banner" id="share-place-banner">
+          <span class="share-entity-icon" id="share-place-banner-icon">📍</span>
+          <div class="share-entity-text">
+            <h3 class="share-entity-title" id="share-place-banner-title">Place Name</h3>
+            <p class="share-entity-sub" id="share-place-banner-sub">Address or City</p>
+          </div>
+        </div>
+
+        <!-- Copy Link Row -->
+        <div class="share-link-box">
+          <input type="text" id="share-place-link-input" readonly class="share-link-field">
+          <button type="button" class="btn btn-primary" id="btn-copy-place-link" onclick="copySharePlaceLink()">
+            <i data-lucide="copy" class="btn-icon"></i>
+            <span>Copy</span>
+          </button>
+        </div>
+
+        <!-- Quick Social & Messaging Grid -->
+        <div class="share-social-section">
+          <span class="share-social-heading">QUICK SHARE TO</span>
+          <div class="share-social-grid">
+            <button type="button" class="share-social-btn share-sms" onclick="sharePlaceVia('sms')" title="Share via Text / SMS">
+              <span class="social-icon">💬</span>
+              <span class="social-label">Text / SMS</span>
+            </button>
+            <button type="button" class="share-social-btn share-whatsapp" onclick="sharePlaceVia('whatsapp')" title="Share via WhatsApp">
+              <span class="social-icon">📱</span>
+              <span class="social-label">WhatsApp</span>
+            </button>
+            <button type="button" class="share-social-btn share-messenger" onclick="sharePlaceVia('messenger')" title="Share via Messenger">
+              <span class="social-icon">⚡</span>
+              <span class="social-label">Messenger</span>
+            </button>
+            <button type="button" class="share-social-btn share-instagram" onclick="sharePlaceVia('instagram')" title="Share to Instagram">
+              <span class="social-icon">📸</span>
+              <span class="social-label">Instagram</span>
+            </button>
+            <button type="button" class="share-social-btn share-twitter" onclick="sharePlaceVia('twitter')" title="Share on X / Twitter">
+              <span class="social-icon">🐦</span>
+              <span class="social-label">X / Twitter</span>
+            </button>
+            <button type="button" class="share-social-btn share-email" onclick="sharePlaceVia('email')" title="Share via Email">
+              <span class="social-icon">✉️</span>
+              <span class="social-label">Email</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- QR Code Section -->
+        <div class="share-qr-section">
+          <button type="button" class="btn-toggle-qr" onclick="toggleSharePlaceQrCode()">
+            <i data-lucide="qr-code"></i>
+            <span id="qr-place-toggle-label">Show QR Code for Phone Scan</span>
+          </button>
+          <div id="share-place-qr-box" class="share-qr-box hidden">
+            <img id="share-place-qr-img" class="share-qr-img" alt="Place Share QR Code" src="" loading="lazy">
+            <p class="qr-subtext">Scan with any phone camera to view this location on a map!</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeSharePlaceModal()">Done</button>
       </div>
     </div>
   </div>
@@ -746,6 +883,52 @@
 
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" onclick="closeShareBListModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Profile & Avatar Customizer Modal -->
+  <div id="user-profile-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="user-profile-title" onclick="handleModalBackdropClick(event, 'user-profile-modal')">
+    <div class="modal-card modal-profile">
+      <div class="modal-header">
+        <h2 id="user-profile-title">Explorer Profile &amp; Avatar</h2>
+        <button class="btn-close" onclick="closeUserProfileModal()" aria-label="Close modal">&times;</button>
+      </div>
+
+      <div class="modal-body profile-modal-body">
+        <div class="profile-preview-card">
+          <div class="profile-avatar-large" id="profile-avatar-preview">
+            <!-- Dynamic SVG Preview -->
+          </div>
+          <div class="profile-preview-details">
+            <h3 class="profile-preview-name" id="profile-preview-name">Explorer</h3>
+            <span class="profile-preview-sub">Visible to travel buddies on shared lists</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="profile-name-input" class="form-label">Your Name / Nickname</label>
+          <input type="text" id="profile-name-input" class="form-input" placeholder="e.g. Alex, Sam, Captain Wanderer" maxlength="32" oninput="handleProfileNameInput(event)">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Choose Avatar Icon</label>
+          <div class="avatar-preset-grid" id="avatar-preset-grid">
+            <!-- Populated dynamically from AVATAR_PRESETS -->
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Accent Theme Color</label>
+          <div class="avatar-color-palette" id="avatar-color-palette">
+            <!-- Populated dynamically from AVATAR_COLORS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeUserProfileModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveUserProfile()">Save Profile</button>
       </div>
     </div>
   </div>

@@ -17,8 +17,8 @@ pub use sqlite::{
 };
 
 use crate::models::{
-    CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin, UpdateListRequest,
-    UpdatePinRequest,
+    Collaborator, CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin, UpdateListRequest,
+    UpdatePinRequest, UpdateUserProfileRequest, UserProfile,
 };
 
 /// Configure database connection pragmas for high concurrency and data integrity:
@@ -179,7 +179,14 @@ pub trait PinRepository: Send + Sync {
     fn count_user_pins(&self, user_token: &str) -> Result<usize, StorageError>;
 }
 
-/// Unified storage engine interface combining list and pin repositories.
-pub trait StorageEngine: ListRepository + PinRepository + Send + Sync {}
+/// Clean interface for user profiles and list collaborator management.
+pub trait UserRepository: Send + Sync {
+    fn get_user_profile(&self, user_token: &str) -> Result<UserProfile, StorageError>;
+    fn update_user_profile(&self, user_token: &str, req: &UpdateUserProfileRequest) -> Result<UserProfile, StorageError>;
+    fn get_list_collaborators(&self, list_id: i64) -> Result<Vec<Collaborator>, StorageError>;
+}
 
-impl<T: ListRepository + PinRepository + Send + Sync> StorageEngine for T {}
+/// Unified storage engine interface combining list, pin, and user repositories.
+pub trait StorageEngine: ListRepository + PinRepository + UserRepository + Send + Sync {}
+
+impl<T: ListRepository + PinRepository + UserRepository + Send + Sync> StorageEngine for T {}

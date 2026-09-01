@@ -27,6 +27,29 @@ pub struct JoinListRequest {
     pub share_token: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct UserProfile {
+    pub user_token: String,
+    pub name: String,
+    pub avatar: String,
+    pub color: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateUserProfileRequest {
+    pub name: Option<String>,
+    pub avatar: Option<String>,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct Collaborator {
+    pub name: String,
+    pub avatar: String,
+    pub color: String,
+    pub is_owner: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pin {
     pub id: i64,

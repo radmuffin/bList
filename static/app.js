@@ -537,6 +537,34 @@
       });
     },
 
+    async fetchUserProfile() {
+      try {
+        const json = await this.request('/api/user/profile');
+        if (json && json.success && json.data) {
+          return json.data;
+        }
+      } catch (_) {}
+      return null;
+    },
+
+    async updateUserProfile(payload) {
+      return this.request('/api/user/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    },
+
+    async fetchCollaborators(listId) {
+      try {
+        const json = await this.request(`/api/lists/${listId}/collaborators`);
+        if (json && json.success && json.data) {
+          return json.data;
+        }
+      } catch (_) {}
+      return [];
+    },
+
     async fetchPins() {
       try {
         const json = await this.request('/api/pins');
@@ -1160,6 +1188,9 @@
       MapController.renderMarkers();
       this.updateCounts();
       this.updateTripProgress();
+      if (typeof ProfileManager !== 'undefined' && ProfileManager.renderCollaboratorsForCurrentList) {
+        ProfileManager.renderCollaboratorsForCurrentList();
+      }
       if (window.lucide) window.lucide.createIcons();
     },
 
@@ -1991,7 +2022,8 @@
     openShareListModal() {
       const modal = document.getElementById('share-list-modal');
       const shareInput = document.getElementById('share-link-input');
-      const shareTitle = document.getElementById('share-modal-title');
+      const bannerTitle = document.getElementById('share-list-banner-title');
+      const bannerIcon = document.getElementById('share-list-banner-icon');
 
       let targetList;
       if (
@@ -2009,14 +2041,20 @@
         return;
       }
 
-      if (shareTitle) {
-        shareTitle.innerText = `Share "${targetList.icon} ${targetList.name}"`;
-      }
+      this.currentShareList = targetList;
+      if (bannerTitle) bannerTitle.textContent = targetList.name;
+      if (bannerIcon) bannerIcon.textContent = targetList.icon || '📍';
 
       const joinUrl = `${window.location.origin}/?join=${encodeURIComponent(targetList.share_token)}`;
       if (shareInput) {
         shareInput.value = joinUrl;
       }
+
+      // Hide QR code by default until requested
+      const qrBox = document.getElementById('share-list-qr-box');
+      const qrLabel = document.getElementById('qr-list-toggle-label');
+      if (qrBox) qrBox.classList.add('hidden');
+      if (qrLabel) qrLabel.textContent = 'Show QR Code for Phone Scan';
 
       if (modal) modal.classList.remove('hidden');
     },
@@ -2041,6 +2079,175 @@
       shareInput.select();
       document.execCommand('copy');
       ToastManager.show('📋 Link copied to clipboard!', 'success');
+    },
+
+    shareListVia(platform) {
+      const list = this.currentShareList || State.lists[0];
+      if (!list) return;
+      const joinUrl = `${window.location.origin}/?join=${encodeURIComponent(list.share_token)}`;
+      const title = `Join my "${list.icon} ${list.name}" travel list on bList!`;
+      const text = `Join my trip collection "${list.icon} ${list.name}" on bList and collaborate with me:\n${joinUrl}`;
+
+      const links = window.bListHelpers && typeof window.bListHelpers.generateShareLinks === 'function'
+        ? window.bListHelpers.generateShareLinks(joinUrl, {
+            title,
+            text,
+            smsText: `Join my trip collection "${list.icon} ${list.name}" on bList: ${joinUrl}`,
+            emailBody: `Hey!\n\nI'd love for you to collaborate with me on my travel collection "${list.icon} ${list.name}".\n\nJoin and view our map here:\n${joinUrl}\n\nHappy travels! 🗺️`
+          })
+        : { sms: `sms:?&body=${encodeURIComponent(text)}` };
+
+      if (platform === 'sms') {
+        window.location.href = links.sms;
+      } else if (platform === 'whatsapp') {
+        window.open(links.whatsapp, '_blank', 'noopener,noreferrer');
+      } else if (platform === 'messenger') {
+        window.open(`https://www.facebook.com/dialog/send?link=${encodeURIComponent(joinUrl)}&app_id=291494419107518&redirect_uri=${encodeURIComponent(joinUrl)}`, '_blank', 'noopener,noreferrer');
+      } else if (platform === 'instagram') {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(() => {});
+        }
+        ToastManager.show('📸 Trip invite copied! Opening Instagram...', 'info');
+        setTimeout(() => window.open('https://instagram.com/', '_blank', 'noopener,noreferrer'), 600);
+      } else if (platform === 'twitter') {
+        window.open(links.twitter, '_blank', 'noopener,noreferrer');
+      } else if (platform === 'email') {
+        window.location.href = links.email;
+      }
+    },
+
+    toggleShareListQrCode() {
+      const box = document.getElementById('share-list-qr-box');
+      const img = document.getElementById('share-list-qr-img');
+      const label = document.getElementById('qr-list-toggle-label');
+      if (!box || !img) return;
+
+      const isHidden = box.classList.contains('hidden');
+      if (isHidden) {
+        const input = document.getElementById('share-link-input');
+        const joinUrl = input ? input.value : `${window.location.origin}/`;
+        const qr = window.bListHelpers && typeof window.bListHelpers.generateQrSvg === 'function'
+          ? window.bListHelpers.generateQrSvg(joinUrl, { size: 200, margin: 2 })
+          : { dataUrl: '' };
+        img.src = qr.dataUrl;
+        box.classList.remove('hidden');
+        if (label) label.textContent = 'Hide QR Code';
+      } else {
+        box.classList.add('hidden');
+        if (label) label.textContent = 'Show QR Code for Phone Scan';
+      }
+    },
+
+    openSharePlaceModal(pinId) {
+      const pin = State.allPins.find((p) => p.id === pinId);
+      if (!pin) return;
+
+      this.currentSharePin = pin;
+      const modal = document.getElementById('share-place-modal');
+      const bannerTitle = document.getElementById('share-place-banner-title');
+      const bannerSub = document.getElementById('share-place-banner-sub');
+      const bannerIcon = document.getElementById('share-place-banner-icon');
+      const linkInput = document.getElementById('share-place-link-input');
+
+      if (bannerTitle) bannerTitle.textContent = pin.title;
+      if (bannerSub) bannerSub.textContent = pin.address || (pin.category ? `Category: ${pin.category}` : 'Saved Place');
+      if (bannerIcon) bannerIcon.textContent = pin.emoji || '📍';
+
+      const isExternalSource = pin.source_url && !pin.source_url.includes(window.location.host);
+      const placeUrl = isExternalSource
+        ? pin.source_url
+        : `${window.location.origin}/?lat=${pin.latitude}&lng=${pin.longitude}&title=${encodeURIComponent(pin.title)}${pin.address ? `&address=${encodeURIComponent(pin.address)}` : ''}${pin.category ? `&category=${encodeURIComponent(pin.category)}` : ''}`;
+
+      if (linkInput) linkInput.value = placeUrl;
+
+      // Hide QR by default
+      const qrBox = document.getElementById('share-place-qr-box');
+      const qrLabel = document.getElementById('qr-place-toggle-label');
+      if (qrBox) qrBox.classList.add('hidden');
+      if (qrLabel) qrLabel.textContent = 'Show QR Code for Phone Scan';
+
+      if (modal) modal.classList.remove('hidden');
+    },
+
+    closeSharePlaceModal() {
+      const modal = document.getElementById('share-place-modal');
+      if (modal) modal.classList.add('hidden');
+    },
+
+    async copySharePlaceLink() {
+      const input = document.getElementById('share-place-link-input');
+      if (!input || !input.value) return;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(input.value);
+          ToastManager.show('📋 Place link copied to clipboard!', 'success');
+          return;
+        } catch (_) {}
+      }
+
+      input.select();
+      document.execCommand('copy');
+      ToastManager.show('📋 Place link copied!', 'success');
+    },
+
+    sharePlaceVia(platform) {
+      const pin = this.currentSharePin;
+      if (!pin) return;
+
+      const input = document.getElementById('share-place-link-input');
+      const placeUrl = input ? input.value : `${window.location.origin}/`;
+      const title = `${pin.title} | bList`;
+      const text = `Check out ${pin.title}${pin.address ? ` (${pin.address})` : ''} on bList:\n${placeUrl}`;
+
+      const links = window.bListHelpers && typeof window.bListHelpers.generateShareLinks === 'function'
+        ? window.bListHelpers.generateShareLinks(placeUrl, {
+            title,
+            text,
+            smsText: `Check out ${pin.title}${pin.address ? ` (${pin.address})` : ''}: ${placeUrl}`,
+            emailBody: `Hey!\n\nI thought you'd love this spot from my travel bucket list:\n\n📍 ${pin.title}${pin.address ? `\nAddress: ${pin.address}` : ''}\n\nView on map:\n${placeUrl}\n\nHappy travels!`
+          })
+        : { sms: `sms:?&body=${encodeURIComponent(text)}` };
+
+      if (platform === 'sms') {
+        window.location.href = links.sms;
+      } else if (platform === 'whatsapp') {
+        window.open(links.whatsapp, '_blank', 'noopener,noreferrer');
+      } else if (platform === 'messenger') {
+        window.open(`https://www.facebook.com/dialog/send?link=${encodeURIComponent(placeUrl)}&app_id=291494419107518&redirect_uri=${encodeURIComponent(placeUrl)}`, '_blank', 'noopener,noreferrer');
+      } else if (platform === 'instagram') {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(() => {});
+        }
+        ToastManager.show('📸 Place details copied! Opening Instagram...', 'info');
+        setTimeout(() => window.open('https://instagram.com/', '_blank', 'noopener,noreferrer'), 600);
+      } else if (platform === 'twitter') {
+        window.open(links.twitter, '_blank', 'noopener,noreferrer');
+      } else if (platform === 'email') {
+        window.location.href = links.email;
+      }
+    },
+
+    toggleSharePlaceQrCode() {
+      const box = document.getElementById('share-place-qr-box');
+      const img = document.getElementById('share-place-qr-img');
+      const label = document.getElementById('qr-place-toggle-label');
+      if (!box || !img) return;
+
+      const isHidden = box.classList.contains('hidden');
+      if (isHidden) {
+        const input = document.getElementById('share-place-link-input');
+        const placeUrl = input ? input.value : `${window.location.origin}/`;
+        const qr = window.bListHelpers && typeof window.bListHelpers.generateQrSvg === 'function'
+          ? window.bListHelpers.generateQrSvg(placeUrl, { size: 200, margin: 2 })
+          : { dataUrl: '' };
+        img.src = qr.dataUrl;
+        box.classList.remove('hidden');
+        if (label) label.textContent = 'Hide QR Code';
+      } else {
+        box.classList.add('hidden');
+        if (label) label.textContent = 'Show QR Code for Phone Scan';
+      }
     },
 
     openSyncModal() {
@@ -2544,38 +2751,7 @@
     },
 
     async sharePin(id) {
-      const pin = State.allPins.find((p) => p.id === id);
-      if (!pin) return;
-
-      const isExternalSource = pin.source_url && !pin.source_url.includes(window.location.host);
-      const shareUrl = isExternalSource
-        ? pin.source_url
-        : `${window.location.origin}/?lat=${pin.latitude}&lng=${pin.longitude}&title=${encodeURIComponent(pin.title)}${pin.address ? `&address=${encodeURIComponent(pin.address)}` : ''}${pin.category ? `&category=${encodeURIComponent(pin.category)}` : ''}`;
-
-      const shareData = {
-        title: `${pin.title} | bList`,
-        text: `Check out ${pin.title}${pin.address ? ` (${pin.address})` : ''} on my travel bucket list!`,
-        url: shareUrl
-      };
-
-      if (navigator.share) {
-        try {
-          await navigator.share(shareData);
-          ToastManager.show('Shared successfully!');
-          return;
-        } catch (err) {
-          if (err.name === 'AbortError') return;
-        }
-      }
-
-      // Fallback to clipboard
-      const clipboardText = `${pin.title}${pin.address ? `\n${pin.address}` : ''}\n${shareUrl}`;
-      try {
-        await navigator.clipboard.writeText(clipboardText);
-        ToastManager.show('📋 Place details copied to clipboard!');
-      } catch (_) {
-        ToastManager.show('Failed to copy to clipboard', 'error');
-      }
+      ModalManager.openSharePlaceModal(id);
     },
 
     async handleSaveLinkSubmit(e, inputId = 'save-url-input') {
@@ -2834,6 +3010,13 @@
         const lists = await ApiClient.fetchLists();
         State.lists = lists;
         FilterManager.selectList(list.id);
+
+        if (typeof ProfileManager !== 'undefined' && (!ProfileManager.profile.name || !ProfileManager.profile.name.trim())) {
+          setTimeout(() => {
+            ProfileManager.openModal();
+            ToastManager.show(`👋 Welcome to ${list.name}! Set your name & avatar so travel buddies know who's exploring.`, 'info');
+          }, 800);
+        }
       } else {
         ToastManager.show((res && res.error) || 'Could not join shared list.', 'error');
       }
@@ -3386,6 +3569,229 @@
     }
   };
 
+  // ==========================================================================
+  // 12c. User Profile & Smol SVG Avatar Customizer
+  // ==========================================================================
+  const ProfileManager = {
+    profile: {
+      name: '',
+      avatar: '🧭',
+      color: '#3b82f6'
+    },
+    draftAvatar: '🧭',
+    draftColor: '#3b82f6',
+
+    init() {
+      const savedName = localStorage.getItem('blist_user_name') || '';
+      const savedAvatar = localStorage.getItem('blist_user_avatar') || '🧭';
+      const savedColor = localStorage.getItem('blist_user_color') || '#3b82f6';
+
+      this.profile = {
+        name: savedName,
+        avatar: savedAvatar,
+        color: savedColor
+      };
+      this.draftAvatar = savedAvatar;
+      this.draftColor = savedColor;
+
+      this.renderHeaderProfile();
+      this.syncWithBackend();
+    },
+
+    async syncWithBackend() {
+      const remote = await ApiClient.fetchUserProfile();
+      if (remote) {
+        if (remote.name || remote.avatar || remote.color) {
+          this.profile.name = remote.name || this.profile.name;
+          this.profile.avatar = remote.avatar || this.profile.avatar;
+          this.profile.color = remote.color || this.profile.color;
+          this.draftAvatar = this.profile.avatar;
+          this.draftColor = this.profile.color;
+
+          localStorage.setItem('blist_user_name', this.profile.name);
+          localStorage.setItem('blist_user_avatar', this.profile.avatar);
+          localStorage.setItem('blist_user_color', this.profile.color);
+
+          this.renderHeaderProfile();
+        }
+      }
+    },
+
+    renderHeaderProfile() {
+      const circle = document.getElementById('header-avatar-circle');
+      const nameEl = document.getElementById('header-user-name');
+      const gen = window.bListHelpers && typeof window.bListHelpers.generateAvatarSvg === 'function'
+        ? window.bListHelpers.generateAvatarSvg({
+            avatar: this.profile.avatar,
+            color: this.profile.color,
+            name: this.profile.name,
+            size: 28
+          })
+        : null;
+
+      if (circle) {
+        if (gen && gen.svg) {
+          circle.innerHTML = gen.svg;
+        } else {
+          circle.textContent = this.profile.avatar || '🧭';
+        }
+      }
+
+      if (nameEl) {
+        nameEl.textContent = this.profile.name.trim() ? this.profile.name.trim() : 'Profile';
+      }
+    },
+
+    openModal() {
+      this.draftAvatar = this.profile.avatar || '🧭';
+      this.draftColor = this.profile.color || '#3b82f6';
+
+      const input = document.getElementById('profile-name-input');
+      if (input) {
+        input.value = this.profile.name || '';
+      }
+
+      this.renderPresetGrid();
+      this.renderColorPalette();
+      this.updatePreview();
+
+      const modal = document.getElementById('user-profile-modal');
+      if (modal) modal.classList.remove('hidden');
+    },
+
+    closeModal() {
+      const modal = document.getElementById('user-profile-modal');
+      if (modal) modal.classList.add('hidden');
+    },
+
+    renderPresetGrid() {
+      const grid = document.getElementById('avatar-preset-grid');
+      if (!grid) return;
+      const presets = (window.bListHelpers && window.bListHelpers.AVATAR_PRESETS) || [
+        '🧭', '🏕️', '✈️', '🍜', '🗼', '🎒', '🦊', '🐻',
+        '🐬', '🦉', '🚀', '🏄', '🎨', '🚴', '⛵', '🦁'
+      ];
+
+      grid.innerHTML = presets.map((icon) => {
+        const isActive = this.draftAvatar === icon ? 'active' : '';
+        return `<button type="button" class="avatar-preset-chip ${isActive}" onclick="selectProfileAvatar('${icon}')" aria-label="Avatar ${icon}">${icon}</button>`;
+      }).join('');
+    },
+
+    renderColorPalette() {
+      const palette = document.getElementById('avatar-color-palette');
+      if (!palette) return;
+      const colors = (window.bListHelpers && window.bListHelpers.AVATAR_COLORS) || [
+        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1'
+      ];
+
+      palette.innerHTML = colors.map((col) => {
+        const isActive = this.draftColor === col ? 'active' : '';
+        return `<button type="button" class="avatar-color-dot ${isActive}" style="background-color: ${col};" onclick="selectProfileColor('${col}')" aria-label="Color ${col}"></button>`;
+      }).join('');
+    },
+
+    selectAvatar(icon) {
+      this.draftAvatar = icon;
+      this.renderPresetGrid();
+      this.updatePreview();
+    },
+
+    selectColor(col) {
+      this.draftColor = col;
+      this.renderColorPalette();
+      this.updatePreview();
+    },
+
+    handleNameInput() {
+      this.updatePreview();
+    },
+
+    updatePreview() {
+      const previewBox = document.getElementById('profile-avatar-preview');
+      const previewName = document.getElementById('profile-preview-name');
+      const input = document.getElementById('profile-name-input');
+      const currentName = input ? input.value.trim() : '';
+
+      const gen = window.bListHelpers && typeof window.bListHelpers.generateAvatarSvg === 'function'
+        ? window.bListHelpers.generateAvatarSvg({
+            avatar: this.draftAvatar,
+            color: this.draftColor,
+            name: currentName,
+            size: 64
+          })
+        : null;
+
+      if (previewBox && gen && gen.svg) {
+        previewBox.innerHTML = gen.svg;
+      }
+      if (previewName) {
+        previewName.textContent = currentName || 'Explorer';
+      }
+    },
+
+    async save() {
+      const input = document.getElementById('profile-name-input');
+      const name = input ? input.value.trim() : '';
+
+      this.profile = {
+        name,
+        avatar: this.draftAvatar,
+        color: this.draftColor
+      };
+
+      localStorage.setItem('blist_user_name', this.profile.name);
+      localStorage.setItem('blist_user_avatar', this.profile.avatar);
+      localStorage.setItem('blist_user_color', this.profile.color);
+
+      this.renderHeaderProfile();
+      this.closeModal();
+
+      ToastManager.show('✨ Explorer profile & avatar updated!', 'success');
+
+      try {
+        await ApiClient.updateUserProfile(this.profile);
+        this.renderCollaboratorsForCurrentList();
+      } catch (_) {}
+    },
+
+    async renderCollaboratorsForCurrentList() {
+      const bar = document.getElementById('list-collaborators-bar');
+      const stack = document.getElementById('collab-avatar-stack');
+      if (!bar || !stack) return;
+
+      const currentListId = State.currentListFilter;
+      if (!currentListId || currentListId === 'all' || isNaN(Number(currentListId))) {
+        bar.classList.add('hidden');
+        return;
+      }
+
+      const collabs = await ApiClient.fetchCollaborators(Number(currentListId));
+      if (!collabs || collabs.length <= 1) {
+        bar.classList.add('hidden');
+        return;
+      }
+
+      bar.classList.remove('hidden');
+      stack.innerHTML = collabs.map((c) => {
+        const gen = window.bListHelpers && typeof window.bListHelpers.generateAvatarSvg === 'function'
+          ? window.bListHelpers.generateAvatarSvg({
+              avatar: c.avatar || '🧭',
+              color: c.color || '#3b82f6',
+              name: c.name,
+              size: 24
+            })
+          : null;
+
+        const roleText = c.is_owner ? ' (Owner)' : '';
+        const titleAttr = Utils.escapeHtml(`${c.name || 'Traveler'}${roleText}`);
+        const svgContent = gen && gen.svg ? gen.svg : `<span>${Utils.escapeHtml(c.avatar || '👤')}</span>`;
+
+        return `<div class="collab-avatar-item" title="${titleAttr}">${svgContent}</div>`;
+      }).join('');
+    }
+  };
+
   const App = {
     async loadData() {
       try {
@@ -3413,6 +3819,7 @@
     MapController.init();
     OfflineManager.init();
     SwipeNavigationManager.init();
+    ProfileManager.init();
 
     await handleIncomingSyncLink();
     await handleIncomingJoinLink();
@@ -3550,14 +3957,21 @@
   window.handleListChange = (e) => FilterManager.selectList(e.target.value);
   window.openNewListModal = () => ModalManager.openNewListModal();
   window.openCreateListModal = window.openNewListModal;
-  window.closeNewListModal = () => ModalManager.closeNewListModal();
-  window.closeCreateListModal = window.closeNewListModal;
   window.openShareListModal = () => ModalManager.openShareListModal();
   window.closeShareListModal = () => ModalManager.closeShareListModal();
   window.copyShareLink = () => ModalManager.copyShareLink();
+  window.shareListVia = (platform) => ModalManager.shareListVia(platform);
+  window.toggleShareListQrCode = () => ModalManager.toggleShareListQrCode();
   window.selectListIcon = (emoji) => ModalManager.selectListIcon(emoji);
   window.selectEmoji = window.selectListIcon;
   window.handleCreateListSubmit = (e) => ModalManager.handleCreateListSubmit(e);
+
+  // Place Sharing
+  window.openSharePlaceModal = (id) => ModalManager.openSharePlaceModal(id);
+  window.closeSharePlaceModal = () => ModalManager.closeSharePlaceModal();
+  window.copySharePlaceLink = () => ModalManager.copySharePlaceLink();
+  window.sharePlaceVia = (platform) => ModalManager.sharePlaceVia(platform);
+  window.toggleSharePlaceQrCode = () => ModalManager.toggleSharePlaceQrCode();
 
   // Filter & Search
   window.setStatusFilter = (status) => FilterManager.setStatusFilter(status);
@@ -3568,6 +3982,14 @@
   window.setCategoryFilter = (cat) => FilterManager.setCategoryFilter(cat);
   window.handleSearch = (e) => FilterManager.handleSearch(e.target.value);
   window.handleSortChange = (e) => FilterManager.handleSortChange(e.target.value);
+
+  // Profile & Avatars
+  window.openUserProfileModal = () => ProfileManager.openModal();
+  window.closeUserProfileModal = () => ProfileManager.closeModal();
+  window.selectProfileAvatar = (icon) => ProfileManager.selectAvatar(icon);
+  window.selectProfileColor = (col) => ProfileManager.selectColor(col);
+  window.handleProfileNameInput = () => ProfileManager.handleNameInput();
+  window.saveUserProfile = () => ProfileManager.save();
 
   // Pins & Modals
   window.handlePinCardClick = (id) => {

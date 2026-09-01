@@ -56,6 +56,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .put(routes::update_list)
                 .delete(routes::delete_list),
         )
+        .route("/lists/:id/collaborators", get(routes::get_list_collaborators))
+        .route(
+            "/user/profile",
+            get(routes::get_profile).put(routes::update_profile),
+        )
         .route("/pins", get(routes::list_pins).post(routes::create_pin))
         .route(
             "/pins/:id",

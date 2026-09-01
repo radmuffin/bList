@@ -11,7 +11,7 @@ use crate::db::{InMemoryStorage, SqliteRepository};
 use crate::geocoder::Geocoder;
 use crate::models::{
     CreateListRequest, CreatePinRequest, IngestRequest, JoinListRequest, ListPinsQuery,
-    UpdateListRequest, UpdatePinRequest,
+    UpdateListRequest, UpdatePinRequest, UpdateUserProfileRequest,
 };
 use crate::scraper::Scraper;
 
@@ -1027,5 +1027,41 @@ async fn test_routes_ingest_blist_link() {
     assert_eq!(status_dup, StatusCode::CONFLICT);
     assert!(!res_dup.success);
     assert!(res_dup.error.unwrap().contains("already saved"));
+}
+
+#[tokio::test]
+async fn test_routes_user_profile_and_collaborators() {
+    let state = setup_test_sqlite_state();
+    let user_token = UserToken("adventurer-token-1".to_string());
+
+    // 1. Get initial profile
+    let (status, Json(res)) = get_profile(State(state.clone()), user_token.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(res.success);
+    let profile = res.data.unwrap();
+    assert_eq!(profile.avatar, "🧭");
+
+    // 2. Update profile
+    let update_req = UpdateUserProfileRequest {
+        name: Some("Captain Nemo".to_string()),
+        avatar: Some("🐬".to_string()),
+        color: Some("#06b6d4".to_string()),
+    };
+    let (status_up, Json(res_up)) = update_profile(State(state.clone()), user_token.clone(), Json(update_req)).await;
+    assert_eq!(status_up, StatusCode::OK);
+    assert!(res_up.success);
+    let updated = res_up.data.unwrap();
+    assert_eq!(updated.name, "Captain Nemo");
+    assert_eq!(updated.avatar, "🐬");
+    assert_eq!(updated.color, "#06b6d4");
+
+    // 3. Get collaborators for list #1 (default list)
+    let (status_c, Json(res_c)) = get_list_collaborators(State(state.clone()), user_token.clone(), Path(1)).await;
+    assert_eq!(status_c, StatusCode::OK);
+    assert!(res_c.success);
+    let collabs = res_c.data.unwrap();
+    assert_eq!(collabs.len(), 1);
+    assert_eq!(collabs[0].name, "Captain Nemo");
+    assert_eq!(collabs[0].avatar, "🐬");
 }
 

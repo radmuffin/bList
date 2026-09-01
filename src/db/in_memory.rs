@@ -2,10 +2,10 @@ use chrono::Utc;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::RwLock;
 
-use super::{ListRepository, PinRepository, StorageError};
+use super::{ListRepository, PinRepository, StorageError, UserRepository};
 use crate::models::{
-    CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin, UpdateListRequest,
-    UpdatePinRequest,
+    Collaborator, CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin,
+    UpdateListRequest, UpdatePinRequest, UpdateUserProfileRequest, UserProfile,
 };
 
 /// In-Memory Storage Engine (For Unit Testing & Ephemeral Deployments)
@@ -15,6 +15,7 @@ pub struct InMemoryStorage {
     lists: RwLock<HashMap<i64, List>>,
     pins: RwLock<HashMap<i64, Pin>>,
     device_lists: RwLock<Vec<(String, i64)>>,
+    users: RwLock<HashMap<String, UserProfile>>,
     next_list_id: RwLock<i64>,
     next_pin_id: RwLock<i64>,
 }
@@ -458,5 +459,93 @@ impl PinRepository for InMemoryStorage {
         let pins = self.pins.read().unwrap();
         let count = pins.values().filter(|p| allowed_lists.contains(&p.list_id)).count();
         Ok(count)
+    }
+}
+
+impl UserRepository for InMemoryStorage {
+    fn get_user_profile(&self, user_token: &str) -> Result<UserProfile, StorageError> {
+        let users = self.users.read().unwrap();
+        if let Some(profile) = users.get(user_token) {
+            Ok(profile.clone())
+        } else {
+            Ok(UserProfile {
+                user_token: user_token.to_string(),
+                name: "".to_string(),
+                avatar: "🧭".to_string(),
+                color: "#3b82f6".to_string(),
+            })
+        }
+    }
+
+    fn update_user_profile(
+        &self,
+        user_token: &str,
+        req: &UpdateUserProfileRequest,
+    ) -> Result<UserProfile, StorageError> {
+        let mut users = self.users.write().unwrap();
+        let mut profile = users.get(user_token).cloned().unwrap_or_else(|| UserProfile {
+            user_token: user_token.to_string(),
+            name: "".to_string(),
+            avatar: "🧭".to_string(),
+            color: "#3b82f6".to_string(),
+        });
+
+        if let Some(ref name) = req.name {
+            profile.name = name.trim().to_string();
+        }
+        if let Some(ref avatar) = req.avatar {
+            profile.avatar = avatar.trim().to_string();
+        }
+        if let Some(ref color) = req.color {
+            profile.color = color.trim().to_string();
+        }
+
+        users.insert(user_token.to_string(), profile.clone());
+        Ok(profile)
+    }
+
+    fn get_list_collaborators(&self, list_id: i64) -> Result<Vec<Collaborator>, StorageError> {
+        let device_lists = self.device_lists.read().unwrap();
+        let users = self.users.read().unwrap();
+        let lists = self.lists.read().unwrap();
+
+        let list_owner_token = lists.get(&list_id).map(|l| l.owner_token.as_str()).unwrap_or("");
+
+        let mut collaborators = Vec::new();
+        for (tok, lid) in device_lists.iter() {
+            if *lid == list_id {
+                let (name, avatar, color) = if let Some(u) = users.get(tok) {
+                    (
+                        if u.name.trim().is_empty() {
+                            "Traveler".to_string()
+                        } else {
+                            u.name.clone()
+                        },
+                        if u.avatar.trim().is_empty() {
+                            "🧭".to_string()
+                        } else {
+                            u.avatar.clone()
+                        },
+                        if u.color.trim().is_empty() {
+                            "#3b82f6".to_string()
+                        } else {
+                            u.color.clone()
+                        },
+                    )
+                } else {
+                    ("Traveler".to_string(), "🧭".to_string(), "#3b82f6".to_string())
+                };
+
+                let is_owner = !list_owner_token.is_empty() && list_owner_token == tok;
+                collaborators.push(Collaborator {
+                    name,
+                    avatar,
+                    color,
+                    is_owner,
+                });
+            }
+        }
+
+        Ok(collaborators)
     }
 }

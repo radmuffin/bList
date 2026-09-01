@@ -2,10 +2,10 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Result};
 use std::sync::{Arc, Mutex};
 
-use super::{ListRepository, PinRepository, StorageError};
+use super::{ListRepository, PinRepository, StorageError, UserRepository};
 use crate::models::{
-    CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin, UpdateListRequest,
-    UpdatePinRequest,
+    Collaborator, CreateListRequest, CreatePinRequest, List, ListPinsQuery, Pin,
+    UpdateListRequest, UpdatePinRequest, UpdateUserProfileRequest, UserProfile,
 };
 
 pub struct SqliteRepository {
@@ -292,6 +292,108 @@ impl PinRepository for SqliteRepository {
     }
 }
 
+impl UserRepository for SqliteRepository {
+    fn get_user_profile(&self, user_token: &str) -> std::result::Result<UserProfile, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT user_token, name, avatar, color FROM users WHERE user_token = ?")
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+
+        let profile = stmt.query_row(params![user_token], |row| {
+            Ok(UserProfile {
+                user_token: row.get(0)?,
+                name: row.get(1)?,
+                avatar: row.get(2)?,
+                color: row.get(3)?,
+            })
+        }).unwrap_or_else(|_| UserProfile {
+            user_token: user_token.to_string(),
+            name: "".to_string(),
+            avatar: "🧭".to_string(),
+            color: "#3b82f6".to_string(),
+        });
+
+        Ok(profile)
+    }
+
+    fn update_user_profile(
+        &self,
+        user_token: &str,
+        req: &UpdateUserProfileRequest,
+    ) -> std::result::Result<UserProfile, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let current = self.get_user_profile(user_token)?;
+
+        let new_name = req.name.as_deref().unwrap_or(&current.name).trim().to_string();
+        let new_avatar = req.avatar.as_deref().unwrap_or(&current.avatar).trim().to_string();
+        let new_color = req.color.as_deref().unwrap_or(&current.color).trim().to_string();
+        let now = Utc::now().to_rfc3339();
+
+        conn.execute(
+            "INSERT INTO users (user_token, name, avatar, color, updated_at) VALUES (?, ?, ?, ?, ?) \
+             ON CONFLICT(user_token) DO UPDATE SET name = excluded.name, avatar = excluded.avatar, color = excluded.color, updated_at = excluded.updated_at",
+            params![user_token, new_name, new_avatar, new_color, now],
+        ).map_err(|e| StorageError::Database(e.to_string()))?;
+
+        Ok(UserProfile {
+            user_token: user_token.to_string(),
+            name: new_name,
+            avatar: new_avatar,
+            color: new_color,
+        })
+    }
+
+    fn get_list_collaborators(&self, list_id: i64) -> std::result::Result<Vec<Collaborator>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT dl.user_token, COALESCE(u.name, ''), COALESCE(u.avatar, '🧭'), COALESCE(u.color, '#3b82f6'), \
+             CASE WHEN l.owner_token = dl.user_token THEN 1 ELSE 0 END as is_owner \
+             FROM device_lists dl \
+             LEFT JOIN users u ON dl.user_token = u.user_token \
+             LEFT JOIN lists l ON dl.list_id = l.id \
+             WHERE dl.list_id = ? ORDER BY is_owner DESC, dl.user_token ASC"
+        ).map_err(|e| StorageError::Database(e.to_string()))?;
+
+        let rows = stmt.query_map(params![list_id], |row| {
+            let _token: String = row.get(0)?;
+            let raw_name: String = row.get(1)?;
+            let raw_avatar: String = row.get(2)?;
+            let raw_color: String = row.get(3)?;
+            let is_owner: i64 = row.get(4)?;
+
+            let name = if raw_name.trim().is_empty() {
+                "Traveler".to_string()
+            } else {
+                raw_name
+            };
+            let avatar = if raw_avatar.trim().is_empty() {
+                "🧭".to_string()
+            } else {
+                raw_avatar
+            };
+            let color = if raw_color.trim().is_empty() {
+                "#3b82f6".to_string()
+            } else {
+                raw_color
+            };
+
+            Ok(Collaborator {
+                name,
+                avatar,
+                color,
+                is_owner: is_owner == 1,
+            })
+        }).map_err(|e| StorageError::Database(e.to_string()))?;
+
+        let mut result = Vec::new();
+        for r in rows {
+            if let Ok(c) = r {
+                result.push(c);
+            }
+        }
+        Ok(result)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Rusqlite Direct Database Helpers (Preserving 100% Backward Compatibility)
 // ---------------------------------------------------------------------------
@@ -339,6 +441,14 @@ pub fn init_db(db_path: &str) -> Result<Connection> {
             FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_device_lists_user_token ON device_lists(user_token);
+
+        CREATE TABLE IF NOT EXISTS users (
+            user_token TEXT PRIMARY KEY,
+            name TEXT NOT NULL DEFAULT '',
+            avatar TEXT NOT NULL DEFAULT '',
+            color TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL
+        );
         "#,
     )?;
 

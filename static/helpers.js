@@ -1552,6 +1552,9 @@
     const safeUrl = sanitizeUrl(url) || 'https://blist-radmuffin.fly.dev/';
     const title = options.title || 'bList - Visual Map Bucket List & Trip Planner';
     const text = options.text || `Check out bList — a fast, private travel bucket list & map trip planner! 🗺️✨\n${safeUrl}`;
+    const smsText = options.smsText || (options.text ? `${options.text}\n${safeUrl}` : `Check out bList for travel bucket lists & map planning: ${safeUrl}`);
+    const emailBody = options.emailBody || `Hey!\n\nI thought you'd love bList for saving places and organizing travel bucket lists on a visual map:\n\n${safeUrl}\n\nHappy travels! 🗺️✈️`;
+
     const encodedUrl = encodeURIComponent(safeUrl);
     const encodedText = encodeURIComponent(text);
     const encodedTitle = encodeURIComponent(title);
@@ -1560,14 +1563,15 @@
 
     return {
       url: safeUrl,
+      title,
       text,
-      sms: `sms:?&body=${encodeURIComponent(`Check out bList for travel bucket lists & map planning: ${safeUrl}`)}`,
-      whatsapp: `https://api.whatsapp.com/send?text=${encodeURIComponent(`Check out bList: ${safeUrl}`)}`,
+      sms: `sms:?&body=${encodeURIComponent(smsText)}`,
+      whatsapp: `https://api.whatsapp.com/send?text=${encodedText}`,
       messenger: `fb-messenger://share/?link=${encodedUrl}`,
       twitter: `https://twitter.com/intent/tweet?text=${encodedText}`,
-      email: `mailto:?subject=${encodedTitle}&body=${encodeURIComponent(`Hey!\n\nI thought you'd love bList for saving places and organizing travel bucket lists on a visual map:\n\n${safeUrl}\n\nHappy travels! 🗺️✈️`)}`,
+      email: `mailto:?subject=${encodedTitle}&body=${encodeURIComponent(emailBody)}`,
       telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(title)}`,
-      qrUrl: qrResult.dataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodedUrl}&margin=10`,
+      qrUrl: qrResult.dataUrl,
       qrDataUrl: qrResult.dataUrl,
       qrSvg: qrResult.svg
     };
@@ -1864,6 +1868,51 @@
     };
   }
 
+  const AVATAR_PRESETS = Object.freeze([
+    '🧭', '🏕️', '✈️', '🍜', '🗼', '🎒', '🦊', '🐻',
+    '🐬', '🦉', '🚀', '🏄', '🎨', '🚴', '⛵', '🦁'
+  ]);
+
+  const AVATAR_COLORS = Object.freeze([
+    '#3b82f6',
+    '#10b981',
+    '#f59e0b',
+    '#ef4444',
+    '#8b5cf6',
+    '#ec4899',
+    '#06b6d4',
+    '#6366f1'
+  ]);
+
+  /**
+   * Generates a lightweight, microscopic inline SVG avatar and data URI (< 300 bytes).
+   */
+  function generateAvatarSvg(options = {}) {
+    const avatar = options.avatar || options.emoji || '🧭';
+    const color = options.color || '#3b82f6';
+    const name = options.name ? String(options.name).trim() : '';
+    const size = typeof options.size === 'number' ? options.size : 64;
+
+    let content = '';
+    if (avatar && avatar !== 'initial') {
+      content = `<text x="50%" y="54%" font-size="${Math.round(size * 0.52)}" text-anchor="middle" dominant-baseline="central">${escapeHtml(avatar)}</text>`;
+    } else {
+      const initial = name ? name.charAt(0).toUpperCase() : '?';
+      content = `<text x="50%" y="54%" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" font-size="${Math.round(size * 0.48)}" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${escapeHtml(initial)}</text>`;
+    }
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="${color}"/>${content}</svg>`;
+    const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+
+    return {
+      svg,
+      dataUrl,
+      avatar,
+      color,
+      name
+    };
+  }
+
   return {
     APP_INFO,
     getAppInfo,
@@ -1893,6 +1942,9 @@
     generateShareLinks,
     generateQrSvg,
     detectSwipeGesture,
+    generateAvatarSvg,
+    AVATAR_PRESETS,
+    AVATAR_COLORS,
     getRandomInspiration,
     MANIFESTO_RULES,
     INSPIRATIONS,

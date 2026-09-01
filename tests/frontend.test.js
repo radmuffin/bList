@@ -25,6 +25,9 @@ const {
   generateShareLinks,
   generateQrSvg,
   detectSwipeGesture,
+  generateAvatarSvg,
+  AVATAR_PRESETS,
+  AVATAR_COLORS,
   getRandomInspiration,
   MANIFESTO_RULES,
   INSPIRATIONS,
@@ -1240,6 +1243,60 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
         minDistance: 45
       });
       assert.strictEqual(res.isSwipe, false);
+    });
+  });
+
+  describe('Microscopic Smol SVG Avatar Generator (generateAvatarSvg)', () => {
+    it('should generate crisp SVG and data URL for emoji avatar', () => {
+      const res = generateAvatarSvg({
+        avatar: '🦊',
+        color: '#f97316',
+        name: 'Alex Wanderer',
+        size: 48
+      });
+
+      assert.ok(res.svg);
+      assert.ok(res.dataUrl);
+      assert.strictEqual(res.avatar, '🦊');
+      assert.strictEqual(res.color, '#f97316');
+      assert.strictEqual(res.name, 'Alex Wanderer');
+      assert.ok(res.svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"'));
+      assert.ok(res.svg.includes('width="48" height="48"'));
+      assert.ok(res.svg.includes('fill="#f97316"'));
+      assert.ok(res.svg.includes('🦊'));
+      assert.ok(res.dataUrl.startsWith('data:image/svg+xml;charset=utf-8,'));
+    });
+
+    it('should fallback to initial monogram letter if avatar is "initial"', () => {
+      const res = generateAvatarSvg({
+        avatar: 'initial',
+        color: '#10b981',
+        name: 'Samurai Jack',
+        size: 32
+      });
+
+      assert.ok(res.svg);
+      assert.ok(res.svg.includes('>S<'));
+      assert.ok(res.svg.includes('fill="#10b981"'));
+    });
+
+    it('should use default values for empty or undefined parameters', () => {
+      const res = generateAvatarSvg();
+      assert.strictEqual(res.avatar, '🧭');
+      assert.strictEqual(res.color, '#3b82f6');
+      assert.strictEqual(res.name, '');
+      assert.ok(res.svg.includes('🧭'));
+    });
+
+    it('should provide complete sets of preset emojis and vibrant colors', () => {
+      assert.ok(Array.isArray(AVATAR_PRESETS));
+      assert.ok(AVATAR_PRESETS.length >= 12);
+      assert.ok(AVATAR_PRESETS.includes('🏕️'));
+      assert.ok(AVATAR_PRESETS.includes('🧭'));
+
+      assert.ok(Array.isArray(AVATAR_COLORS));
+      assert.ok(AVATAR_COLORS.length >= 6);
+      assert.ok(AVATAR_COLORS.includes('#3b82f6'));
     });
   });
 

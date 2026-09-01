@@ -2373,6 +2373,52 @@ label {
    Share bList & About Whimsical Extensions
    ========================================================================== */
 
+.modal-share-rich {
+  max-width: 440px;
+}
+
+.share-entity-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.share-entity-icon {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.share-entity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.share-entity-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-entity-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .modal-share-blist {
   max-width: 480px;
   width: 95vw;
@@ -4021,5 +4067,217 @@ label {
   background-color: rgba(16, 185, 129, 0.2);
   color: #34d399;
   border-color: #059669;
+}
+
+/* ==========================================================================
+   User Profile & Smol SVG Avatar Customizer
+   ========================================================================== */
+.btn-user-avatar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 9px 3px 4px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  cursor: pointer;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  height: 34px;
+}
+
+.btn-user-avatar:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+.header-avatar-circle {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.header-avatar-circle svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.header-user-name {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-profile {
+  max-width: 440px;
+}
+
+.profile-preview-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 18px;
+}
+
+.profile-avatar-large {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.profile-avatar-large svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.profile-preview-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-preview-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.profile-preview-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.avatar-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+
+.avatar-preset-chip {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.avatar-preset-chip:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--primary);
+  transform: scale(1.1);
+}
+
+.avatar-preset-chip.active {
+  background-color: var(--primary-light);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-light);
+  transform: scale(1.12);
+}
+
+.avatar-color-palette {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.avatar-color-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.avatar-color-dot:hover {
+  transform: scale(1.2);
+}
+
+.avatar-color-dot.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px var(--primary), 0 3px 8px rgba(0, 0, 0, 0.3);
+  transform: scale(1.22);
+}
+
+/* ==========================================================================
+   Collaborators Bar & Avatar Stack (Shared Lists)
+   ========================================================================== */
+.list-collaborators-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 4px 8px;
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+}
+
+.collab-label {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.collab-avatar-stack {
+  display: flex;
+  align-items: center;
+}
+
+.collab-avatar-item {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-left: -6px;
+  border: 1.5px solid var(--bg-surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s ease, z-index 0.15s ease;
+}
+
+.collab-avatar-item:first-child {
+  margin-left: 0;
+}
+
+.collab-avatar-item:hover {
+  transform: scale(1.3) translateY(-1px);
+  z-index: 10;
+}
+
+.collab-avatar-item svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 

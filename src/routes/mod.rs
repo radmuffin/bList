@@ -2,6 +2,7 @@ pub mod lists;
 pub mod pins;
 pub mod ingest;
 pub mod export;
+pub mod user;
 #[cfg(test)]
 pub mod tests;
 
@@ -19,6 +20,7 @@ pub use lists::{create_list, delete_list, get_list, join_list, list_lists, updat
 pub use pins::{
     create_pin, delete_pin, get_categories, get_pin, list_pins, toggle_visited, update_pin,
 };
+pub use user::{get_list_collaborators, get_profile, update_profile};
 
 use crate::db::StorageEngine;
 use crate::geocoder::Geocoder;
