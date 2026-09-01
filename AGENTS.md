@@ -87,15 +87,18 @@ Maps device user tokens to lists for multi-device sync, row-level access control
 
 ## 🚀 Key Commands & CI/CD Pipeline
 
+- **⚡ Run affected tests only**: `npm run test:affected` (evaluates git diffs and runs only impacted frontend/backend suites)
+- **🪝 Install git pre-push hook**: `npm run setup:hooks` (runs `npm run test:affected` automatically before every `git push`)
 - **Build/Check local backend**: `cargo check && cargo test`
 - **Run linter**: `cargo clippy --all-targets`
+- **Check formatting**: `cargo fmt --all -- --check`
 - **Run frontend unit & a11y tests**: `npm test`
 - **Run E2E Playwright tests**: `npm run test:e2e`
 - **Run local server**: `cargo run` (accessible locally on port `3000`)
 - **Docker build**: Multi-stage build with `cargo-chef` dependency caching (`docker build -t blist .`)
 - **Deploy locally via Fly CLI**: `fly deploy --local-only`
 - **CI/CD Workflow (`.github/workflows/ci.yml`)**:
-  - Runs `backend` and `frontend-e2e` in parallel.
+  - Runs `backend` and `frontend-e2e` in parallel across all matrix checks.
   - Caches Playwright browser binaries in `~/.cache/ms-playwright`.
   - Deployment to Fly.io (`deploy` job) strictly gates on all tests passing on the `main` branch.
 - **Deploy manually to staging**: Run the "CD - Deploy to Staging" workflow dispatch in GitHub Actions or `fly deploy --app blist-staging-radmuffin --local-only`.
