@@ -11,9 +11,9 @@ use std::fmt;
 pub use in_memory::InMemoryStorage;
 #[allow(unused_imports)]
 pub use sqlite::{
-    create_list, create_pin, create_pins_batch, delete_list, delete_pin, get_categories, get_list,
-    get_pin, init_db, list_lists, list_pins, toggle_visited, update_list, update_pin,
-    SqliteRepository,
+    create_list, create_pin, create_pins_batch, delete_list, delete_pin, find_duplicate_pin,
+    get_categories, get_list, get_pin, init_db, list_lists, list_pins, toggle_visited, update_list,
+    update_pin, SqliteRepository,
 };
 
 use crate::models::{
@@ -160,6 +160,15 @@ pub trait ListRepository: Send + Sync {
 pub trait PinRepository: Send + Sync {
     fn list_pins(&self, query: &ListPinsQuery, user_token: &str) -> Result<Vec<Pin>, StorageError>;
     fn get_pin(&self, id: i64) -> Result<Option<Pin>, StorageError>;
+    fn find_duplicate_pin(
+        &self,
+        list_id: i64,
+        title: &str,
+        lat: f64,
+        lon: f64,
+        source_url: Option<&str>,
+        exclude_id: Option<i64>,
+    ) -> Result<Option<Pin>, StorageError>;
     fn create_pin(&self, req: &CreatePinRequest) -> Result<Pin, StorageError>;
     fn create_pins_batch(&self, list_id: i64, pins: &[CreatePinRequest]) -> Result<Vec<Pin>, StorageError>;
     fn update_pin(&self, id: i64, req: &UpdatePinRequest) -> Result<Option<Pin>, StorageError>;

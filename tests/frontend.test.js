@@ -252,6 +252,26 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(result.isUrlCandidate, true);
     });
 
+    it('should parse bList shared URL with title and coordinate parameters', () => {
+      const result = parseShareTargetPayload({
+        url: 'https://blist.fly.dev/?lat=35.6586&lng=139.7454&title=Tokyo+Tower&address=Tokyo%2C+Japan',
+        title: 'Tokyo Tower | bList',
+        text: 'Check out Tokyo Tower (Tokyo, Japan) on my travel bucket list!'
+      });
+      assert.strictEqual(result.url, 'https://blist.fly.dev/?lat=35.6586&lng=139.7454&title=Tokyo+Tower&address=Tokyo%2C+Japan');
+      assert.strictEqual(result.title, 'Tokyo Tower | bList');
+      assert.strictEqual(result.isUrlCandidate, true);
+    });
+
+    it('should handle bList text shares with root URL by deriving place name and ignoring root app URL', () => {
+      const result = parseShareTargetPayload({
+        text: 'Check out Tokyo Tower (Minato, Tokyo) on my travel bucket list!\nhttps://blist.fly.dev/'
+      });
+      assert.strictEqual(result.url, '');
+      assert.strictEqual(result.title, 'Tokyo Tower (Minato, Tokyo)');
+      assert.strictEqual(result.isUrlCandidate, false);
+    });
+
     it('should handle null, undefined, empty, and non-object inputs safely', () => {
       assert.deepStrictEqual(parseShareTargetPayload(null), {
         url: '',

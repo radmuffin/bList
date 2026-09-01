@@ -953,3 +953,79 @@ async fn test_routes_import_places_and_batch_processing() {
     assert_eq!(tag_pins.len(), 1);
     assert_eq!(tag_pins[0].title, "Shibuya Sky");
 }
+
+#[tokio::test]
+async fn test_routes_duplicate_pin_rejection() {
+    let state = setup_test_sqlite_state();
+    let user = UserToken("dup-test-user".to_string());
+
+    let req1 = CreatePinRequest {
+        list_id: Some(1),
+        title: "Eiffel Tower".to_string(),
+        description: Some("Famous landmark".to_string()),
+        latitude: 48.8584,
+        longitude: 2.2945,
+        category: Some("Sightseeing".to_string()),
+        source_url: Some("https://maps.google.com/?cid=eiffel".to_string()),
+        ..Default::default()
+    };
+
+    let (status1, Json(res1)) = create_pin(State(state.clone()), user.clone(), Json(req1.clone())).await;
+    assert_eq!(status1, StatusCode::CREATED);
+    assert!(res1.success);
+
+    // Try creating duplicate by same coordinates and title
+    let (status2, Json(res2)) = create_pin(State(state.clone()), user.clone(), Json(req1)).await;
+    assert_eq!(status2, StatusCode::CONFLICT);
+    assert!(!res2.success);
+    assert!(res2.error.unwrap().contains("already saved"));
+
+    // Try creating duplicate by same source_url with slightly different title
+    let req3 = CreatePinRequest {
+        list_id: Some(1),
+        title: "Tour Eiffel".to_string(),
+        description: None,
+        latitude: 48.0,
+        longitude: 2.0,
+        category: Some("Sightseeing".to_string()),
+        source_url: Some("https://maps.google.com/?cid=eiffel".to_string()),
+        ..Default::default()
+    };
+    let (status3, Json(res3)) = create_pin(State(state.clone()), user.clone(), Json(req3)).await;
+    assert_eq!(status3, StatusCode::CONFLICT);
+    assert!(!res3.success);
+}
+
+#[tokio::test]
+async fn test_routes_ingest_blist_link() {
+    let state = setup_test_sqlite_state();
+    let user = UserToken("blist-share-user".to_string());
+
+    let ingest_req = crate::models::IngestRequest {
+        url: "https://blist.fly.dev/?lat=35.6586&lng=139.7454&title=Tokyo%20Tower&address=Tokyo,%20Japan".to_string(),
+        list_id: Some(1),
+        category: Some("Sightseeing".to_string()),
+        emoji: Some("🗼".to_string()),
+        tags: Some("#tokyo".to_string()),
+        priority: Some(true),
+        day_group: Some(1),
+        notes: Some("Shared from bList".to_string()),
+        opening_hours: None,
+    };
+
+    let (status, Json(res)) = ingest_link(State(state.clone()), user.clone(), Json(ingest_req.clone())).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(res.success);
+    let pin = res.data.unwrap();
+    assert_eq!(pin.title, "Tokyo Tower");
+    assert_eq!(pin.latitude, 35.6586);
+    assert_eq!(pin.longitude, 139.7454);
+    assert!(pin.priority);
+
+    // Ingesting the same bList link again should be rejected as a duplicate
+    let (status_dup, Json(res_dup)) = ingest_link(State(state.clone()), user.clone(), Json(ingest_req)).await;
+    assert_eq!(status_dup, StatusCode::CONFLICT);
+    assert!(!res_dup.success);
+    assert!(res_dup.error.unwrap().contains("already saved"));
+}
+

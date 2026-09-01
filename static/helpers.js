@@ -172,18 +172,57 @@
       rawTitle = '';
     }
 
+    const foundUrl = extractedUrl;
+    // Check if the URL is a bare app root (e.g. https://blist.fly.dev/ or http://localhost:3000/ without search params)
+    let isBareAppUrl = false;
+    if (extractedUrl) {
+      try {
+        const u = new URL(extractedUrl);
+        if (
+          (u.hostname.includes('blist') || u.hostname === 'localhost' || u.hostname === '127.0.0.1') &&
+          (u.pathname === '/' || u.pathname === '') &&
+          !u.search &&
+          !u.hash
+        ) {
+          isBareAppUrl = true;
+        }
+      } catch (_) {}
+    }
+
+    // If it's a bare app URL without place parameters, ignore it as the place URL candidate so remaining text is used
+    if (isBareAppUrl) {
+      extractedUrl = '';
+    }
+
     // Extract title candidate if missing
     let extractedTitle = rawTitle;
     let remainingText = rawText;
 
-    if (extractedUrl && remainingText.includes(extractedUrl)) {
-      remainingText = remainingText.replace(extractedUrl, '').trim();
+    if (foundUrl && remainingText.includes(foundUrl)) {
+      remainingText = remainingText.replace(foundUrl, '').trim();
+    }
+
+    // Clean up "Check out ... on my travel bucket list!" wrapper if shared from bList
+    if (remainingText) {
+      const blistShareMatch = remainingText.match(/^Check out\s+(.+?)\s+on my travel bucket list!?$/i);
+      if (blistShareMatch) {
+        remainingText = blistShareMatch[1].trim();
+      }
     }
 
     if (!extractedTitle && remainingText) {
       // Use first line of remaining text as title candidate
       const lines = remainingText.split(/[\r\n]+/);
       extractedTitle = lines[0].trim();
+    }
+
+    // If extractedUrl has search params with title or coordinates (e.g. bList shared link), extract title if still empty
+    if (!extractedTitle && extractedUrl) {
+      try {
+        const u = new URL(extractedUrl);
+        const qTitle = u.searchParams.get('title') || u.searchParams.get('name') || u.searchParams.get('q');
+        if (qTitle) extractedTitle = qTitle.trim();
+      } catch (_) {}
     }
 
     return {

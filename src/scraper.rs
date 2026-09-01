@@ -756,6 +756,114 @@ impl LinkScraper for AllTrailsScraper {
 }
 
 // ---------------------------------------------------------------------------
+// bList Scraper (for bList-to-bList shares and deep place links)
+// ---------------------------------------------------------------------------
+
+pub struct BListScraper;
+
+impl LinkScraper for BListScraper {
+    fn name(&self) -> &'static str {
+        "blist"
+    }
+
+    fn can_handle(&self, url: &str) -> bool {
+        let lower = url.to_lowercase();
+        lower.contains("blist")
+            || lower.contains("localhost")
+            || lower.contains("127.0.0.1")
+            || ((lower.contains("lat=") || lower.contains("latitude="))
+                && (lower.contains("lng=") || lower.contains("lon=") || lower.contains("longitude=")))
+    }
+
+    fn scrape<'a>(
+        &'a self,
+        url: &'a str,
+        ctx: &'a ScraperContext,
+    ) -> BoxFuture<'a, Result<ScrapedMetadata, String>> {
+        Box::pin(async move {
+            let parsed_url = reqwest::Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
+
+            let mut lat: Option<f64> = None;
+            let mut lon: Option<f64> = None;
+            let mut title: Option<String> = None;
+            let mut address: Option<String> = None;
+            let mut source_url: Option<String> = None;
+            let mut category: Option<String> = None;
+
+            for (k, v) in parsed_url.query_pairs() {
+                match k.as_ref() {
+                    "lat" | "latitude" => {
+                        lat = v.parse().ok();
+                    }
+                    "lng" | "lon" | "longitude" => {
+                        lon = v.parse().ok();
+                    }
+                    "title" | "name" | "q" => {
+                        let t = v.trim().to_string();
+                        if !t.is_empty() {
+                            title = Some(t);
+                        }
+                    }
+                    "address" | "addr" => {
+                        let a = v.trim().to_string();
+                        if !a.is_empty() {
+                            address = Some(a);
+                        }
+                    }
+                    "source" | "source_url" => {
+                        let s = v.trim().to_string();
+                        if !s.is_empty() {
+                            source_url = Some(s);
+                        }
+                    }
+                    "category" => {
+                        let c = v.trim().to_string();
+                        if !c.is_empty() {
+                            category = Some(c);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if lat.is_none() || lon.is_none() {
+                let query = address.as_deref().or(title.as_deref());
+                if let Some(q) = query {
+                    if let Ok(Some(geo)) = ctx.geocoder.geocode(q).await {
+                        lat = Some(geo.latitude);
+                        lon = Some(geo.longitude);
+                        if address.is_none() {
+                            address = Some(geo.display_name);
+                        }
+                    }
+                }
+            }
+
+            if lat.is_none() || lon.is_none() {
+                return Err("Cannot ingest bList URL: Missing location coordinates or place details.".to_string());
+            }
+
+            let final_title = title
+                .or_else(|| address.clone())
+                .unwrap_or_else(|| "Saved Place".to_string());
+            let final_source = source_url.unwrap_or_else(|| url.to_string());
+
+            Ok(ScrapedMetadata {
+                title: final_title,
+                description: None,
+                latitude: lat,
+                longitude: lon,
+                address,
+                image_url: None,
+                opening_hours: None,
+                source_url: final_source,
+                source_type: category.unwrap_or_else(|| "blist".to_string()),
+            })
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Generic HTML Scraper (Fallback for Any Website)
 // ---------------------------------------------------------------------------
 
@@ -882,6 +990,7 @@ impl Scraper {
             Arc::new(TripAdvisorScraper),
             Arc::new(YelpScraper),
             Arc::new(AllTrailsScraper),
+            Arc::new(BListScraper),
             Arc::new(GenericHtmlScraper),
         ];
 
@@ -919,6 +1028,13 @@ impl Scraper {
 
     /// Scrapes a given URL using the best matching registered domain scraper.
     pub async fn scrape_url(&self, raw_url: &str) -> Result<ScrapedMetadata, String> {
+        // If it's a bList URL with parameters, handle directly without network DNS check
+        for scraper in &self.scrapers {
+            if scraper.name() == "blist" && scraper.can_handle(raw_url) {
+                return scraper.scrape(raw_url, &self.context).await;
+            }
+        }
+
         let parsed_url = validate_url_for_ssrf(raw_url)?;
         let full_url = parsed_url.to_string();
 

@@ -198,6 +198,23 @@ impl PinRepository for SqliteRepository {
         get_pin(&conn, id).map_err(Into::into)
     }
 
+    fn find_duplicate_pin(
+        &self,
+        list_id: i64,
+        title: &str,
+        lat: f64,
+        lon: f64,
+        source_url: Option<&str>,
+        exclude_id: Option<i64>,
+    ) -> Result<Option<Pin>, StorageError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Lock(e.to_string()))?;
+        find_duplicate_pin(&conn, list_id, title, lat, lon, source_url, exclude_id)
+            .map_err(Into::into)
+    }
+
     fn create_pin(&self, req: &CreatePinRequest) -> Result<Pin, StorageError> {
         let conn = self
             .conn
@@ -685,6 +702,101 @@ pub fn get_pin(conn: &Connection, id: i64) -> Result<Option<Pin>> {
     } else {
         Ok(None)
     }
+}
+
+pub fn find_duplicate_pin(
+    conn: &Connection,
+    list_id: i64,
+    title: &str,
+    lat: f64,
+    lon: f64,
+    source_url: Option<&str>,
+    exclude_id: Option<i64>,
+) -> Result<Option<Pin>> {
+    let clean_title = title.trim();
+    let clean_source = source_url.map(|s| s.trim()).filter(|s| !s.is_empty());
+
+    // 1. If source_url is present, check if another pin in this list has the same source_url
+    if let Some(src) = clean_source {
+        let mut sql = String::from(
+            "SELECT id, list_id, title, description, latitude, longitude, category, emoji, tags, priority, day_group, custom_order, opening_hours, source_url, image_url, address, notes, visited, created_at \
+             FROM pins WHERE list_id = ? AND LOWER(TRIM(source_url)) = LOWER(TRIM(?))"
+        );
+        if let Some(eid) = exclude_id {
+            sql.push_str(&format!(" AND id != {}", eid));
+        }
+        sql.push_str(" LIMIT 1");
+        let mut stmt = conn.prepare(&sql)?;
+        let mut rows = stmt.query(params![list_id, src])?;
+        if let Some(row) = rows.next()? {
+            let priority_int: i32 = row.get(9).unwrap_or(0);
+            let visited_int: i32 = row.get(17)?;
+            return Ok(Some(Pin {
+                id: row.get(0)?,
+                list_id: row.get(1)?,
+                title: row.get(2)?,
+                description: row.get(3)?,
+                latitude: row.get(4)?,
+                longitude: row.get(5)?,
+                category: row.get(6)?,
+                emoji: row.get(7)?,
+                tags: row.get(8)?,
+                priority: priority_int != 0,
+                day_group: row.get(10).unwrap_or(0),
+                custom_order: row.get(11).unwrap_or(0),
+                opening_hours: row.get(12)?,
+                source_url: row.get(13)?,
+                image_url: row.get(14)?,
+                address: row.get(15)?,
+                notes: row.get(16)?,
+                visited: visited_int != 0,
+                created_at: row.get(18)?,
+            }));
+        }
+    }
+
+    // 2. Check by coordinates & title in the same list
+    let mut sql = String::from(
+        "SELECT id, list_id, title, description, latitude, longitude, category, emoji, tags, priority, day_group, custom_order, opening_hours, source_url, image_url, address, notes, visited, created_at \
+         FROM pins WHERE list_id = ? AND ( \
+            (ABS(latitude - ?) < 0.0001 AND ABS(longitude - ?) < 0.0001) OR \
+            (LOWER(TRIM(title)) = LOWER(TRIM(?)) AND ABS(latitude - ?) < 0.001 AND ABS(longitude - ?) < 0.001) \
+         )"
+    );
+    if let Some(eid) = exclude_id {
+        sql.push_str(&format!(" AND id != {}", eid));
+    }
+    sql.push_str(" LIMIT 1");
+
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query(params![list_id, lat, lon, clean_title, lat, lon])?;
+    if let Some(row) = rows.next()? {
+        let priority_int: i32 = row.get(9).unwrap_or(0);
+        let visited_int: i32 = row.get(17)?;
+        return Ok(Some(Pin {
+            id: row.get(0)?,
+            list_id: row.get(1)?,
+            title: row.get(2)?,
+            description: row.get(3)?,
+            latitude: row.get(4)?,
+            longitude: row.get(5)?,
+            category: row.get(6)?,
+            emoji: row.get(7)?,
+            tags: row.get(8)?,
+            priority: priority_int != 0,
+            day_group: row.get(10).unwrap_or(0),
+            custom_order: row.get(11).unwrap_or(0),
+            opening_hours: row.get(12)?,
+            source_url: row.get(13)?,
+            image_url: row.get(14)?,
+            address: row.get(15)?,
+            notes: row.get(16)?,
+            visited: visited_int != 0,
+            created_at: row.get(18)?,
+        }));
+    }
+
+    Ok(None)
 }
 
 pub fn create_pin(conn: &Connection, req: &CreatePinRequest) -> Result<Pin> {

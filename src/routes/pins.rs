@@ -123,6 +123,23 @@ pub async fn create_pin(
         _ => {}
     }
 
+    if let Ok(Some(existing)) = state.storage.find_duplicate_pin(
+        list_id,
+        &resolved_req.title,
+        resolved_req.latitude,
+        resolved_req.longitude,
+        resolved_req.source_url.as_deref(),
+        None,
+    ) {
+        return (
+            StatusCode::CONFLICT,
+            Json(ApiResponse::err(format!(
+                "Place '{}' is already saved in this list.",
+                existing.title
+            ))),
+        );
+    }
+
     match state.storage.create_pin(&resolved_req) {
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
@@ -144,6 +161,7 @@ pub async fn update_pin(
         Err(err) => return err,
     };
 
+    let target_list_id = req.list_id.unwrap_or(pin.list_id);
     if let Some(new_list_id) = req.list_id {
         if new_list_id != pin.list_id {
             if let Err(err) = check_permission_or_err(&state.storage, &user_token.0, new_list_id) {
@@ -181,6 +199,28 @@ pub async fn update_pin(
                 )),
             );
         }
+    }
+
+    let check_title = req.title.as_deref().unwrap_or(&pin.title);
+    let check_lat = req.latitude.unwrap_or(pin.latitude);
+    let check_lon = req.longitude.unwrap_or(pin.longitude);
+    let check_source = req.source_url.as_deref().or(pin.source_url.as_deref());
+
+    if let Ok(Some(existing)) = state.storage.find_duplicate_pin(
+        target_list_id,
+        check_title,
+        check_lat,
+        check_lon,
+        check_source,
+        Some(id),
+    ) {
+        return (
+            StatusCode::CONFLICT,
+            Json(ApiResponse::err(format!(
+                "Place '{}' is already saved in this list.",
+                existing.title
+            ))),
+        );
     }
 
     match state.storage.update_pin(id, &req) {

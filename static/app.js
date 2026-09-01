@@ -1053,11 +1053,31 @@
       MapController.resetMapView();
     },
 
+    syncFilterTabsUI() {
+      const allTab = document.querySelector('.filter-tab[data-status="all"]');
+      const bucketTab = document.querySelector('.filter-tab[data-status="bucket"]');
+      const visitedTab = document.querySelector('.filter-tab[data-status="visited"]');
+      const priorityTab = document.getElementById('tab-priority-filter');
+      const openNowTab = document.getElementById('tab-open-now-filter');
+
+      if (priorityTab) priorityTab.classList.toggle('active', Boolean(State.priorityOnly));
+      if (openNowTab) openNowTab.classList.toggle('active', Boolean(State.openNowOnly));
+      if (bucketTab) bucketTab.classList.toggle('active', State.selectedStatus === 'bucket');
+      if (visitedTab) visitedTab.classList.toggle('active', State.selectedStatus === 'visited');
+
+      const isAllActive = State.selectedStatus === 'all' && !State.priorityOnly && !State.openNowOnly;
+      if (allTab) allTab.classList.toggle('active', isAllActive);
+    },
+
     setStatusFilter(status) {
-      State.selectedStatus = status;
-      document.querySelectorAll('.filter-tab[data-status]').forEach((tab) => {
-        tab.classList.toggle('active', tab.dataset.status === status);
-      });
+      if (status === 'all') {
+        State.selectedStatus = 'all';
+        State.priorityOnly = false;
+        State.openNowOnly = false;
+      } else {
+        State.selectedStatus = status;
+      }
+      this.syncFilterTabsUI();
       UIManager.renderPinList();
       MapController.renderMarkers();
       UIManager.updateCounts();
@@ -1066,8 +1086,7 @@
 
     togglePriorityFilter() {
       State.priorityOnly = !State.priorityOnly;
-      const tab = document.getElementById('tab-priority-filter');
-      if (tab) tab.classList.toggle('active', State.priorityOnly);
+      this.syncFilterTabsUI();
       UIManager.renderPinList();
       MapController.renderMarkers();
       UIManager.updateCounts();
@@ -1076,8 +1095,7 @@
 
     toggleOpenNowFilter() {
       State.openNowOnly = !State.openNowOnly;
-      const tab = document.getElementById('tab-open-now-filter');
-      if (tab) tab.classList.toggle('active', State.openNowOnly);
+      this.syncFilterTabsUI();
       UIManager.renderPinList();
       MapController.renderMarkers();
       UIManager.updateCounts();
@@ -2215,10 +2233,14 @@
       const pin = State.allPins.find((p) => p.id === id);
       if (!pin) return;
 
-      const shareUrl = pin.source_url || window.location.href;
+      const isExternalSource = pin.source_url && !pin.source_url.includes(window.location.host);
+      const shareUrl = isExternalSource
+        ? pin.source_url
+        : `${window.location.origin}/?lat=${pin.latitude}&lng=${pin.longitude}&title=${encodeURIComponent(pin.title)}${pin.address ? `&address=${encodeURIComponent(pin.address)}` : ''}${pin.category ? `&category=${encodeURIComponent(pin.category)}` : ''}`;
+
       const shareData = {
         title: `${pin.title} | bList`,
-        text: `Check out ${pin.title} ${pin.address ? `(${pin.address})` : ''} on my travel bucket list!`,
+        text: `Check out ${pin.title}${pin.address ? ` (${pin.address})` : ''} on my travel bucket list!`,
         url: shareUrl
       };
 
@@ -2233,7 +2255,7 @@
       }
 
       // Fallback to clipboard
-      const clipboardText = `${pin.title}\n${pin.address || ''}\n${shareUrl}`;
+      const clipboardText = `${pin.title}${pin.address ? `\n${pin.address}` : ''}\n${shareUrl}`;
       try {
         await navigator.clipboard.writeText(clipboardText);
         ToastManager.show('📋 Place details copied to clipboard!');
@@ -2518,12 +2540,16 @@
 
     if (!sharedPayload || !sharedPayload.trim()) return;
 
-    // Extract URL or address from shared text
-    const text = sharedPayload.trim();
-    const urlMatch = text.match(/(https?:\/\/[^\s]+)/i);
-    const linkToSave = urlMatch ? urlMatch[0] : text;
+    // Use parseShareTargetPayload helper to handle structured and wrapped text
+    const parsed = window.bListHelpers && typeof window.bListHelpers.parseShareTargetPayload === 'function'
+      ? window.bListHelpers.parseShareTargetPayload(sharedPayload)
+      : null;
 
-    ToastManager.show('📥 Processing shared location link...', 'info');
+    const linkToSave = (parsed && (parsed.url || parsed.title || parsed.text))
+      ? (parsed.url || parsed.title || parsed.text)
+      : sharedPayload.trim();
+
+    ToastManager.show('📥 Processing shared location...', 'info');
 
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.classList.remove('hidden');
@@ -2885,9 +2911,9 @@
 
     await handleIncomingSyncLink();
     await handleIncomingJoinLink();
+    await App.loadData();
     await handleIncomingShareTarget();
 
-    await App.loadData();
     ImportModalController.setupDropzoneListeners();
 
     const initialParams = new URLSearchParams(window.location.search);

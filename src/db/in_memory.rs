@@ -257,6 +257,47 @@ impl PinRepository for InMemoryStorage {
         Ok(pins.get(&id).cloned())
     }
 
+    fn find_duplicate_pin(
+        &self,
+        list_id: i64,
+        title: &str,
+        lat: f64,
+        lon: f64,
+        source_url: Option<&str>,
+        exclude_id: Option<i64>,
+    ) -> Result<Option<Pin>, StorageError> {
+        let clean_title = title.trim().to_lowercase();
+        let clean_source = source_url.map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
+
+        let pins = self.pins.read().unwrap();
+        for p in pins.values() {
+            if p.list_id != list_id {
+                continue;
+            }
+            if let Some(eid) = exclude_id {
+                if p.id == eid {
+                    continue;
+                }
+            }
+            if let Some(ref src) = clean_source {
+                if let Some(ref p_src) = p.source_url {
+                    if p_src.trim().to_lowercase() == *src {
+                        return Ok(Some(p.clone()));
+                    }
+                }
+            }
+            let lat_diff = (p.latitude - lat).abs();
+            let lon_diff = (p.longitude - lon).abs();
+            if lat_diff < 0.0001 && lon_diff < 0.0001 {
+                return Ok(Some(p.clone()));
+            }
+            if p.title.trim().to_lowercase() == clean_title && lat_diff < 0.001 && lon_diff < 0.001 {
+                return Ok(Some(p.clone()));
+            }
+        }
+        Ok(None)
+    }
+
     fn create_pin(&self, req: &CreatePinRequest) -> Result<Pin, StorageError> {
         let mut next_id = self.next_pin_id.write().unwrap();
         let id = *next_id;

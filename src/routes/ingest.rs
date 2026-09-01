@@ -140,6 +140,23 @@ pub async fn ingest_link(
         visited: Some(false),
     };
 
+    if let Ok(Some(existing)) = state.storage.find_duplicate_pin(
+        list_id,
+        &create_req.title,
+        create_req.latitude,
+        create_req.longitude,
+        create_req.source_url.as_deref(),
+        None,
+    ) {
+        return (
+            StatusCode::CONFLICT,
+            Json(ApiResponse::err(format!(
+                "Place '{}' is already saved in this list.",
+                existing.title
+            ))),
+        );
+    }
+
     match state.storage.create_pin(&create_req) {
         Ok(pin) => (StatusCode::CREATED, Json(ApiResponse::ok(pin))),
         Err(e) => (
@@ -288,6 +305,37 @@ pub async fn import_places(
         }
     }
 
+    // Deduplicate against existing pins in the database and within batch
+    let mut deduplicated_requests = Vec::new();
+    for req in valid_create_requests {
+        let is_dup_in_batch = deduplicated_requests.iter().any(|d: &CreatePinRequest| {
+            (d.source_url.is_some() && d.source_url == req.source_url)
+                || ((d.latitude - req.latitude).abs() < 0.0001
+                    && (d.longitude - req.longitude).abs() < 0.0001)
+                || (d.title.trim().eq_ignore_ascii_case(req.title.trim())
+                    && (d.latitude - req.latitude).abs() < 0.001
+                    && (d.longitude - req.longitude).abs() < 0.001)
+        });
+        if is_dup_in_batch {
+            warnings.push(format!("Skipped duplicate '{}' in import data", req.title));
+            continue;
+        }
+
+        if let Ok(Some(existing)) = state.storage.find_duplicate_pin(
+            list_id,
+            &req.title,
+            req.latitude,
+            req.longitude,
+            req.source_url.as_deref(),
+            None,
+        ) {
+            warnings.push(format!("Skipped '{}': Already saved in this list", existing.title));
+            continue;
+        }
+
+        deduplicated_requests.push(req);
+    }
+
     let current_list_count = state.storage.count_list_pins(list_id).unwrap_or(0);
     let space_left_in_list = crate::db::MAX_PINS_PER_LIST.saturating_sub(current_list_count);
 
@@ -295,15 +343,15 @@ pub async fn import_places(
     let space_left_in_user = crate::db::MAX_PINS_PER_USER.saturating_sub(current_user_pin_count);
 
     let allowed_count = space_left_in_list.min(space_left_in_user);
-    if valid_create_requests.len() > allowed_count {
+    if deduplicated_requests.len() > allowed_count {
         warnings.push(format!(
             "Quota limit reached. Only the first {} places were imported (List limit: {}, Account limit: {}).",
             allowed_count, crate::db::MAX_PINS_PER_LIST, crate::db::MAX_PINS_PER_USER
         ));
-        valid_create_requests.truncate(allowed_count);
+        deduplicated_requests.truncate(allowed_count);
     }
 
-    let created_pins = match state.storage.create_pins_batch(list_id, &valid_create_requests) {
+    let created_pins = match state.storage.create_pins_batch(list_id, &deduplicated_requests) {
         Ok(pins) => pins,
         Err(e) => {
             return (

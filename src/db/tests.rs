@@ -881,3 +881,79 @@ fn test_quota_counts_and_pin_filtering_edge_cases() {
     assert_eq!(unvisited.len(), 1);
     assert_eq!(unvisited[0].title, "Udon Shin");
 }
+
+#[test]
+fn test_find_duplicate_pin() {
+    let conn = init_db(":memory:").expect("init db");
+    let repo = SqliteRepository::new(conn);
+
+    let pin1 = repo.create_pin(&CreatePinRequest {
+        list_id: Some(1),
+        title: "Tokyo Tower".to_string(),
+        description: Some("Red tower".to_string()),
+        latitude: 35.6586,
+        longitude: 139.7454,
+        category: Some("Sightseeing".to_string()),
+        source_url: Some("https://maps.google.com/?cid=123".to_string()),
+        ..Default::default()
+    }).expect("create pin 1");
+
+    // 1. Same source_url
+    let dup_source = repo.find_duplicate_pin(
+        1,
+        "Another Name",
+        35.0,
+        139.0,
+        Some("https://maps.google.com/?cid=123"),
+        None,
+    ).expect("find duplicate by source");
+    assert!(dup_source.is_some());
+    assert_eq!(dup_source.unwrap().id, pin1.id);
+
+    // 2. Same coordinates
+    let dup_coords = repo.find_duplicate_pin(
+        1,
+        "Tokyo Tower Copy",
+        35.6586,
+        139.7454,
+        None,
+        None,
+    ).expect("find duplicate by coords");
+    assert!(dup_coords.is_some());
+    assert_eq!(dup_coords.unwrap().id, pin1.id);
+
+    // 3. Same title case-insensitively and close coords
+    let dup_title = repo.find_duplicate_pin(
+        1,
+        "  tokyo tower  ",
+        35.6588,
+        139.7456,
+        None,
+        None,
+    ).expect("find duplicate by title and proximity");
+    assert!(dup_title.is_some());
+    assert_eq!(dup_title.unwrap().id, pin1.id);
+
+    // 4. Exclude self ID during update
+    let self_dup = repo.find_duplicate_pin(
+        1,
+        "Tokyo Tower",
+        35.6586,
+        139.7454,
+        Some("https://maps.google.com/?cid=123"),
+        Some(pin1.id),
+    ).expect("exclude self");
+    assert!(self_dup.is_none());
+
+    // 5. Different list ID
+    let diff_list = repo.find_duplicate_pin(
+        2,
+        "Tokyo Tower",
+        35.6586,
+        139.7454,
+        Some("https://maps.google.com/?cid=123"),
+        None,
+    ).expect("diff list");
+    assert!(diff_list.is_none());
+}
+
