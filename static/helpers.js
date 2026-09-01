@@ -1209,6 +1209,189 @@
   ];
 
   /**
+   * Travel Milestone and Achievement Badge Definitions.
+   */
+  const BADGE_DEFINITIONS = [
+    {
+      id: 'first_pin',
+      name: 'Trailblazer',
+      emoji: '🌟',
+      description: 'Save your very first bucket list place',
+      requirement: '1 place saved',
+      check: (s) => (s.totalPins || 0) >= 1,
+      progress: (s) => ({ current: Math.min(s.totalPins || 0, 1), target: 1 })
+    },
+    {
+      id: 'first_visit',
+      name: 'First Stamp',
+      emoji: '🎓',
+      description: 'Visit and check off your first bucket list destination',
+      requirement: '1 place visited',
+      check: (s) => (s.visitedPins || 0) >= 1,
+      progress: (s) => ({ current: Math.min(s.visitedPins || 0, 1), target: 1 })
+    },
+    {
+      id: 'list_completed',
+      name: 'Mission Complete',
+      emoji: '💯',
+      description: 'Visit all places in any trip list (minimum 2 places)',
+      requirement: '1 complete list',
+      check: (s) => (s.completedLists || 0) >= 1,
+      progress: (s) => ({ current: Math.min(s.completedLists || 0, 1), target: 1 })
+    },
+    {
+      id: 'wanderer_10',
+      name: 'Avid Wanderer',
+      emoji: '✈️',
+      description: 'Save 10+ dream destinations to your map',
+      requirement: '10 places saved',
+      check: (s) => (s.totalPins || 0) >= 10,
+      progress: (s) => ({ current: Math.min(s.totalPins || 0, 10), target: 10 })
+    },
+    {
+      id: 'master_explorer',
+      name: 'Master Explorer',
+      emoji: '🧭',
+      description: 'Save 25+ places across the globe',
+      requirement: '25 places saved',
+      check: (s) => (s.totalPins || 0) >= 25,
+      progress: (s) => ({ current: Math.min(s.totalPins || 0, 25), target: 25 })
+    },
+    {
+      id: 'multi_tripper',
+      name: 'Multi-Tripper',
+      emoji: '🗺️',
+      description: 'Organize destinations into 3+ custom trip lists',
+      requirement: '3 custom lists',
+      check: (s) => (s.totalLists || 0) >= 3,
+      progress: (s) => ({ current: Math.min(s.totalLists || 0, 3), target: 3 })
+    },
+    {
+      id: 'noodle_hunter',
+      name: 'Noodle Hunter',
+      emoji: '🍜',
+      description: 'Save 3+ culinary spots, restaurants, or cafes',
+      requirement: '3 food spots',
+      check: (s) => (s.foodPins || 0) >= 3,
+      progress: (s) => ({ current: Math.min(s.foodPins || 0, 3), target: 3 })
+    },
+    {
+      id: 'nature_lover',
+      name: 'Nature Lover',
+      emoji: '🏔️',
+      description: 'Save 3+ parks, trails, beaches, or outdoor spots',
+      requirement: '3 nature spots',
+      check: (s) => (s.naturePins || 0) >= 3,
+      progress: (s) => ({ current: Math.min(s.naturePins || 0, 3), target: 3 })
+    },
+    {
+      id: 'priority_vip',
+      name: 'Must-See VIP',
+      emoji: '⭐',
+      description: 'Mark 3+ places as Top Priority Must-See',
+      requirement: '3 priority places',
+      check: (s) => (s.priorityPins || 0) >= 3,
+      progress: (s) => ({ current: Math.min(s.priorityPins || 0, 3), target: 3 })
+    },
+    {
+      id: 'sync_maverick',
+      name: 'Multi-Device Maverick',
+      emoji: '📲',
+      description: 'Sync your bucket list with another phone or browser',
+      requirement: 'Device synced',
+      check: (s) => !!s.isSynced,
+      progress: (s) => ({ current: s.isSynced ? 1 : 0, target: 1 })
+    },
+    {
+      id: 'secret_cartographer',
+      name: 'Secret Cartographer',
+      emoji: '🏆',
+      description: 'Discover the secret logo easter egg',
+      requirement: 'Easter egg found',
+      check: (s) => !!s.easterEggUnlocked,
+      progress: (s) => ({ current: s.easterEggUnlocked ? 1 : 0, target: 1 })
+    }
+  ];
+
+  /**
+   * Computes achievement badge progress and unlocks based on current user pins and lists.
+   */
+  function calculateBadges(statsOrData = {}) {
+    let stats = {};
+    if (statsOrData && Array.isArray(statsOrData.pins)) {
+      const pins = statsOrData.pins || [];
+      const lists = statsOrData.lists || [];
+      const totalPins = pins.length;
+      const visitedPins = pins.filter(p => p.visited === 1 || p.visited === true).length;
+      const foodPins = pins.filter(p => {
+        const cat = (p.category || '').toLowerCase();
+        return cat.includes('food') || cat.includes('drink') || cat.includes('cafe') || cat.includes('restaurant') || cat.includes('bar');
+      }).length;
+      const naturePins = pins.filter(p => {
+        const cat = (p.category || '').toLowerCase();
+        return cat.includes('nature') || cat.includes('outdoor') || cat.includes('park') || cat.includes('trail') || cat.includes('beach');
+      }).length;
+      const priorityPins = pins.filter(p => p.priority === 1 || p.priority === true).length;
+
+      // Completed lists: lists with >= 2 pins where all pins are visited
+      let completedLists = 0;
+      const listMap = new Map();
+      pins.forEach(p => {
+        const listId = p.list_id || 1;
+        if (!listMap.has(listId)) listMap.set(listId, []);
+        listMap.get(listId).push(p);
+      });
+      listMap.forEach(listPins => {
+        if (listPins.length >= 2 && listPins.every(p => p.visited === 1 || p.visited === true)) {
+          completedLists++;
+        }
+      });
+
+      stats = {
+        totalPins,
+        visitedPins,
+        foodPins,
+        naturePins,
+        priorityPins,
+        totalLists: Math.max(lists.length, 1),
+        completedLists,
+        isSynced: !!statsOrData.isSynced,
+        easterEggUnlocked: !!statsOrData.easterEggUnlocked
+      };
+    } else {
+      stats = { ...statsOrData };
+    }
+
+    const badges = BADGE_DEFINITIONS.map(badge => {
+      const unlocked = !!badge.check(stats);
+      const prog = badge.progress ? badge.progress(stats) : { current: unlocked ? 1 : 0, target: 1 };
+      const current = Math.min(prog.current, prog.target);
+      const percentage = prog.target > 0 ? Math.min(100, Math.round((current / prog.target) * 100)) : (unlocked ? 100 : 0);
+
+      return {
+        id: badge.id,
+        name: badge.name,
+        emoji: badge.emoji,
+        description: badge.description,
+        requirement: badge.requirement,
+        unlocked,
+        current,
+        target: prog.target,
+        percentage
+      };
+    });
+
+    const unlockedCount = badges.filter(b => b.unlocked).length;
+    return {
+      badges,
+      unlockedCount,
+      totalBadges: badges.length,
+      percentage: Math.round((unlockedCount / badges.length) * 100),
+      stats
+    };
+  }
+
+  /**
    * Application metadata, version, and repository/support links.
    */
   const APP_INFO = Object.freeze({
@@ -1256,6 +1439,8 @@
     generateShareLinks,
     getRandomInspiration,
     MANIFESTO_RULES,
-    INSPIRATIONS
+    INSPIRATIONS,
+    BADGE_DEFINITIONS,
+    calculateBadges
   };
 });

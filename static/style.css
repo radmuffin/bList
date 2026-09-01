@@ -2839,6 +2839,151 @@ label {
   }
 }
 
+/* Travel Milestones & Badges Grid */
+.badges-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.badge-count-pill {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.about-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 520px) {
+  .about-badges-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.badge-item-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-main);
+  transition: all 0.2s ease;
+}
+
+.badge-item-card.unlocked {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(245, 158, 11, 0.08) 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.badge-item-card.locked {
+  opacity: 0.72;
+}
+
+.badge-item-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+}
+
+.badge-item-card.unlocked .badge-item-icon {
+  border-color: var(--primary-light);
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
+}
+
+.badge-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.badge-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge-item-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.badge-item-card.unlocked .badge-item-name {
+  color: var(--primary);
+}
+
+.badge-unlocked-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.badge-item-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+  margin: 0;
+}
+
+.badge-item-progress-wrap {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.badge-item-progress-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.badge-mini-track {
+  height: 4px;
+  width: 100%;
+  border-radius: 2px;
+  background: var(--border-color);
+  overflow: hidden;
+}
+
+.badge-mini-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Trip Progress Card - 100% List Completed Celebration Style */
+.trip-progress-card.trip-completed {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(239, 68, 68, 0.08) 100%);
+}
+
+.trip-progress-card.trip-completed .progress-bar-fill {
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+}
+
 /* Sidebar Footer */
 .sidebar-footer {
   padding: 10px 14px;

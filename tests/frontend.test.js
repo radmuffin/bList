@@ -26,6 +26,8 @@ const {
   getRandomInspiration,
   MANIFESTO_RULES,
   INSPIRATIONS,
+  BADGE_DEFINITIONS,
+  calculateBadges,
   APP_INFO,
   getAppInfo
 } = require('../static/helpers.js');
@@ -1013,6 +1015,82 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.ok(MANIFESTO_RULES[1].title.includes('Zero AI'));
       assert.ok(MANIFESTO_RULES[2].title.includes('Noodles'));
       assert.ok(MANIFESTO_RULES[3].title.includes('Your Data'));
+    });
+  });
+
+  describe('Travel Milestones & Achievement Badges (calculateBadges & BADGE_DEFINITIONS)', () => {
+    it('should evaluate 0 unlocked badges for empty pins array', () => {
+      const result = calculateBadges({ pins: [], lists: [] });
+      assert.strictEqual(result.unlockedCount, 0);
+      assert.strictEqual(result.totalBadges, BADGE_DEFINITIONS.length);
+      assert.strictEqual(result.percentage, 0);
+      assert.strictEqual(result.badges.every(b => !b.unlocked), true);
+    });
+
+    it('should unlock Trailblazer on 1 saved pin and First Stamp on 1 visited pin', () => {
+      const pins = [
+        { id: 1, list_id: 1, title: 'Eiffel Tower', visited: 1, category: 'Sightseeing' }
+      ];
+      const result = calculateBadges({ pins, lists: [{ id: 1, name: 'Paris' }] });
+      const trailblazer = result.badges.find(b => b.id === 'first_pin');
+      const firstStamp = result.badges.find(b => b.id === 'first_visit');
+      const completedList = result.badges.find(b => b.id === 'list_completed');
+
+      assert.strictEqual(trailblazer.unlocked, true);
+      assert.strictEqual(firstStamp.unlocked, true);
+      // List completion requires at least 2 places
+      assert.strictEqual(completedList.unlocked, false);
+    });
+
+    it('should unlock Mission Complete when a list with 2+ pins is 100% visited', () => {
+      const pins = [
+        { id: 1, list_id: 1, title: 'Tokyo Tower', visited: 1, category: 'Sightseeing' },
+        { id: 2, list_id: 1, title: 'Shibuya Crossing', visited: 1, category: 'Sightseeing' },
+        { id: 3, list_id: 2, title: 'Kyoto Shrine', visited: 0, category: 'Culture' }
+      ];
+      const lists = [
+        { id: 1, name: 'Tokyo 2026' },
+        { id: 2, name: 'Kyoto 2026' }
+      ];
+
+      const result = calculateBadges({ pins, lists });
+      const completedList = result.badges.find(b => b.id === 'list_completed');
+      assert.strictEqual(completedList.unlocked, true);
+      assert.strictEqual(completedList.current, 1);
+      assert.strictEqual(completedList.percentage, 100);
+    });
+
+    it('should unlock category specific badges like Noodle Hunter, Nature Lover, and Priority VIP', () => {
+      const pins = [
+        { id: 1, title: 'Ramen Ichiran', category: 'Food & Drink', priority: true },
+        { id: 2, title: 'Coffee Bar', category: 'Cafe', priority: true },
+        { id: 3, title: 'Sushi Dai', category: 'Restaurant', priority: true },
+        { id: 4, title: 'Fuji Trail', category: 'Nature & Outdoors' },
+        { id: 5, title: 'Beach Cove', category: 'Nature & Outdoors' },
+        { id: 6, title: 'National Park', category: 'Nature & Outdoors' }
+      ];
+      const result = calculateBadges({ pins, lists: [] });
+      const foodie = result.badges.find(b => b.id === 'noodle_hunter');
+      const nature = result.badges.find(b => b.id === 'nature_lover');
+      const priority = result.badges.find(b => b.id === 'priority_vip');
+
+      assert.strictEqual(foodie.unlocked, true);
+      assert.strictEqual(nature.unlocked, true);
+      assert.strictEqual(priority.unlocked, true);
+    });
+
+    it('should unlock Multi-Device Maverick and Secret Cartographer flags correctly', () => {
+      const result = calculateBadges({
+        pins: [],
+        lists: [],
+        isSynced: true,
+        easterEggUnlocked: true
+      });
+      const syncBadge = result.badges.find(b => b.id === 'sync_maverick');
+      const secretBadge = result.badges.find(b => b.id === 'secret_cartographer');
+
+      assert.strictEqual(syncBadge.unlocked, true);
+      assert.strictEqual(secretBadge.unlocked, true);
     });
   });
 

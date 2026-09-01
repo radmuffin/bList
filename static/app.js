@@ -1253,10 +1253,16 @@
       label.textContent = listTitle;
       if (total === 0) {
         stats.textContent = '0 places';
-      } else if (visited === total) {
-        stats.textContent = `🏆 ${visited}/${total} Visited (100%) 🎉`;
+        card.classList.remove('trip-completed');
+      } else if (visited === total && total >= 2) {
+        stats.textContent = `🏆 ${visited}/${total} Visited (100%) • List Complete! 🎉`;
+        card.classList.add('trip-completed');
+      } else if (visited === total && total === 1) {
+        stats.textContent = `🏆 1/1 Visited (100%) 🎉`;
+        card.classList.remove('trip-completed');
       } else {
         stats.textContent = `${visited} / ${total} visited (${percentage}%)`;
+        card.classList.remove('trip-completed');
       }
       bar.style.width = `${percentage}%`;
     },
@@ -2098,6 +2104,9 @@
       modal.classList.remove('hidden');
       if (window.lucide) window.lucide.createIcons();
 
+      // Populate badges & milestones
+      this.renderBadges();
+
       // Ensure inspiration card is populated on first open
       if (!this._currentInspiration && window.bListHelpers) {
         this.rollInspiration();
@@ -2115,6 +2124,50 @@
           if (sideVer) sideVer.textContent = ver;
         }
       } catch (_) {}
+    },
+
+    renderBadges() {
+      const grid = document.getElementById('about-badges-grid');
+      const countPill = document.getElementById('about-badges-count');
+      if (!grid || !window.bListHelpers || typeof window.bListHelpers.calculateBadges !== 'function') return;
+
+      const results = window.bListHelpers.calculateBadges({
+        pins: State.allPins || [],
+        lists: State.lists || [],
+        isSynced: !!State.userToken,
+        easterEggUnlocked: !!this._easterEggUnlocked
+      });
+
+      if (countPill) {
+        countPill.textContent = `${results.unlockedCount} / ${results.totalBadges} Unlocked`;
+      }
+
+      grid.innerHTML = results.badges.map((b) => {
+        const statusClass = b.unlocked ? 'unlocked' : 'locked';
+        const statusTag = b.unlocked
+          ? '<span class="badge-unlocked-tag">✓ Unlocked</span>'
+          : `<span class="badge-item-desc" style="font-weight: 700;">${b.current}/${b.target}</span>`;
+
+        return `
+          <div class="badge-item-card ${statusClass}">
+            <div class="badge-item-icon" aria-hidden="true">${b.emoji}</div>
+            <div class="badge-item-info">
+              <div class="badge-item-header">
+                <span class="badge-item-name">${Utils.escapeHtml(b.name)}</span>
+                ${statusTag}
+              </div>
+              <p class="badge-item-desc">${Utils.escapeHtml(b.description)}</p>
+              ${!b.unlocked ? `
+                <div class="badge-item-progress-wrap">
+                  <div class="badge-mini-track">
+                    <div class="badge-mini-fill" style="width: ${b.percentage}%;"></div>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
     },
 
     closeAboutModal() {
@@ -2281,11 +2334,13 @@
         ToastManager.show('🗺️ Wanderlust tingling!', 'info');
         this.spawnConfettiBurst();
       } else if (clicks >= 5) {
+        this._easterEggUnlocked = true;
         const secretBadge = document.getElementById('about-secret-badge');
         if (secretBadge) secretBadge.style.display = 'inline-flex';
         ToastManager.show('🏆 Master Wanderer Unlocked! Zero-AI, 100% Pure Deterministic Map Magic!', 'success');
         this.spawnConfettiBurst(20);
         this._aboutLogoClicks = 0;
+        this.renderBadges();
       }
     },
 
@@ -2571,6 +2626,19 @@
           pin.visited ? `✅ Visited "${pin.title}"!` : `🎯 Added "${pin.title}" back to Bucket List!`,
           'success'
         );
+
+        // Check if toggling visited completed a trip list
+        if (pin.visited && pin.list_id) {
+          const listPins = State.allPins.filter((p) => (p.list_id || 1) === pin.list_id);
+          if (listPins.length >= 2 && listPins.every((p) => p.visited === 1 || p.visited === true)) {
+            const list = State.lists.find((l) => l.id === pin.list_id);
+            const listName = list ? list.name : 'Trip List';
+            setTimeout(() => {
+              ToastManager.show(`🎉 "${listName}" 100% Completed! You earned the "Mission Complete" badge! 💯`, 'success');
+              ModalManager.spawnConfettiBurst(15);
+            }, 600);
+          }
+        }
       }
 
       try {
