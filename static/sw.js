@@ -1,5 +1,5 @@
 // bList Service Worker - Offline Caching & PWA Support
-const CACHE_NAME = 'blist-app-v2';
+const CACHE_NAME = 'blist-app-v3';
 const TILE_CACHE_NAME = 'blist-tiles-v1';
 const MAX_TILE_CACHE_ITEMS = 300;
 
