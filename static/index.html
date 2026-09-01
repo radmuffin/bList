@@ -8,21 +8,23 @@
   <!-- Critical Anti-Theme-Flash Style & Script: immediately resolves theme & background -->
   <style>
     html, body {
-      background-color: #0b0f17; /* Default dark neutral to eliminate light flash */
+      background-color: #0b0f17; /* Default dark neutral to eliminate white startup flash */
       color: #f8fafc;
     }
-    @media (prefers-color-scheme: light) {
-      :root[data-theme="light"], :root[data-resolved-theme="light"] {
-        background-color: #f8fafc;
-        color: #0f172a;
-      }
+    html[data-theme="light"],
+    html[data-resolved-theme="light"] {
+      background-color: #f8fafc;
+      color: #0f172a;
     }
   </style>
   <script>
     (function() {
       try {
         const savedTheme = localStorage.getItem('blist_theme') || 'auto';
-        const isDark = savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches && !window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isExplicitLight = savedTheme === 'light' || (savedTheme === 'auto' && prefersLight);
+        const isDark = !isExplicitLight;
+
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.documentElement.setAttribute('data-resolved-theme', isDark ? 'dark' : 'light');
         document.documentElement.style.backgroundColor = isDark ? '#0b0f17' : '#f8fafc';
@@ -31,8 +33,9 @@
   </script>
 
   <!-- PWA & Mobile Web App Meta -->
+  <meta name="theme-color" content="#0b0f17">
   <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
