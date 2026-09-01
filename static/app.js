@@ -1666,23 +1666,11 @@
         if (backdrop) backdrop.classList.add('active');
         if (btnMap) btnMap.classList.remove('active');
         if (btnList) btnList.classList.add('active');
-        if (headerAddBtn) {
-          const textSpan = headerAddBtn.querySelector('.btn-text');
-          if (textSpan) textSpan.textContent = 'New List';
-          headerAddBtn.title = 'Create New List or Trip';
-          headerAddBtn.setAttribute('aria-label', 'Create New List or Trip');
-        }
       } else {
         if (sidebar) sidebar.classList.remove('mobile-open');
         if (backdrop) backdrop.classList.remove('active');
         if (btnMap) btnMap.classList.add('active');
         if (btnList) btnList.classList.remove('active');
-        if (headerAddBtn) {
-          const textSpan = headerAddBtn.querySelector('.btn-text');
-          if (textSpan) textSpan.textContent = 'Add';
-          headerAddBtn.title = 'Add Place';
-          headerAddBtn.setAttribute('aria-label', 'Add Place');
-        }
         setTimeout(() => State.map && State.map.invalidateSize(), 150);
       }
     },
@@ -1708,9 +1696,7 @@
     },
 
     handleHeaderAddClick() {
-      if (State.currentMobileView === 'list') {
-        ModalManager.openNewListModal();
-      } else if (window.innerWidth <= 768) {
+      if (window.innerWidth <= 768) {
         this.toggleMobileQuickAdd();
       } else {
         ModalManager.openManualPinModal();
