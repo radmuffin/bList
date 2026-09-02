@@ -1003,13 +1003,15 @@
       }
     },
 
-    resetMapView() {
+    resetMapView(options = {}) {
       if (!State.map) return;
       if (State.allPins.length > 0) {
         const validMarkers = Object.values(State.markers);
         if (validMarkers.length > 0) {
           const group = new L.featureGroup(validMarkers);
-          State.map.fitBounds(group.getBounds().pad(0.15));
+          const maxZoom = options.maxZoom || 13;
+          const padding = options.padding || [50, 50];
+          State.map.fitBounds(group.getBounds().pad(0.2), { maxZoom, padding });
           return;
         }
       }
@@ -2127,7 +2129,6 @@
           if (window.innerWidth <= 768) {
             UIManager.showMobileView('map');
           }
-          MapController.flyToPin(savedPin.id);
         } else {
           ToastManager.show(json.error || 'Failed to save place', 'error');
         }
@@ -2832,8 +2833,6 @@
         ToastManager.show(`📍 "${item.title}" saved to your bucket list!`, 'success');
         this.closeAboutModal();
         await App.loadData();
-        // Fly to new place on map
-        MapController.flyToCoordinates(item.latitude, item.longitude, 12);
       } catch (err) {
         ToastManager.show(`Could not save place: ${err.message}`, 'error');
       }
@@ -2988,7 +2987,6 @@
           if (window.innerWidth <= 768) {
             UIManager.showMobileView('map');
           }
-          MapController.flyToPin(json.data.id);
         } else {
           ToastManager.show(
             json.error || 'Failed to extract place details. Try adding manually with "+ Add Place"!',
@@ -3315,7 +3313,6 @@
         if (window.innerWidth <= 768) {
           UIManager.showMobileView('map');
         }
-        MapController.flyToPin(json.data.id);
       } else {
         ToastManager.show((json && json.error) || 'Failed to extract location. Tap "+ Add Place" to add manually.', 'error');
       }
