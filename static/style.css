@@ -1319,8 +1319,8 @@ body {
 .banner-category-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3.5px;
-  padding: 2.5px 6.5px;
+  gap: 3px;
+  padding: 2.5px 6px;
   border-radius: 6px;
   background: var(--card-chip-bg);
   backdrop-filter: blur(8px);
@@ -1330,7 +1330,9 @@ body {
   font-weight: 600;
   color: var(--card-chip-text);
   box-shadow: var(--card-chip-shadow);
-  max-width: 48%;
+  flex: 0 1 auto;
+  max-width: calc(100% - 75px);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1488,6 +1490,28 @@ body {
   text-shadow: var(--card-address-shadow);
 }
 
+.pin-card-address-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pin-card-distance-tag {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--primary);
+  margin-left: 2px;
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.pin-card:has(.pin-card-thumb) .pin-card-distance-tag,
+.pin-card-banner-placeholder ~ .pin-card-body .pin-card-distance-tag {
+  color: #7dd3fc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
 .pin-card-address svg {
   color: var(--card-address-color);
   width: 10px;
@@ -1641,9 +1665,9 @@ body {
   background: var(--card-chip-bg);
   border: 1px solid var(--card-chip-border);
   color: var(--card-chip-text);
-  padding: 2.5px 6.5px;
-  min-height: 20px;
-  font-size: 10px;
+  padding: 2px 5.5px;
+  min-height: 19px;
+  font-size: 9.5px;
   font-weight: 600;
   border-radius: 6px;
   backdrop-filter: blur(8px);
@@ -1653,8 +1677,9 @@ body {
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 3.5px;
+  gap: 2.5px;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
 .pin-card .btn-card-status-pill svg {

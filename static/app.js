@@ -1340,13 +1340,16 @@
       bar.style.width = `${percentage}%`;
     },
 
-    renderTileBadgesHtml(pin, { weather }) {
+    renderTileBadgesHtml(pin, { weather, distanceStr }) {
       let html = '';
       if (pin.priority) {
         html += '<span class="pin-badge badge-priority">⭐ Must-See</span>';
       }
       if (pin.day_group && pin.day_group > 0) {
         html += `<span class="pin-badge badge-day">📅 Day ${pin.day_group}</span>`;
+      }
+      if (distanceStr && !pin.address) {
+        html += `<span class="pin-badge badge-distance">📍 ${distanceStr} away</span>`;
       }
       if (weather) {
         html += `<span class="pin-badge badge-weather">${weather.icon} ${weather.tempF}°F</span>`;
@@ -1678,16 +1681,17 @@
                     <div class="pin-card-body">
                       <div class="pin-card-title">${Utils.escapeHtml(pin.title)}</div>
                       ${
-                        streetAddress
+                        (streetAddress || distanceStr)
                           ? `<div class="pin-card-address">
-                              <i data-lucide="map-pin" style="width: 10px; height: 10px; flex-shrink: 0;"></i>
-                              <span>${Utils.escapeHtml(streetAddress)}</span>
+                              <i data-lucide="${streetAddress ? 'map-pin' : 'navigation-2'}" style="width: 10px; height: 10px; flex-shrink: 0;"></i>
+                              ${streetAddress ? `<span class="pin-card-address-text">${Utils.escapeHtml(streetAddress)}</span>` : ''}
+                              ${distanceStr ? `<span class="pin-card-distance-tag">${streetAddress ? '• ' : ''}${distanceStr} away</span>` : ''}
                             </div>`
                           : ''
                       }
                       ${
-                        (pin.priority || (pin.day_group && pin.day_group > 0))
-                          ? `<div class="badges-row">${this.renderTileBadgesHtml(pin, { weather: null })}</div>`
+                        (pin.priority || (pin.day_group && pin.day_group > 0) || (distanceStr && !streetAddress))
+                          ? `<div class="badges-row">${this.renderTileBadgesHtml(pin, { weather: null, distanceStr })}</div>`
                           : ''
                       }
                       ${this.renderActionsHtml(pin, false)}
@@ -4103,6 +4107,22 @@
     setupGlobalClickHandlers();
     registerServiceWorker();
     if (window.lucide) window.lucide.createIcons();
+
+    if (navigator.geolocation && !State.currentUserLocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          State.currentUserLocation = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          };
+          MapController.updateUserLocationMarker();
+          UIManager.renderPinList();
+          if (window.lucide) window.lucide.createIcons();
+        },
+        () => {},
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+      );
+    }
   });
 
   // ==========================================================================
