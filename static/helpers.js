@@ -2035,6 +2035,89 @@
     };
   }
 
+  /**
+   * Infers place category and fitting emoji from place title, address, or notes.
+   * Helps lists automatically look colorful and well-illustrated without manual tagging.
+   */
+  function inferPlaceCategory(title, address, notes) {
+    const text = `${title || ''} ${address || ''} ${notes || ''}`.toLowerCase();
+    if (!text.trim()) return null;
+
+    // Food & Drink
+    if (
+      /\b(restaurant|restaurante|tapas|taqueria|taco|pizzeria|pizza|trattoria|bistro|grill|bbq|bar|pub|brewery|bodega|ramen|sushi|burger|burgers|diner|cantina|brasserie|gastropub|steakhouse|seafood|mariscos|vinoteca|wine bar|churrascaria|noodle|dumpling|izakaya|osteria|taperia|mesón|cerveceria|asador|shawarma|falafel|kebab|poke|taquería)\b/i.test(
+        text
+      )
+    ) {
+      let emoji = '🍔';
+      if (/\b(pizza|pizzeria)\b/i.test(text)) emoji = '🍕';
+      else if (/\b(taco|taqueria|taquería)\b/i.test(text)) emoji = '🌮';
+      else if (/\b(sushi|ramen|izakaya|noodle|dumpling|poke)\b/i.test(text)) emoji = '🍣';
+      else if (/\b(wine|vinoteca|bodega)\b/i.test(text)) emoji = '🍷';
+      else if (/\b(beer|brewery|pub|cerveceria)\b/i.test(text)) emoji = '🍺';
+      return { category: 'Food & Drink', emoji, color: '#ea580c' };
+    }
+
+    // Cafe & Bakery
+    if (
+      /\b(cafe|café|coffee|bakery|pasteleria|panaderia|espresso|roastery|roasters|chocolateria|gelato|heladeria|tea|matcha|boulangerie|patisserie|creperie|donut|donuts|bagel|bagels|pastry|dessert)\b/i.test(
+        text
+      )
+    ) {
+      let emoji = '☕';
+      if (/\b(gelato|heladeria|ice cream)\b/i.test(text)) emoji = '🍦';
+      else if (/\b(bakery|pasteleria|panaderia|boulangerie|patisserie|pastry)\b/i.test(text)) emoji = '🥐';
+      else if (/\b(donut|donuts)\b/i.test(text)) emoji = '🍩';
+      return { category: 'Cafe', emoji, color: '#b45309' };
+    }
+
+    // Hotel & Stay
+    if (
+      /\b(hotel|hostal|hostel|resort|apartamento|apartment|suites|inn|lodge|b&b|bed and breakfast|guesthouse|villa|posada|motel|chalet|stay)\b/i.test(
+        text
+      )
+    ) {
+      return { category: 'Hotel & Stay', emoji: '🏨', color: '#0284c7' };
+    }
+
+    // Shopping & Markets
+    if (
+      /\b(market|mercat|mercado|mall|shopping|store|shop|tienda|boutique|bazaar|flea market|outlet|supermarket|bookstore|libreria)\b/i.test(
+        text
+      )
+    ) {
+      return { category: 'Shopping', emoji: '🛍️', color: '#db2777' };
+    }
+
+    // Sightseeing & Culture
+    if (
+      /\b(museum|museo|cathedral|catedral|basilica|church|iglesia|temple|shrine|palace|palacio|castle|castillo|monument|monumento|tower|torre|theater|theatre|teatro|plaza|square|ruins|ruinas|arc|statue|estatua|historic|historical|sanctuary|acropolis|colosseum|pyramid|fort|fortress|observatory|opera|gallery|galeria|art|arts)\b/i.test(
+        text
+      )
+    ) {
+      let emoji = '🏛️';
+      if (/\b(castle|castillo|palace|palacio|fort|fortress)\b/i.test(text)) emoji = '🏰';
+      else if (/\b(gallery|galeria|art|arts|paint)\b/i.test(text)) emoji = '🎨';
+      else if (/\b(theater|theatre|teatro|opera)\b/i.test(text)) emoji = '🎭';
+      return { category: 'Sightseeing', emoji, color: '#7c3aed' };
+    }
+
+    // Nature & Outdoors
+    if (
+      /\b(park|parque|garden|jardin|jardim|beach|playa|praia|cala|mirador|viewpoint|lookout|overlook|mountain|montaña|trail|sendero|hike|hiking|peak|summit|volcano|volcan|lake|lago|river|rio|waterfall|cascada|cataratas|forest|bosque|island|isla|canyon|cañon|national park|cliff|cove|valley|valle|reserva|botanical|campground|cave|cuevas)\b/i.test(
+        text
+      )
+    ) {
+      let emoji = '🏞️';
+      if (/\b(beach|playa|praia|cala|cove)\b/i.test(text)) emoji = '🏖️';
+      else if (/\b(mountain|montaña|peak|summit|volcano|volcan)\b/i.test(text)) emoji = '⛰️';
+      else if (/\b(camp|campground|camping)\b/i.test(text)) emoji = '⛺';
+      return { category: 'Nature & Outdoors', emoji, color: '#059669' };
+    }
+
+    return null;
+  }
+
   return {
     APP_INFO,
     getAppInfo,
@@ -2065,6 +2148,7 @@
     generateQrSvg,
     detectSwipeGesture,
     generateAvatarSvg,
+    inferPlaceCategory,
     AVATAR_PRESETS,
     AVATAR_COLORS,
     getRandomInspiration,

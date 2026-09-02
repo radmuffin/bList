@@ -26,6 +26,7 @@ const {
   generateQrSvg,
   detectSwipeGesture,
   generateAvatarSvg,
+  inferPlaceCategory,
   AVATAR_PRESETS,
   AVATAR_COLORS,
   getRandomInspiration,
@@ -1387,6 +1388,91 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.ok(Array.isArray(AVATAR_COLORS));
       assert.ok(AVATAR_COLORS.length >= 6);
       assert.ok(AVATAR_COLORS.includes('#3b82f6'));
+    });
+  });
+
+  describe('Smart Place Categorization & Illustration Inference (inferPlaceCategory)', () => {
+    it('should infer Food & Drink and specific food emoji for dining spots', () => {
+      const pizza = inferPlaceCategory('Pizzeria Da Michele', 'Via Cesare Sersale, Naples', '');
+      assert.strictEqual(pizza.category, 'Food & Drink');
+      assert.strictEqual(pizza.emoji, '🍕');
+      assert.strictEqual(pizza.color, '#ea580c');
+
+      const tapas = inferPlaceCategory('Tapas 24', 'Carrer de la Diputacio, Barcelona', 'Amazing patatas bravas');
+      assert.strictEqual(tapas.category, 'Food & Drink');
+      assert.strictEqual(tapas.emoji, '🍔');
+
+      const sushi = inferPlaceCategory('Sushi Dai', 'Toyosu Market, Tokyo', '');
+      assert.strictEqual(sushi.category, 'Food & Drink');
+      assert.strictEqual(sushi.emoji, '🍣');
+
+      const tacos = inferPlaceCategory('Taqueria El Califa', 'Mexico City', '');
+      assert.strictEqual(tacos.category, 'Food & Drink');
+      assert.strictEqual(tacos.emoji, '🌮');
+
+      const wine = inferPlaceCategory('Bodega La Palma', 'Gothic Quarter', 'Vinoteca');
+      assert.strictEqual(wine.category, 'Food & Drink');
+      assert.strictEqual(wine.emoji, '🍷');
+    });
+
+    it('should infer Cafe and bakery emojis for coffee & bakery spots', () => {
+      const cafe = inferPlaceCategory('Cafe de Flore', 'Boulevard Saint-Germain, Paris', 'Historic coffee spot');
+      assert.strictEqual(cafe.category, 'Cafe');
+      assert.strictEqual(cafe.emoji, '☕');
+      assert.strictEqual(cafe.color, '#b45309');
+
+      const bakery = inferPlaceCategory('Du Pain et des Idees', 'Rue Yves Toudic', 'Best boulangerie croissants');
+      assert.strictEqual(bakery.category, 'Cafe');
+      assert.strictEqual(bakery.emoji, '🥐');
+
+      const gelato = inferPlaceCategory('Giolitti Heladeria', 'Rome, Italy', 'Best gelato');
+      assert.strictEqual(gelato.category, 'Cafe');
+      assert.strictEqual(gelato.emoji, '🍦');
+    });
+
+    it('should infer Sightseeing for cultural and historical landmarks', () => {
+      const museum = inferPlaceCategory('Prado Museum', 'Madrid, Spain', 'World class art gallery');
+      assert.strictEqual(museum.category, 'Sightseeing');
+      assert.strictEqual(museum.emoji, '🎨');
+      assert.strictEqual(museum.color, '#7c3aed');
+
+      const cathedral = inferPlaceCategory('Sagrada Familia', 'Mallorca 401, Barcelona', 'Iconic basilica');
+      assert.strictEqual(cathedral.category, 'Sightseeing');
+      assert.strictEqual(cathedral.emoji, '🏛️');
+
+      const castle = inferPlaceCategory('Neuschwanstein Castle', 'Bavaria, Germany', 'Palace in mountains');
+      assert.strictEqual(castle.category, 'Sightseeing');
+      assert.strictEqual(castle.emoji, '🏰');
+    });
+
+    it('should infer Nature & Outdoors for parks, beaches, and scenic spots', () => {
+      const beach = inferPlaceCategory('Playa de Bogatell', 'Passeig Maritim, Barcelona', 'Sunny beach');
+      assert.strictEqual(beach.category, 'Nature & Outdoors');
+      assert.strictEqual(beach.emoji, '🏖️');
+      assert.strictEqual(beach.color, '#059669');
+
+      const mountain = inferPlaceCategory('Mount Fuji Viewpoint', 'Fujiyoshida, Yamanashi', 'Volcano summit hike');
+      assert.strictEqual(mountain.category, 'Nature & Outdoors');
+      assert.strictEqual(mountain.emoji, '⛰️');
+
+      const park = inferPlaceCategory('Parc Guell', 'Gracia, Barcelona', 'Public park system');
+      assert.strictEqual(park.category, 'Nature & Outdoors');
+      assert.strictEqual(park.emoji, '🏞️');
+    });
+
+    it('should infer Hotel & Stay and Shopping categories', () => {
+      const hotel = inferPlaceCategory('W Hotel Barcelona', 'Plaça de la Rosa dels Vents', 'Resort beachfront');
+      assert.strictEqual(hotel.category, 'Hotel & Stay');
+      assert.strictEqual(hotel.emoji, '🏨');
+
+      const market = inferPlaceCategory('Mercat de la Boqueria', 'La Rambla, Barcelona', 'Historic food market');
+      assert.strictEqual(market.category, 'Shopping');
+      assert.strictEqual(market.emoji, '🛍️');
+    });
+
+    it('should return null for generic or unclassifiable titles', () => {
+      assert.strictEqual(inferPlaceCategory('', '', ''), null);
+      assert.strictEqual(inferPlaceCategory('Unknown Spot 123', 'Calle 5', null), null);
     });
   });
 

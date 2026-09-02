@@ -1637,8 +1637,14 @@
             ? window.bListHelpers.formatStreetAddress(pin.address, pin.title)
             : (pin.address || '');
 
-          const catColor = CONFIG.CATEGORY_COLORS[pin.category] || '#2563eb';
-          const catEmoji = pin.emoji || CONFIG.CATEGORY_EMOJIS[pin.category] || '📍';
+          const inferred = (window.bListHelpers && window.bListHelpers.inferPlaceCategory)
+            ? window.bListHelpers.inferPlaceCategory(pin.title, pin.address, pin.notes)
+            : null;
+
+          const isGenericCategory = !pin.category || pin.category === 'Place' || pin.category === 'General';
+          const displayCategory = !isGenericCategory ? pin.category : (inferred?.category || pin.category || 'Place');
+          const catColor = CONFIG.CATEGORY_COLORS[displayCategory] || inferred?.color || '#2563eb';
+          const catEmoji = pin.emoji || inferred?.emoji || CONFIG.CATEGORY_EMOJIS[displayCategory] || '📍';
 
           const heroBannerHtml = safeThumb
             ? `<img src="${Utils.escapeHtml(safeThumb)}" class="pin-card-thumb" alt="${Utils.escapeHtml(
@@ -1654,7 +1660,7 @@
                     <div class="pin-card-header-overlay" onclick="event.stopPropagation()">
                       <div class="banner-category-chip">
                         <span class="banner-chip-emoji">${catEmoji}</span>
-                        <span class="banner-chip-text">${Utils.escapeHtml(pin.category || 'Place')}</span>
+                        <span class="banner-chip-text">${Utils.escapeHtml(displayCategory)}</span>
                       </div>
                       <div class="pin-card-header-actions">
                         <span class="pin-card-weather-chip ${weatherCached ? '' : 'hidden'}" id="card-weather-badge-${pin.id}">
@@ -1740,6 +1746,33 @@
         sidebar.classList.toggle('collapsed');
         setTimeout(() => State.map && State.map.invalidateSize(), 300);
       }
+    },
+
+    toggleDrawer() {
+      const drawer = document.getElementById('mobile-drawer');
+      if (!drawer) return;
+
+      if (drawer.classList.contains('open')) {
+        this.closeDrawer();
+      } else {
+        this.openDrawer();
+      }
+    },
+
+    openDrawer() {
+      const drawer = document.getElementById('mobile-drawer');
+      const overlay = document.getElementById('drawer-backdrop');
+      if (drawer) drawer.classList.add('open');
+      if (overlay) overlay.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    },
+
+    closeDrawer() {
+      const drawer = document.getElementById('mobile-drawer');
+      const overlay = document.getElementById('drawer-backdrop');
+      if (drawer) drawer.classList.remove('open');
+      if (overlay) overlay.classList.add('hidden');
+      document.body.style.overflow = '';
     },
 
     showMobileView(view) {
@@ -1830,6 +1863,26 @@
       document.getElementById('form-source').value = '';
       document.getElementById('form-notes').value = '';
 
+      const titleInput = document.getElementById('form-title');
+      if (titleInput && !titleInput.dataset.autoCatInit) {
+        titleInput.dataset.autoCatInit = 'true';
+        titleInput.addEventListener('input', () => {
+          const pinId = document.getElementById('form-pin-id').value;
+          if (!pinId && document.getElementById('form-category').value === 'Place') {
+            const val = titleInput.value.trim();
+            if (val.length >= 3 && window.bListHelpers && window.bListHelpers.inferPlaceCategory) {
+              const inf = window.bListHelpers.inferPlaceCategory(val, '', '');
+              if (inf && inf.category) {
+                document.getElementById('form-category').value = inf.category;
+                if (inf.emoji && !document.getElementById('form-emoji').value) {
+                  document.getElementById('form-emoji').value = inf.emoji;
+                }
+              }
+            }
+          }
+        });
+      }
+
       const formList = document.getElementById('form-list-id');
       if (formList) {
         if (
@@ -1858,7 +1911,15 @@
           document.getElementById('form-address').value = geoData.display_name;
           if (!document.getElementById('form-title').value) {
             const parts = geoData.display_name.split(',');
-            document.getElementById('form-title').value = parts[0].trim();
+            const inferredTitle = parts[0].trim();
+            document.getElementById('form-title').value = inferredTitle;
+            if (window.bListHelpers && window.bListHelpers.inferPlaceCategory) {
+              const inf = window.bListHelpers.inferPlaceCategory(inferredTitle, geoData.display_name, '');
+              if (inf && inf.category) {
+                document.getElementById('form-category').value = inf.category;
+                if (inf.emoji) document.getElementById('form-emoji').value = inf.emoji;
+              }
+            }
           }
         }
       }
