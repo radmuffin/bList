@@ -1656,10 +1656,15 @@
                         <span class="banner-chip-emoji">${catEmoji}</span>
                         <span class="banner-chip-text">${Utils.escapeHtml(pin.category || 'Place')}</span>
                       </div>
-                      <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
-                        <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
-                        <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
-                      </button>
+                      <div class="pin-card-header-actions">
+                        <span class="pin-card-weather-chip ${weatherCached ? '' : 'hidden'}" id="card-weather-badge-${pin.id}">
+                          ${weatherCached ? `${weatherCached.icon} ${weatherCached.tempF}°F` : ''}
+                        </span>
+                        <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
+                          <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
+                          <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
+                        </button>
+                      </div>
                     </div>
                     ${heroBannerHtml}
                     <div class="pin-card-body">
@@ -1672,9 +1677,11 @@
                             </div>`
                           : ''
                       }
-                      <div class="badges-row">
-                        ${this.renderTileBadgesHtml(pin, { weather: weatherCached })}
-                      </div>
+                      ${
+                        (pin.priority || (pin.day_group && pin.day_group > 0))
+                          ? `<div class="badges-row">${this.renderTileBadgesHtml(pin, { weather: null })}</div>`
+                          : ''
+                      }
                       ${this.renderActionsHtml(pin, false)}
                     </div>
                   </div>
@@ -1708,6 +1715,11 @@
             if (badge) {
               badge.innerText = `${w.icon} ${w.tempF}°F`;
               badge.classList.remove('hidden');
+            }
+            const cardBadge = document.getElementById(`card-weather-badge-${pin.id}`);
+            if (cardBadge) {
+              cardBadge.innerText = `${w.icon} ${w.tempF}°F`;
+              cardBadge.classList.remove('hidden');
             }
           }
         });
