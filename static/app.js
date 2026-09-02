@@ -1400,33 +1400,63 @@
       const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${pin.latitude},${pin.longitude}`;
       const safeSourceUrl = pin.source_url ? Utils.sanitizeUrl(pin.source_url) : '';
 
+      if (isPopup) {
+        return `
+          <div class="popup-footer" onclick="event.stopPropagation()">
+            <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
+              <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
+              <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
+            </button>
+
+            <div class="card-action-btns">
+              <a href="${directionsUrl}" target="_blank" rel="noopener noreferrer" class="btn-card-directions" title="Get Directions">
+                <i data-lucide="navigation"></i>
+                <span>Directions</span>
+              </a>
+              ${
+                safeSourceUrl
+                  ? `<a href="${Utils.escapeHtml(safeSourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn-icon-sm" title="Original Link">
+                      <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                     </a>`
+                  : ''
+              }
+              <button type="button" class="btn-icon-sm" onclick="sharePin(${pin.id})" title="Share Place">
+                <i data-lucide="share-2" style="width: 14px; height: 14px;"></i>
+              </button>
+              <button type="button" class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit Place">
+                <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
+              </button>
+              <button type="button" class="btn-icon-sm delete-btn" onclick="deletePin(${pin.id})" title="Delete Place">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
       return `
-        <div class="${isPopup ? 'popup-footer' : 'pin-card-footer'}" onclick="event.stopPropagation()">
-          <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
-            <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
-            <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
-          </button>
+        <div class="pin-card-footer" onclick="event.stopPropagation()">
+          <a href="${directionsUrl}" target="_blank" rel="noopener noreferrer" class="btn-card-directions" title="Get Directions">
+            <i data-lucide="navigation"></i>
+            <span>Directions</span>
+          </a>
 
           <div class="card-action-btns">
-            <a href="${directionsUrl}" target="_blank" rel="noopener noreferrer" class="btn-card-directions" title="Get Directions">
-              <i data-lucide="navigation"></i>
-              <span>Directions</span>
-            </a>
             ${
               safeSourceUrl
                 ? `<a href="${Utils.escapeHtml(safeSourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn-icon-sm" title="Original Link">
-                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                    <i data-lucide="external-link"></i>
                    </a>`
                 : ''
             }
             <button type="button" class="btn-icon-sm" onclick="sharePin(${pin.id})" title="Share Place">
-              <i data-lucide="share-2" style="width: 14px; height: 14px;"></i>
+              <i data-lucide="share-2"></i>
             </button>
             <button type="button" class="btn-icon-sm" onclick="openEditPinModal(${pin.id})" title="Edit Place">
-              <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
+              <i data-lucide="edit-3"></i>
             </button>
             <button type="button" class="btn-icon-sm delete-btn" onclick="deletePin(${pin.id})" title="Delete Place">
-              <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+              <i data-lucide="trash-2"></i>
             </button>
           </div>
         </div>
@@ -1612,25 +1642,23 @@
           const heroBannerHtml = safeThumb
             ? `<img src="${Utils.escapeHtml(safeThumb)}" class="pin-card-thumb" alt="${Utils.escapeHtml(
                 pin.title
-              )}" onerror="this.outerHTML='<div class=\\'pin-card-banner-placeholder\\' style=\\'--banner-color: ${catColor};\\'><div class=\\'banner-pattern-overlay\\'></div><div class=\\'banner-category-chip\\'><span class=\\'banner-chip-emoji\\'>${catEmoji}</span><span class=\\'banner-chip-text\\'>${Utils.escapeHtml(
-                pin.category || 'Place'
-              )}</span></div><div class=\\'banner-watermark-symbol\\'>${catEmoji}</div></div>'">`
+              )}" onerror="this.outerHTML='<div class=\\'pin-card-banner-placeholder\\' style=\\'--banner-color: ${catColor};\\'><div class=\\'banner-pattern-overlay\\'></div><div class=\\'banner-watermark-symbol\\'>${catEmoji}</div></div>'">`
             : `<div class="pin-card-banner-placeholder" style="--banner-color: ${catColor};">
                 <div class="banner-pattern-overlay"></div>
-                <div class="banner-category-chip">
-                  <span class="banner-chip-emoji">${catEmoji}</span>
-                  <span class="banner-chip-text">${Utils.escapeHtml(pin.category || 'Place')}</span>
-                </div>
                 <div class="banner-watermark-symbol">${catEmoji}</div>
               </div>`;
 
           return `
                   <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
-                    <div class="pin-card-header-overlay">
+                    <div class="pin-card-header-overlay" onclick="event.stopPropagation()">
                       <div class="banner-category-chip">
                         <span class="banner-chip-emoji">${catEmoji}</span>
                         <span class="banner-chip-text">${Utils.escapeHtml(pin.category || 'Place')}</span>
                       </div>
+                      <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
+                        <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
+                        <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
+                      </button>
                     </div>
                     ${heroBannerHtml}
                     <div class="pin-card-body">
