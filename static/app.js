@@ -1339,12 +1339,13 @@
     },
 
     renderTileBadgesHtml(pin, { weather }) {
-      const emoji = pin.emoji || CONFIG.CATEGORY_EMOJIS[pin.category] || '';
       let html = '';
       if (pin.priority) {
-        html += '<span class="pin-badge badge-priority">⭐</span>';
+        html += '<span class="pin-badge badge-priority">⭐ Must-See</span>';
       }
-      html += `<span class="pin-badge">${pin.visited ? '✅' : `${emoji} ${Utils.escapeHtml(pin.category || 'Place')}`}</span>`;
+      if (pin.day_group && pin.day_group > 0) {
+        html += `<span class="pin-badge badge-day">📅 Day ${pin.day_group}</span>`;
+      }
       if (weather) {
         html += `<span class="pin-badge badge-weather">${weather.icon} ${weather.tempF}°F</span>`;
       }
