@@ -673,6 +673,50 @@ body {
   gap: 6px;
 }
 
+.list-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.list-selector-row .custom-select-container {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.btn-list-action {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-input);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+  padding: 0;
+}
+
+.btn-list-action svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-list-action:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background-color: var(--primary-light);
+}
+
 /* Trip Progress Card */
 .trip-progress-card {
   background: var(--bg-input);
@@ -896,6 +940,130 @@ body {
   font-weight: 700;
 }
 
+/* Compact Filter Row */
+.filter-row-compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-row-compact .filter-tabs {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-filter-menu {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-input);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.btn-filter-menu svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-filter-menu:hover,
+.btn-filter-menu.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.filter-badge-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.filter-badge-count.hidden {
+  display: none;
+}
+
+/* Filter Dropdown Panel */
+.filter-dropdown-panel {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+}
+
+.filter-dropdown-panel.hidden {
+  display: none;
+}
+
+.filter-dropdown-section {
+  padding: 6px 12px;
+}
+
+.filter-dropdown-section + .filter-dropdown-section {
+  border-top: 1px solid var(--border-color);
+}
+
+.filter-dropdown-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.filter-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  transition: background-color 0.12s ease;
+}
+
+.filter-checkbox-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.filter-checkbox-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.filter-checkbox-item.active-filter {
+  color: var(--primary);
+}
+
 /* Category Chips */
 .categories-bar {
   display: flex;
@@ -956,10 +1124,11 @@ body {
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   overscroll-behavior-y: contain;
-  padding: 14px 16px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  padding: 10px 10px 40px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  align-content: start;
 }
 
 .pin-card {
@@ -978,19 +1147,18 @@ body {
   flex-direction: column;
   box-shadow: var(--shadow-sm);
   height: auto;
-  min-height: fit-content;
+  min-height: 170px;
 }
 
 .pin-card:hover {
   border-color: var(--primary);
-  background-color: var(--bg-card-hover);
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--primary-light);
+  box-shadow: 0 6px 18px -3px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--primary-light);
   transform: translateY(-2px);
 }
 
 .pin-card.visited-card {
-  background-color: var(--card-visited-bg);
-  border-left: 4px solid var(--card-visited-border);
+  border-color: var(--card-visited-border);
+  box-shadow: 0 0 0 1px var(--card-visited-border), var(--shadow-sm);
 }
 
 .pin-card.highlight-surprise,
@@ -1006,21 +1174,23 @@ body {
 }
 
 .pin-card-thumb {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: 135px;
+  height: 100%;
   object-fit: cover;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  border-bottom: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   display: block;
+  z-index: 0;
 }
 
 /* Imageless Hero Banner Header */
 .pin-card-banner-placeholder {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: 64px;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  border-bottom: 1px solid var(--border-color);
+  height: 100%;
+  border-radius: var(--radius-lg);
   background: linear-gradient(135deg, var(--banner-color, #2563eb) 35%, rgba(15, 23, 42, 0.95) 100%),
               radial-gradient(circle at 85% 15%, var(--banner-color, #2563eb) 45%, transparent 75%);
   display: flex;
@@ -1029,6 +1199,7 @@ body {
   padding: 0 14px;
   overflow: hidden;
   user-select: none;
+  z-index: 0;
 }
 
 .banner-pattern-overlay {
@@ -1041,42 +1212,33 @@ body {
 }
 
 .banner-category-chip {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(15, 23, 42, 0.72);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  display: none;
 }
 
 .banner-watermark-symbol {
   position: absolute;
-  right: 10px;
-  bottom: -10px;
-  font-size: 54px;
+  right: 50%;
+  bottom: 50%;
+  transform: translate(50%, 50%) rotate(-12deg);
+  font-size: 48px;
   opacity: 0.24;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-  transform: rotate(-12deg);
   pointer-events: none;
   z-index: 0;
   line-height: 1;
 }
 
 .pin-card-body {
-  padding: 14px 16px;
+  position: relative;
+  z-index: 1;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  height: auto;
+  gap: 4px;
+  height: 100%;
+  justify-content: flex-end;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.45) 50%, transparent 100%);
+  border-radius: var(--radius-lg);
 }
 
 .pin-card-header {
@@ -1087,16 +1249,20 @@ body {
 }
 
 .pin-card-title {
-  font-size: 15.5px;
+  font-size: 13px;
   font-weight: 700;
-  color: var(--text-main);
-  line-height: 1.38;
+  color: #ffffff;
+  line-height: 1.3;
   word-break: break-word;
   overflow-wrap: break-word;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .pin-badges-group,
-.badges-row,
 .popup-badges-row {
   display: flex;
   align-items: center;
@@ -1105,18 +1271,29 @@ body {
   margin-bottom: 1px;
 }
 
+.badges-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
 .pin-badge {
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 5px;
-  background-color: var(--primary-light);
-  color: var(--primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 3.5px;
-  line-height: 1.3;
+  gap: 3px;
+  line-height: 1.2;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .pin-badge.badge-visited {
@@ -1159,51 +1336,37 @@ body {
 }
 
 .pin-card-address {
-  font-size: 12.5px;
+  font-size: 10.5px;
   font-weight: 500;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.75);
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  line-height: 1.45;
-  margin-top: 1px;
-  word-break: break-word;
-  overflow-wrap: break-word;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .pin-card-address svg {
-  color: var(--primary);
-  width: 12px;
-  height: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  width: 10px;
+  height: 10px;
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
 .pin-card-notes {
-  font-size: 12px;
-  color: var(--text-main);
-  background-color: var(--bg-main);
-  border: 1px solid var(--border-color);
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  font-style: italic;
-  line-height: 1.45;
-  margin-top: 2px;
-  word-break: break-word;
-  overflow-wrap: break-word;
+  display: none;
 }
 
 .pin-card-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding-top: 10px;
-  margin-top: 3px;
-  border-top: 1px solid var(--border-color);
-  font-size: 11.5px;
-  gap: 8px;
-  flex-wrap: wrap;
-  row-gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+  font-size: 10px;
+  gap: 2px;
 }
 
 .btn-card-status-pill {
@@ -1297,6 +1460,61 @@ body {
 .btn-icon-sm.delete-btn:hover {
   color: var(--danger);
   background-color: var(--danger-light);
+}
+
+/* Tile Card Action Overrides */
+.pin-card .btn-card-status-pill {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 3px 8px;
+  min-height: 22px;
+  font-size: 10px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.pin-card .btn-card-status-pill:hover {
+  background: rgba(59, 130, 246, 0.5);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.pin-card .btn-card-status-pill.is-visited {
+  background: rgba(16, 185, 129, 0.45);
+  color: #fff;
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.pin-card .btn-card-directions {
+  display: none;
+}
+
+.pin-card .btn-icon-sm {
+  width: 22px;
+  height: 22px;
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 4px;
+}
+
+.pin-card .btn-icon-sm svg {
+  width: 12px;
+  height: 12px;
+}
+
+.pin-card .btn-icon-sm:hover {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: transparent;
+}
+
+.pin-card .btn-icon-sm.delete-btn:hover {
+  color: #fca5a5;
+  background-color: rgba(239, 68, 68, 0.3);
+}
+
+.pin-card .card-action-btns {
+  gap: 2px;
 }
 
 /* Plus Code Metadata Badge (Subtle Secondary Tool) */
@@ -1439,6 +1657,10 @@ body {
 .empty-state p {
   font-size: 12px;
   line-height: 1.4;
+}
+
+.pin-list .empty-state {
+  grid-column: 1 / -1;
 }
 
 /* ==========================================================================
@@ -1902,6 +2124,43 @@ body {
   gap: 6px;
   flex-wrap: wrap;
   margin-bottom: 1px;
+}
+
+/* Restore original badge styles inside popups */
+.popup-badges-row .pin-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background-color: var(--primary-light);
+  color: var(--primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  text-shadow: none;
+  border: none;
+  gap: 3.5px;
+  line-height: 1.3;
+}
+
+.popup-badges-row .pin-badge.badge-visited {
+  background-color: var(--success-light);
+  color: var(--success);
+  border: 1px solid var(--success-border);
+}
+
+.popup-badges-row .pin-badge.badge-weather {
+  background-color: var(--warning-light);
+  color: var(--warning-text);
+}
+
+.popup-badges-row .pin-badge.badge-distance {
+  background-color: var(--badge-purple-bg);
+  color: var(--badge-purple-text);
+}
+
+.popup-badges-row .pin-badge.badge-list {
+  background-color: var(--bg-main);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
 }
 
 .popup-title {
@@ -3923,20 +4182,25 @@ label {
   }
 
   .pin-list {
-    padding: 10px 12px 48px;
-    gap: 10px;
+    padding: 8px 8px 48px;
+    gap: 6px;
+    grid-template-columns: repeat(2, 1fr);
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
     overscroll-behavior-y: contain;
   }
 
-  .pin-card-thumb {
-    height: 115px;
+  .pin-card {
+    min-height: 155px;
   }
 
   .pin-card-body {
-    padding: 12px 14px;
-    gap: 7px;
+    padding: 8px;
+    gap: 3px;
+  }
+
+  .pin-card-title {
+    font-size: 12px;
   }
 
   .sidebar-footer {

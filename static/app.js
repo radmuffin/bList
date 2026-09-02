@@ -1085,16 +1085,40 @@
       const allTab = document.querySelector('.filter-tab[data-status="all"]');
       const bucketTab = document.querySelector('.filter-tab[data-status="bucket"]');
       const visitedTab = document.querySelector('.filter-tab[data-status="visited"]');
-      const priorityTab = document.getElementById('tab-priority-filter');
-      const openNowTab = document.getElementById('tab-open-now-filter');
 
-      if (priorityTab) priorityTab.classList.toggle('active', Boolean(State.priorityOnly));
-      if (openNowTab) openNowTab.classList.toggle('active', Boolean(State.openNowOnly));
+      // Sync dropdown checkboxes instead of old tab buttons
+      const mustSeeCheckbox = document.getElementById('filter-must-see');
+      const openNowCheckbox = document.getElementById('filter-open-now');
+      if (mustSeeCheckbox) mustSeeCheckbox.checked = Boolean(State.priorityOnly);
+      if (openNowCheckbox) openNowCheckbox.checked = Boolean(State.openNowOnly);
+
       if (bucketTab) bucketTab.classList.toggle('active', State.selectedStatus === 'bucket');
       if (visitedTab) visitedTab.classList.toggle('active', State.selectedStatus === 'visited');
 
       const isAllActive = State.selectedStatus === 'all' && !State.priorityOnly && !State.openNowOnly;
       if (allTab) allTab.classList.toggle('active', isAllActive);
+
+      // Update filter badge count on the dropdown button
+      this.updateFilterBadge();
+    },
+
+    updateFilterBadge() {
+      let count = 0;
+      if (State.priorityOnly) count++;
+      if (State.openNowOnly) count++;
+      if (State.selectedCategory && State.selectedCategory !== 'All') count++;
+      if (State.selectedTag) count++;
+      if (State.selectedDay !== null && State.selectedDay !== undefined) count++;
+
+      const badge = document.getElementById('filter-badge-count');
+      const btn = document.getElementById('btn-filter-menu');
+      if (badge) {
+        badge.textContent = count;
+        badge.classList.toggle('hidden', count === 0);
+      }
+      if (btn) {
+        btn.classList.toggle('active', count > 0);
+      }
     },
 
     setStatusFilter(status) {
@@ -1196,7 +1220,8 @@
 
     renderTagsBar() {
       const container = document.getElementById('tags-bar');
-      if (!container) return;
+      const dropdownSection = document.getElementById('filter-tags-section');
+      const dropdownList = document.getElementById('filter-tags-list');
 
       const tagsSet = new Set();
       State.allPins.forEach((pin) => {
@@ -1209,53 +1234,68 @@
         }
       });
 
-      if (tagsSet.size === 0) {
-        container.classList.add('hidden');
-        return;
-      }
+      // Legacy container - keep hidden
+      if (container) container.classList.add('hidden');
 
-      container.classList.remove('hidden');
-      const tags = Array.from(tagsSet).sort();
+      // Render into filter dropdown
+      if (dropdownList && dropdownSection) {
+        if (tagsSet.size === 0) {
+          dropdownSection.classList.add('hidden');
+          return;
+        }
+        dropdownSection.classList.remove('hidden');
+        const tags = Array.from(tagsSet).sort();
 
-      container.innerHTML = `
-        <button class="tag-chip ${!State.selectedTag ? 'active' : ''}" onclick="setTagFilter(null)">#all</button>
-        ${tags
+        dropdownList.innerHTML = tags
           .map(
             (tag) => `
-          <button class="tag-chip ${State.selectedTag === tag ? 'active' : ''}" data-tag="${Utils.escapeHtml(tag)}" onclick="setTagFilter(this.dataset.tag)">
-            #${Utils.escapeHtml(tag)}
-          </button>
+          <label class="filter-checkbox-item ${State.selectedTag === tag ? 'active-filter' : ''}">
+            <input type="checkbox" ${State.selectedTag === tag ? 'checked' : ''}
+              data-tag="${Utils.escapeHtml(tag)}"
+              onchange="setTagFilter(this.checked ? this.dataset.tag : null)">
+            <span>#${Utils.escapeHtml(tag)}</span>
+          </label>
         `
           )
-          .join('')}
-      `;
+          .join('');
+      }
+
+      FilterManager.updateFilterBadge();
     },
 
     renderDaysBar() {
       const container = document.getElementById('days-bar');
-      if (!container) return;
+      const dropdownSection = document.getElementById('filter-days-section');
+      const dropdownList = document.getElementById('filter-days-list');
 
       const hasDays = State.allPins.some((p) => p.day_group && p.day_group > 0);
-      if (!hasDays) {
-        container.classList.add('hidden');
-        return;
-      }
 
-      container.classList.remove('hidden');
-      const activeDays = [1, 2, 3, 4, 5, 6, 7].filter((d) => State.allPins.some((p) => p.day_group === d));
+      // Legacy container - keep hidden
+      if (container) container.classList.add('hidden');
 
-      container.innerHTML = `
-        <button class="day-pill ${State.selectedDay === null ? 'active' : ''}" onclick="setDayFilter(null)">All Days</button>
-        ${activeDays
+      // Render into filter dropdown
+      if (dropdownList && dropdownSection) {
+        if (!hasDays) {
+          dropdownSection.classList.add('hidden');
+          return;
+        }
+        dropdownSection.classList.remove('hidden');
+        const activeDays = [1, 2, 3, 4, 5, 6, 7].filter((d) => State.allPins.some((p) => p.day_group === d));
+
+        dropdownList.innerHTML = activeDays
           .map(
             (day) => `
-          <button class="day-pill ${State.selectedDay === day ? 'active' : ''}" onclick="setDayFilter(${day})">
-            Day ${day}
-          </button>
+          <label class="filter-checkbox-item ${State.selectedDay === day ? 'active-filter' : ''}">
+            <input type="checkbox" ${State.selectedDay === day ? 'checked' : ''}
+              onchange="setDayFilter(this.checked ? ${day} : null)">
+            <span>📅 Day ${day}</span>
+          </label>
         `
           )
-          .join('')}
-      `;
+          .join('');
+      }
+
+      FilterManager.updateFilterBadge();
     },
 
     updateTripProgress() {
@@ -1296,6 +1336,19 @@
         card.classList.remove('trip-completed');
       }
       bar.style.width = `${percentage}%`;
+    },
+
+    renderTileBadgesHtml(pin, { weather }) {
+      const emoji = pin.emoji || CONFIG.CATEGORY_EMOJIS[pin.category] || '';
+      let html = '';
+      if (pin.priority) {
+        html += '<span class="pin-badge badge-priority">⭐</span>';
+      }
+      html += `<span class="pin-badge">${pin.visited ? '✅' : `${emoji} ${Utils.escapeHtml(pin.category || 'Place')}`}</span>`;
+      if (weather) {
+        html += `<span class="pin-badge badge-weather">${weather.icon} ${weather.tempF}°F</span>`;
+      }
+      return html;
     },
 
     renderBadgesHtml(pin, { distanceStr, weather, assignedList }) {
@@ -1480,38 +1533,42 @@
 
     renderCategories() {
       const container = document.getElementById('categories-bar');
-      if (!container) return;
+      const dropdownSection = document.getElementById('filter-categories-section');
+      const dropdownList = document.getElementById('filter-categories-list');
 
       const rawCategories = [...new Set(State.allPins.map((p) => p.category).filter(Boolean))];
-      if (rawCategories.length <= 1) {
-        container.style.display = 'none';
-        return;
+
+      // Legacy container - keep hidden
+      if (container) container.style.display = 'none';
+
+      // Render into filter dropdown
+      if (dropdownList && dropdownSection) {
+        if (rawCategories.length <= 1) {
+          dropdownSection.classList.add('hidden');
+          return;
+        }
+        dropdownSection.classList.remove('hidden');
+
+        const categories = ['All', ...rawCategories];
+        dropdownList.innerHTML = categories
+          .map(
+            (cat) => `
+          <label class="filter-checkbox-item ${State.selectedCategory === cat && cat !== 'All' ? 'active-filter' : ''}">
+            <input type="checkbox" ${State.selectedCategory === cat ? 'checked' : ''}
+              onchange="FilterManager.setCategoryFilter(this.checked ? '${Utils.escapeHtml(cat)}' : 'All');"
+              ${cat === 'All' ? 'disabled style="display:none;"' : ''}>
+            <span>${Utils.escapeHtml(cat)}</span>
+          </label>
+        `
+          )
+          .join('');
+
+        if (!dropdownList._hasCategoryListener) {
+          dropdownList._hasCategoryListener = true;
+        }
       }
-      container.style.display = 'flex';
 
-      const categories = ['All', ...rawCategories];
-
-      container.innerHTML = categories
-        .map(
-          (cat) => `
-        <button class="cat-chip ${State.selectedCategory === cat ? 'active' : ''}" data-category="${Utils.escapeHtml(
-            cat
-          )}">
-          ${Utils.escapeHtml(cat)}
-        </button>
-      `
-        )
-        .join('');
-
-      if (!container._hasCategoryListener) {
-        container.addEventListener('click', (e) => {
-          const btn = e.target.closest('.cat-chip');
-          if (btn && btn.dataset.category) {
-            FilterManager.setCategoryFilter(btn.dataset.category);
-          }
-        });
-        container._hasCategoryListener = true;
-      }
+      FilterManager.updateFilterBadge();
     },
 
     renderPinList() {
@@ -1575,21 +1632,14 @@
                     ${heroBannerHtml}
                     <div class="pin-card-body">
                       <div class="badges-row">
-                        ${this.renderBadgesHtml(pin, { distanceStr, weather: weatherCached, assignedList })}
+                        ${this.renderTileBadgesHtml(pin, { weather: weatherCached })}
                       </div>
                       <div class="pin-card-title">${Utils.escapeHtml(pin.title)}</div>
                       ${
                         streetAddress
                           ? `<div class="pin-card-address">
-                              <i data-lucide="map-pin" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                              <i data-lucide="map-pin" style="width: 10px; height: 10px; flex-shrink: 0;"></i>
                               <span>${Utils.escapeHtml(streetAddress)}</span>
-                            </div>`
-                          : ''
-                      }
-                      ${
-                        pin.notes
-                          ? `<div class="pin-card-notes">
-                              "${Utils.escapeHtml(pin.notes)}"
                             </div>`
                           : ''
                       }
@@ -4084,6 +4134,16 @@
   window.setCategoryFilter = (cat) => FilterManager.setCategoryFilter(cat);
   window.handleSearch = (e) => FilterManager.handleSearch(e.target.value);
   window.handleSortChange = (e) => FilterManager.handleSortChange(e.target.value);
+  window.toggleFilterMenu = () => {
+    const panel = document.getElementById('filter-dropdown-panel');
+    const btn = document.getElementById('btn-filter-menu');
+    if (panel) {
+      const isHidden = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden');
+      if (btn) btn.classList.toggle('active', isHidden);
+      if (isHidden && window.lucide) window.lucide.createIcons();
+    }
+  };
 
   // Profile & Avatars
   window.openUserProfileModal = () => ProfileManager.openModal();

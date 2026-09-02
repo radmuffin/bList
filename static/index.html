@@ -256,21 +256,24 @@
         </div>
 
         <div class="sidebar-header">
-          <!-- Multi-List & Trips Dropdown -->
+          <!-- List Selector Row with Inline Import/Share -->
           <div class="list-selector-wrapper">
-            <div class="list-selector-header">
-              <span class="section-label">TRIP / COLLECTION</span>
-              <div class="list-actions-group">
-                <button class="btn-link-action" onclick="openImportModal()" title="Import places from Google Takeout, CSV, KML">Import</button>
-                <button class="btn-link-action" id="share-list-btn" onclick="openShareListModal()" title="Share / Collaborate on this list">Share</button>
+            <div class="list-selector-row">
+              <div class="custom-select-container">
+                <select id="list-select" onchange="handleListChange(event)">
+                  <option value="all">📁 All Places</option>
+                  <!-- Populated dynamically -->
+                </select>
+                <i data-lucide="chevron-down" class="select-arrow-icon"></i>
               </div>
-            </div>
-            <div class="custom-select-container">
-              <select id="list-select" onchange="handleListChange(event)">
-                <option value="all">📁 All Places</option>
-                <!-- Populated dynamically -->
-              </select>
-              <i data-lucide="chevron-down" class="select-arrow-icon"></i>
+              <div class="list-inline-actions">
+                <button class="btn-list-action" onclick="openImportModal()" title="Import places from Google Takeout, CSV, KML">
+                  <i data-lucide="upload"></i>
+                </button>
+                <button class="btn-list-action" id="share-list-btn" onclick="openShareListModal()" title="Share / Collaborate on this list">
+                  <i data-lucide="share-2"></i>
+                </button>
+              </div>
             </div>
 
             <!-- Collaborators bar for shared collaborative lists -->
@@ -298,30 +301,57 @@
               <input type="text" id="search-input" placeholder="Search places, tags, notes..." oninput="handleSearch(event)">
             </div>
             <select id="sort-select" class="sort-select" onchange="handleSortChange(event)">
-              <option value="newest">✨ Newest</option>
+              <option value="newest">🕐 Newest</option>
               <option value="custom">⚡ Optimized Route</option>
               <option value="nearest">📍 Nearest</option>
               <option value="az">🔤 A-Z</option>
             </select>
           </div>
 
-          <!-- Status & Priority Filters -->
-          <div class="filter-tabs">
-            <button class="filter-tab active" data-status="all" onclick="setStatusFilter('all')">All (<span id="count-all"><span class="inline-count-spinner"></span></span>)</button>
-            <button class="filter-tab" data-status="bucket" onclick="setStatusFilter('bucket')">🎯 Want to Go (<span id="count-bucket"><span class="inline-count-spinner"></span></span>)</button>
-            <button class="filter-tab" data-status="visited" onclick="setStatusFilter('visited')">✅ Visited (<span id="count-visited"><span class="inline-count-spinner"></span></span>)</button>
-            <button class="filter-tab filter-tab-priority" id="tab-priority-filter" onclick="togglePriorityFilter()" title="Filter Must-See places">⭐ Must-See</button>
-            <button class="filter-tab open-now-tab" id="tab-open-now-filter" onclick="toggleOpenNowFilter()" title="Filter places open right now">🟢 Open Now</button>
+          <!-- Compact Filters: Status Tabs + Filter Dropdown -->
+          <div class="filter-row-compact">
+            <div class="filter-tabs">
+              <button class="filter-tab active" data-status="all" onclick="setStatusFilter('all')">All (<span id="count-all"><span class="inline-count-spinner"></span></span>)</button>
+              <button class="filter-tab" data-status="bucket" onclick="setStatusFilter('bucket')">🎯 (<span id="count-bucket"><span class="inline-count-spinner"></span></span>)</button>
+              <button class="filter-tab" data-status="visited" onclick="setStatusFilter('visited')">✅ (<span id="count-visited"><span class="inline-count-spinner"></span></span>)</button>
+            </div>
+            <button class="btn-filter-menu" id="btn-filter-menu" onclick="toggleFilterMenu()" title="More filters">
+              <i data-lucide="sliders-horizontal"></i>
+              <span class="filter-badge-count hidden" id="filter-badge-count">0</span>
+            </button>
           </div>
 
-          <!-- Day-by-Day Grouping Filter Pills -->
-          <div class="days-bar hidden" id="days-bar"></div>
+          <!-- Filter Dropdown Panel -->
+          <div class="filter-dropdown-panel hidden" id="filter-dropdown-panel">
+            <div class="filter-dropdown-section">
+              <div class="filter-dropdown-label">Priority & Status</div>
+              <label class="filter-checkbox-item" id="filter-must-see-item">
+                <input type="checkbox" id="filter-must-see" onchange="togglePriorityFilter()">
+                <span>⭐ Must-See</span>
+              </label>
+              <label class="filter-checkbox-item" id="filter-open-now-item">
+                <input type="checkbox" id="filter-open-now" onchange="toggleOpenNowFilter()">
+                <span>🟢 Open Now</span>
+              </label>
+            </div>
+            <div class="filter-dropdown-section hidden" id="filter-categories-section">
+              <div class="filter-dropdown-label">Category</div>
+              <div id="filter-categories-list"></div>
+            </div>
+            <div class="filter-dropdown-section hidden" id="filter-tags-section">
+              <div class="filter-dropdown-label">Tags</div>
+              <div id="filter-tags-list"></div>
+            </div>
+            <div class="filter-dropdown-section hidden" id="filter-days-section">
+              <div class="filter-dropdown-label">Day</div>
+              <div id="filter-days-list"></div>
+            </div>
+          </div>
 
-          <!-- Category Tags -->
-          <div class="categories-bar" id="categories-bar"></div>
-
-          <!-- Multi-Tag Chips Cloud -->
-          <div class="tags-bar hidden" id="tags-bar"></div>
+          <!-- Hidden legacy containers for JS compatibility -->
+          <div class="days-bar hidden" id="days-bar" style="display:none !important;"></div>
+          <div class="categories-bar" id="categories-bar" style="display:none !important;"></div>
+          <div class="tags-bar hidden" id="tags-bar" style="display:none !important;"></div>
         </div>
 
         <!-- Pin Cards List View Container -->
