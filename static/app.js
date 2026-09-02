@@ -1381,9 +1381,6 @@
         ${pin.priority ? '<span class="pin-badge badge-priority">⭐ Must-See</span>' : ''}
         ${pin.day_group && pin.day_group > 0 ? `<span class="pin-badge badge-day">📅 Day ${pin.day_group}</span>` : ''}
         ${hoursHtml}
-        <span class="pin-badge ${pin.visited ? 'badge-visited' : ''}">
-          ${pin.visited ? '✅ Visited' : `${emoji} ${Utils.escapeHtml(pin.category || 'Place')}`}
-        </span>
         ${
           assignedList
             ? `<span class="pin-badge badge-list">${assignedList.icon || '📁'} ${Utils.escapeHtml(
@@ -1629,11 +1626,14 @@
 
           return `
                   <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
+                    <div class="pin-card-header-overlay">
+                      <div class="banner-category-chip">
+                        <span class="banner-chip-emoji">${catEmoji}</span>
+                        <span class="banner-chip-text">${Utils.escapeHtml(pin.category || 'Place')}</span>
+                      </div>
+                    </div>
                     ${heroBannerHtml}
                     <div class="pin-card-body">
-                      <div class="badges-row">
-                        ${this.renderTileBadgesHtml(pin, { weather: weatherCached })}
-                      </div>
                       <div class="pin-card-title">${Utils.escapeHtml(pin.title)}</div>
                       ${
                         streetAddress
@@ -1643,6 +1643,9 @@
                             </div>`
                           : ''
                       }
+                      <div class="badges-row">
+                        ${this.renderTileBadgesHtml(pin, { weather: weatherCached })}
+                      </div>
                       ${this.renderActionsHtml(pin, false)}
                     </div>
                   </div>
