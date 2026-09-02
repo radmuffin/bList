@@ -1487,7 +1487,24 @@ body {
 }
 
 .pin-card .btn-card-directions {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 3px 8px;
+  min-height: 22px;
+  font-size: 10px;
+  border-radius: 4px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.pin-card .btn-card-directions:hover {
+  background: rgba(59, 130, 246, 0.5);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
 }
 
 .pin-card .btn-icon-sm {
