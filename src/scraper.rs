@@ -196,7 +196,15 @@ impl LinkScraper for GoogleMapsScraper {
 
             // 2. Parse HTML Metadata scoped in a block so Html (which is !Send) is dropped before await
             if !html_text.is_empty() {
-                let (raw_meta_title, og_desc, og_img, schema_lat_lon) = {
+                let (
+                    raw_meta_title,
+                    og_desc,
+                    og_img,
+                    twitter_img,
+                    itemprop_img,
+                    img_src_link,
+                    schema_lat_lon,
+                ) = {
                     let document = Html::parse_document(&html_text);
 
                     let raw_t = extract_meta_content(&document, "meta[property='og:title']")
@@ -204,11 +212,14 @@ impl LinkScraper for GoogleMapsScraper {
                     let desc = extract_meta_content(&document, "meta[property='og:description']")
                         .or_else(|| extract_meta_content(&document, "meta[name='description']"));
                     let img = extract_meta_content(&document, "meta[property='og:image']");
+                    let tw_img = extract_meta_content(&document, "meta[name='twitter:image']");
+                    let item_img = extract_meta_content(&document, "meta[itemprop='image']");
+                    let link_img = extract_meta_content(&document, "link[rel='image_src']");
                     let la = extract_meta_content(&document, "meta[itemprop='latitude']")
                         .and_then(|s| s.parse::<f64>().ok());
                     let lo = extract_meta_content(&document, "meta[itemprop='longitude']")
                         .and_then(|s| s.parse::<f64>().ok());
-                    (raw_t, desc, img, (la, lo))
+                    (raw_t, desc, img, tw_img, item_img, link_img, (la, lo))
                 };
 
                 if let Some(raw_t) = raw_meta_title {
@@ -242,11 +253,13 @@ impl LinkScraper for GoogleMapsScraper {
                 }
 
                 if image_url.is_none() {
-                    if let Some(ref img) = og_img {
-                        if !img.contains("maps_logo") {
-                            image_url = Some(img.clone());
-                        }
-                    }
+                    image_url = extract_google_maps_photo(
+                        og_img.as_deref(),
+                        twitter_img.as_deref(),
+                        itemprop_img.as_deref(),
+                        img_src_link.as_deref(),
+                        &html_text,
+                    );
                 }
 
                 if let (Some(la), Some(lo)) = schema_lat_lon {
@@ -1356,6 +1369,64 @@ pub fn clean_page_title(title: &str) -> String {
     cleaned
 }
 
+/// Extracts the primary photo URL for a Google Maps location from metadata or embedded JS state.
+pub fn extract_google_maps_photo(
+    og_img: Option<&str>,
+    twitter_img: Option<&str>,
+    itemprop_img: Option<&str>,
+    image_src_link: Option<&str>,
+    html_text: &str,
+) -> Option<String> {
+    // 1. Check meta tags for direct place photos
+    for candidate in [og_img, twitter_img, itemprop_img, image_src_link]
+        .into_iter()
+        .flatten()
+    {
+        let trimmed = candidate.trim();
+        if !trimmed.is_empty()
+            && (trimmed.starts_with("https://") || trimmed.starts_with("http://"))
+            && !trimmed.contains("maps_logo")
+            && !trimmed.contains("googlelogo")
+            && !trimmed.contains("branding/")
+            && !trimmed.contains("static/images")
+            && !trimmed.contains("favicon")
+        {
+            return Some(trimmed.to_string());
+        }
+    }
+
+    // 2. Check embedded user photo uploads from Google Photos / Google Maps CDN
+    // e.g. https://lh5.googleusercontent.com/p/AF1QipNX8...
+    if let Ok(re_lh) = Regex::new(r#"https://lh\d+\.googleusercontent\.com/p/([A-Za-z0-9_-]+)"#) {
+        if let Some(caps) = re_lh.captures(html_text) {
+            if let Some(m) = caps.get(0) {
+                let base = m.as_str();
+                return Some(format!("{}=w800-h600-k-no", base));
+            }
+        }
+    }
+
+    // 3. Check Google Maps GPS proxy or photo service thumbnails
+    if let Ok(re_proxy) = Regex::new(
+        r#"https://(?:lh\d+\.googleusercontent\.com/gps-proxy|geo\d+\.ggpht\.com)/[A-Za-z0-9_\-\./]+"#,
+    ) {
+        if let Some(m) = re_proxy.find(html_text) {
+            return Some(m.as_str().to_string());
+        }
+    }
+
+    // 4. Check Street View thumbnail
+    if let Ok(re_sv) =
+        Regex::new(r#"https://streetviewpixels-pa\.googleapis\.com/v1/thumbnail\?[^"'\s\\]+"#)
+    {
+        if let Some(m) = re_sv.find(html_text) {
+            return Some(m.as_str().replace("&amp;", "&"));
+        }
+    }
+
+    None
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -1627,6 +1698,51 @@ mod tests {
             extract_meta_content(&doc, "meta[itemprop='longitude']")
                 .and_then(|s| s.parse::<f64>().ok()),
             Some(-73.968285)
+        );
+    }
+
+    #[test]
+    fn test_extract_google_maps_photo() {
+        // Direct meta image
+        let img1 = extract_google_maps_photo(
+            Some("https://example.com/photos/sagrada_familia.jpg"),
+            None,
+            None,
+            None,
+            "",
+        );
+        assert_eq!(
+            img1,
+            Some("https://example.com/photos/sagrada_familia.jpg".to_string())
+        );
+
+        // Filters out generic google logos
+        let img2 = extract_google_maps_photo(
+            Some("https://maps.google.com/maps_logo.png"),
+            None,
+            None,
+            None,
+            r#"window.APP_INITIALIZATION_STATE=[[["https://lh5.googleusercontent.com/p/AF1QipNabc123xyz"]]];"#,
+        );
+        assert_eq!(
+            img2,
+            Some("https://lh5.googleusercontent.com/p/AF1QipNabc123xyz=w800-h600-k-no".to_string())
+        );
+
+        // Street View fallback
+        let img3 = extract_google_maps_photo(
+            None,
+            None,
+            None,
+            None,
+            r#"<img src="https://streetviewpixels-pa.googleapis.com/v1/thumbnail?panoid=abc&amp;w=400" />"#,
+        );
+        assert_eq!(
+            img3,
+            Some(
+                "https://streetviewpixels-pa.googleapis.com/v1/thumbnail?panoid=abc&w=400"
+                    .to_string()
+            )
         );
     }
 

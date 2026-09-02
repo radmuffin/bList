@@ -257,6 +257,18 @@ fn parse_geojson_feature(feat: &Value) -> Option<ImportItem> {
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string());
 
+    // Image URL / Photo
+    let image_url = props
+        .and_then(|p| {
+            p.get("image_url")
+                .or_else(|| p.get("image"))
+                .or_else(|| p.get("photo_url"))
+                .or_else(|| p.get("photo"))
+                .or_else(|| p.get("Photo"))
+        })
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string());
+
     // Visited
     let visited = props
         .and_then(|p| p.get("visited").or_else(|| p.get("Visited")))
@@ -278,7 +290,7 @@ fn parse_geojson_feature(feat: &Value) -> Option<ImportItem> {
         day_group: None,
         opening_hours,
         source_url: url,
-        image_url: None,
+        image_url,
         address,
         notes,
         visited,
@@ -344,6 +356,14 @@ fn parse_generic_json_object(obj: &Value) -> Option<ImportItem> {
         .or_else(|| obj.get("hours"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    let image_url = obj
+        .get("image_url")
+        .or_else(|| obj.get("image"))
+        .or_else(|| obj.get("photo_url"))
+        .or_else(|| obj.get("photo"))
+        .or_else(|| obj.get("Photo"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let visited = obj.get("visited").and_then(|v| v.as_bool());
 
     let final_title = title
@@ -362,7 +382,7 @@ fn parse_generic_json_object(obj: &Value) -> Option<ImportItem> {
         day_group: None,
         opening_hours,
         source_url: url,
-        image_url: None,
+        image_url,
         address,
         notes,
         visited,
@@ -396,6 +416,7 @@ pub fn parse_csv_data(raw: &str) -> Result<Vec<ImportItem>, String> {
     let mut cat_idx = None;
     let mut visited_idx = None;
     let mut hours_idx = None;
+    let mut img_idx = None;
 
     for (i, h) in headers.iter().enumerate() {
         if h == "title" || h == "name" || h == "place name" || h == "business name" {
@@ -421,6 +442,14 @@ pub fn parse_csv_data(raw: &str) -> Result<Vec<ImportItem>, String> {
             visited_idx = Some(i);
         } else if h == "opening_hours" || h == "hours" || h == "opening hours" {
             hours_idx = Some(i);
+        } else if h == "image"
+            || h == "image_url"
+            || h == "image url"
+            || h == "photo"
+            || h == "photo_url"
+            || h == "photo url"
+        {
+            img_idx = Some(i);
         }
     }
 
@@ -458,6 +487,10 @@ pub fn parse_csv_data(raw: &str) -> Result<Vec<ImportItem>, String> {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
         let opening_hours = hours_idx
+            .and_then(|idx| cols.get(idx))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let image_url = img_idx
             .and_then(|idx| cols.get(idx))
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
@@ -504,7 +537,7 @@ pub fn parse_csv_data(raw: &str) -> Result<Vec<ImportItem>, String> {
             day_group: None,
             opening_hours,
             source_url: url,
-            image_url: None,
+            image_url,
             address: addr,
             notes,
             visited,
