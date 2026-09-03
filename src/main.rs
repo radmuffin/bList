@@ -82,14 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/geocode", get(routes::geocode))
         .route("/version", get(routes::app_info))
         .route("/export/geojson", get(routes::export_geojson))
-        .route("/export/json", get(routes::export_json))
-        // Metrics route added to api_router without breaking FlyServer::builder pattern
-        // Note: the task says "Expose via GET /metrics endpoint in bList's main.rs" but then says 
-        // "add the metrics route to the api_router without breaking this pattern".
-        // Let's add it to api_router as /metrics, or rather, if we add it to api_router it becomes /api/metrics.
-        // Wait, the prompt says "The src/main.rs currently uses fly_common::server::FlyServer::builder() pattern — add the metrics route to the api_router without breaking this pattern" but also says "Expose via GET /metrics endpoint".
-        // Let's actually add it outside the nest, on app_router.
-        ;
+        .route("/export/json", get(routes::export_json));
 
     // Mount application routes into FlyServer with state and static SPA fallback
     let app_router = Router::new()
