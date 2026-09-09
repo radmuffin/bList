@@ -2127,14 +2127,14 @@
    * @returns {string} font-size in px (e.g. '19px', '16.5px', '15px', '13.5px', '12.5px')
    */
   function getAutoTitleFontSize(title) {
-    if (!title || typeof title !== 'string') return '14px';
+    if (!title || typeof title !== 'string') return '15px';
     const len = title.trim().length;
-    if (len === 0) return '14px';
-    if (len <= 8) return '19px';
-    if (len <= 14) return '16.5px';
-    if (len <= 24) return '15px';
-    if (len <= 38) return '13.5px';
-    return '12.5px';
+    if (len === 0) return '15px';
+    if (len <= 8) return '21px';
+    if (len <= 14) return '18px';
+    if (len <= 24) return '16px';
+    if (len <= 38) return '14.5px';
+    return '13px';
   }
 
   return {

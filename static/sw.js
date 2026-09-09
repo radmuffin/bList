@@ -1,5 +1,5 @@
 // bList Service Worker - Offline Caching & PWA Support
-const CACHE_NAME = 'blist-app-v5';
+const CACHE_NAME = 'blist-app-v6';
 const TILE_CACHE_NAME = 'blist-tiles-v1';
 const MAX_TILE_CACHE_ITEMS = 300;
 
@@ -7,6 +7,9 @@ const MAX_TILE_CACHE_ITEMS = 300;
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
+  '/style.css?v=0.1.3',
+  '/helpers.js?v=0.1.3',
+  '/app.js?v=0.1.3',
   '/style.css',
   '/helpers.js',
   '/app.js',
@@ -22,7 +25,7 @@ const PRECACHE_ASSETS = [
   '/icons/favicon.png',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+  'https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap',
   'https://unpkg.com/lucide@latest'
 ];
 
@@ -140,7 +143,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Static Assets (JS, CSS, Fonts, Images, Icons) -> Stale-While-Revalidate
+  // 4. App Scripts & Styles -> Network-First (with cache fallback) so deploys show immediately
+  const isAppScriptOrStyle = url.pathname.endsWith('.css') || url.pathname.endsWith('.js');
+  if (isAppScriptOrStyle && !url.hostname.includes('unpkg') && !url.hostname.includes('tile')) {
+    event.respondWith(
+      fetch(request)
+        .then(async (networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(request, networkResponse.clone());
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          return cached;
+        })
+    );
+    return;
+  }
+
+  // 5. Other Static Assets (External Fonts, Images, Icons) -> Stale-While-Revalidate
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       const fetchPromise = fetch(request)

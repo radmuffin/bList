@@ -97,12 +97,13 @@ To maximize agent throughput, prevent local CPU/RAM starvation, and eliminate te
 >
 > 1. **Step 1: Rapid Local Affected Check (<5s)**
 >    Run `npm run test:affected` locally. This inspects your diff and runs only the specific Rust modules, frontend unit tests, or single Playwright spec directly modified.
-> 2. **Step 2: Autonomous Commit & Push to `main` (DEFAULT)**
->    **At the end of a task, commit and push directly to `origin/main` by default**, unless the user explicitly requested not to push.
+> 2. **Step 2: Autonomous Commit & Push to Current Branch (DEFAULT)**
+>    **At the end of a task, commit and push directly to the current working branch (`origin/<current-branch>`) by default**, unless the user explicitly requested not to push.
+>    - If working directly on `main`, push to `origin/main`.
+>    - If working on a feature branch (e.g. `feature/...` or `collab/...`), push to that current branch so pull requests can be reviewed and merged.
 >    Do not pause, hesitate, or ask for extra confirmation before pushing completed work.
->    For feature branch work, offload to CI via `npm run test:branch-ci`.
 > 3. **Step 3: Active CI Surveillance & Monitoring**
->    After pushing changes to `main`, agents **MUST actively monitor the GitHub Actions CI run** (`gh run list --limit 1` / `gh run watch`) until completion (`conclusion: success`).
+>    After pushing changes, agents **MUST actively monitor the GitHub Actions CI run for the current branch** (`gh run list --branch $(git branch --show-current) --limit 1` / `gh run watch`) until completion (`conclusion: success`).
 >    Never conclude an interaction or declare victory until CI passes cleanly green. If CI fails, immediately diagnose (`gh run view <id> --log-failed`), resolve the regression, and push a fix autonomously.
 > 4. **Project Directives**:
 >    Always adhere to `.agents/skills/blist-directives/SKILL.md` for UI minimalism, typography, zero-tech-debt standards, and mobile viewport requirements.

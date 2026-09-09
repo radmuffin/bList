@@ -1479,34 +1479,34 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
 
   describe('Card Title Auto Font Sizing (getAutoTitleFontSize)', () => {
     it('should assign larger font size for short titles to take up more whitespace', () => {
-      assert.strictEqual(getAutoTitleFontSize('Rome'), '19px');
-      assert.strictEqual(getAutoTitleFontSize('Paris'), '19px');
-      assert.strictEqual(getAutoTitleFontSize('Tokyo'), '19px');
-      assert.strictEqual(getAutoTitleFontSize('Koumchi'), '19px');
+      assert.strictEqual(getAutoTitleFontSize('Rome'), '21px');
+      assert.strictEqual(getAutoTitleFontSize('Paris'), '21px');
+      assert.strictEqual(getAutoTitleFontSize('Tokyo'), '21px');
+      assert.strictEqual(getAutoTitleFontSize('Koumchi'), '21px');
     });
 
     it('should scale down medium length titles appropriately', () => {
-      assert.strictEqual(getAutoTitleFontSize('Mayhamada'), '16.5px');
-      assert.strictEqual(getAutoTitleFontSize('Calle Beatas'), '16.5px');
-      assert.strictEqual(getAutoTitleFontSize('Fuente Álamo'), '16.5px');
-      assert.strictEqual(getAutoTitleFontSize('Guidan Dogari'), '16.5px');
-      assert.strictEqual(getAutoTitleFontSize('Guidan Boukari'), '16.5px');
-      assert.strictEqual(getAutoTitleFontSize('Brooklyn Bridge'), '15px');
+      assert.strictEqual(getAutoTitleFontSize('Mayhamada'), '18px');
+      assert.strictEqual(getAutoTitleFontSize('Calle Beatas'), '18px');
+      assert.strictEqual(getAutoTitleFontSize('Fuente Álamo'), '18px');
+      assert.strictEqual(getAutoTitleFontSize('Guidan Dogari'), '18px');
+      assert.strictEqual(getAutoTitleFontSize('Guidan Boukari'), '18px');
+      assert.strictEqual(getAutoTitleFontSize('Brooklyn Bridge'), '16px');
     });
 
     it('should scale longer titles gracefully so they wrap without truncation', () => {
-      assert.strictEqual(getAutoTitleFontSize('Empire State Building'), '15px');
-      assert.strictEqual(getAutoTitleFontSize('Grand Canyon National Park'), '13.5px');
-      assert.strictEqual(getAutoTitleFontSize('The Metropolitan Museum of Art'), '13.5px');
-      assert.strictEqual(getAutoTitleFontSize('The Metropolitan Museum of Art and Ancient World Relics Exhibition'), '12.5px');
+      assert.strictEqual(getAutoTitleFontSize('Empire State Building'), '16px');
+      assert.strictEqual(getAutoTitleFontSize('Grand Canyon National Park'), '14.5px');
+      assert.strictEqual(getAutoTitleFontSize('The Metropolitan Museum of Art'), '14.5px');
+      assert.strictEqual(getAutoTitleFontSize('The Metropolitan Museum of Art and Ancient World Relics Exhibition'), '13px');
     });
 
     it('should handle falsy, non-string, or empty values safely', () => {
-      assert.strictEqual(getAutoTitleFontSize(null), '14px');
-      assert.strictEqual(getAutoTitleFontSize(undefined), '14px');
-      assert.strictEqual(getAutoTitleFontSize(''), '14px');
-      assert.strictEqual(getAutoTitleFontSize('   '), '14px');
-      assert.strictEqual(getAutoTitleFontSize(123), '14px');
+      assert.strictEqual(getAutoTitleFontSize(null), '15px');
+      assert.strictEqual(getAutoTitleFontSize(undefined), '15px');
+      assert.strictEqual(getAutoTitleFontSize(''), '15px');
+      assert.strictEqual(getAutoTitleFontSize('   '), '15px');
+      assert.strictEqual(getAutoTitleFontSize(123), '15px');
     });
   });
 

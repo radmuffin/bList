@@ -68,11 +68,12 @@ Always apply these guidelines when designing interfaces, writing code, refactori
    - Affected runner: `npm run test:affected`
    - Frontend unit suite: `npm test`
 
-2. **Autonomous Push to `main` at Task Completion (DEFAULT)**:
-   - **At the end of a task, commit and push directly to `origin/main` by default**, unless the user explicitly requested not to push.
+2. **Autonomous Push to Current Branch at Task Completion (DEFAULT)**:
+   - **At the end of a task, commit and push directly to the current working branch (`origin/<current-branch>`) by default**, unless the user explicitly requested not to push.
+   - If working on `main`, push to `origin/main`. If working on a feature branch, push to that branch so PRs can be merged cleanly.
    - Do not pause, hesitate, or ask for extra confirmation before pushing completed work.
 
 3. **Mandatory UI Changes & Active CI Surveillance**:
    - Whenever modifying UI layout, CSS styles, or DOM hierarchy (`static/index.html`, `static/style.css`, `static/app.js`), audit mobile clearance, touch target sizes, and pointer event handling.
-   - After pushing changes, agents **MUST actively monitor GitHub Actions CI** (`gh run list --limit 1` / `gh run watch`) until completion (`conclusion: success`).
+   - After pushing changes, agents **MUST actively monitor GitHub Actions CI for the current branch** (`gh run list --branch $(git branch --show-current) --limit 1` / `gh run watch`) until completion (`conclusion: success`).
    - If CI fails, immediately diagnose (`gh run view <id> --log-failed`), resolve the issue, and push a fix autonomously.

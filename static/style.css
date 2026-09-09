@@ -1401,15 +1401,16 @@ body {
 
 .pin-card-title {
   font-family: var(--font-title);
-  font-size: var(--title-font-size, 15px);
-  font-weight: 750;
+  font-size: var(--title-font-size, 16px);
+  font-weight: 800;
   color: var(--card-title-color);
-  line-height: 1.18;
-  letter-spacing: -0.02em;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
   word-break: break-word;
   overflow-wrap: break-word;
   white-space: normal;
   text-shadow: var(--card-title-shadow);
+  margin-top: auto;
   margin-bottom: 2px;
 }
 
