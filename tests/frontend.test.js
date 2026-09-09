@@ -464,11 +464,25 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(calculateDistance(0, 0, null, 10), 0);
     });
 
-    it('should format distances properly in meters for < 1km and miles/km for >= 1km', () => {
-      assert.strictEqual(formatDistance(0.45), '450 m away');
-      assert.strictEqual(formatDistance(0.05), '50 m away');
-      assert.strictEqual(formatDistance(10.0), '6.2 mi away (10.0 km)');
-      assert.strictEqual(formatDistance(100.0), '62.1 mi away (100.0 km)');
+    it('should format distances properly with configurable single unit (mi or km)', () => {
+      // Metric (km)
+      assert.strictEqual(formatDistance(0.45, 'km'), '450 m away');
+      assert.strictEqual(formatDistance(0.05, 'km'), '50 m away');
+      assert.strictEqual(formatDistance(10.0, 'km'), '10.0 km away');
+      assert.strictEqual(formatDistance(100.0, 'km'), '100.0 km away');
+
+      // Imperial (mi)
+      assert.strictEqual(formatDistance(10.0, 'mi'), '6.2 mi away');
+      assert.strictEqual(formatDistance(100.0, 'mi'), '62.1 mi away');
+      assert.strictEqual(formatDistance(0.05, 'mi'), '< 0.1 mi away');
+
+      // Default (mi without explicit unit in node)
+      assert.strictEqual(formatDistance(10.0), '6.2 mi away');
+
+      // Backward compatible 'both' option
+      assert.strictEqual(formatDistance(10.0, 'both'), '6.2 mi away (10.0 km)');
+
+      // Edge cases
       assert.strictEqual(formatDistance(-5), '0 m away');
       assert.strictEqual(formatDistance(NaN), '0 m away');
     });

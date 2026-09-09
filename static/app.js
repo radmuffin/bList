@@ -179,10 +179,16 @@
       return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
     },
 
-    formatDistance(dKm) {
-      if (typeof H.formatDistance === 'function') return H.formatDistance(dKm);
-      if (dKm < 1) return `${Math.round(dKm * 1000)} m away`;
-      return `${(dKm * 0.621371).toFixed(1)} mi away (${dKm.toFixed(1)} km)`;
+    formatDistance(dKm, unit) {
+      const activeUnit = unit || (typeof DistanceUnitManager !== 'undefined' ? DistanceUnitManager.getUnit() : 'mi');
+      if (typeof H.formatDistance === 'function') return H.formatDistance(dKm, activeUnit);
+      if (activeUnit === 'km') {
+        if (dKm < 1) return `${Math.round(dKm * 1000)} m away`;
+        return `${dKm.toFixed(1)} km away`;
+      }
+      const dMi = dKm * 0.621371;
+      if (dMi < 0.1) return '< 0.1 mi away';
+      return `${dMi.toFixed(1)} mi away`;
     },
 
     getAutoTitleFontSize(title) {
@@ -431,6 +437,44 @@
     toggleMenu() {
       const menu = document.getElementById('theme-menu');
       if (menu) menu.classList.toggle('hidden');
+    }
+  };
+
+  const DistanceUnitManager = {
+    getUnit() {
+      try {
+        const saved = localStorage.getItem('blist_distance_unit');
+        if (saved === 'km' || saved === 'mi') return saved;
+      } catch (_) {}
+      return 'mi';
+    },
+
+    set(unit, notify = true) {
+      if (unit !== 'km' && unit !== 'mi') unit = 'mi';
+      try {
+        localStorage.setItem('blist_distance_unit', unit);
+      } catch (_) {}
+
+      this.updateUI(unit);
+
+      if (UIManager && typeof UIManager.renderPlaces === 'function' && State && State.allPins) {
+        UIManager.renderPlaces(State.allPins);
+      }
+
+      if (notify && typeof ToastManager !== 'undefined' && ToastManager.show) {
+        ToastManager.show(unit === 'km' ? '📏 Distance unit: Kilometers (km)' : '📏 Distance unit: Miles (mi)');
+      }
+    },
+
+    updateUI(unit) {
+      const active = unit || this.getUnit();
+      document.querySelectorAll('.unit-opt, .unit-opt-pill').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.unitVal === active);
+      });
+    },
+
+    init() {
+      this.updateUI(this.getUnit());
     }
   };
 
@@ -1677,35 +1721,46 @@
           return `
                   <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
                     <div class="pin-card-header-overlay" onclick="event.stopPropagation()">
-                      <div class="banner-category-chip">
-                        <span class="banner-chip-emoji">${catEmoji}</span>
-                        <span class="banner-chip-text">${Utils.escapeHtml(displayCategory)}</span>
+                      <div class="pin-card-header-top">
+                        <div class="banner-category-chip">
+                          <span class="banner-chip-emoji">${catEmoji}</span>
+                          <span class="banner-chip-text">${Utils.escapeHtml(displayCategory)}</span>
+                        </div>
+                        <div class="pin-card-header-actions">
+                          <span class="pin-card-weather-chip ${weatherCached ? '' : 'hidden'}" id="card-weather-badge-${pin.id}">
+                            ${weatherCached ? `${weatherCached.icon} ${weatherCached.tempF}°F` : ''}
+                          </span>
+                          <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
+                            <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
+                            <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
+                          </button>
+                        </div>
                       </div>
-                      <div class="pin-card-header-actions">
-                        <span class="pin-card-weather-chip ${weatherCached ? '' : 'hidden'}" id="card-weather-badge-${pin.id}">
-                          ${weatherCached ? `${weatherCached.icon} ${weatherCached.tempF}°F` : ''}
-                        </span>
-                        <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
-                          <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
-                          <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
-                        </button>
-                      </div>
+                      ${
+                        distanceStr
+                          ? `<div class="pin-card-header-sub">
+                              <span class="pin-card-distance-badge">
+                                <i data-lucide="navigation-2"></i>
+                                <span>${distanceStr}</span>
+                              </span>
+                            </div>`
+                          : ''
+                      }
                     </div>
                     ${heroBannerHtml}
                     <div class="pin-card-body">
                       <div class="pin-card-title" style="--title-font-size: ${titleFontSize}; font-size: ${titleFontSize};" title="${Utils.escapeHtml(pin.title)}">${Utils.escapeHtml(pin.title)}</div>
                       ${
-                        (streetAddress || distanceStr)
+                        streetAddress
                           ? `<div class="pin-card-address">
-                              <i data-lucide="${streetAddress ? 'map-pin' : 'navigation-2'}" style="width: 10px; height: 10px; flex-shrink: 0;"></i>
-                              ${streetAddress ? `<span class="pin-card-address-text">${Utils.escapeHtml(streetAddress)}</span>` : ''}
-                              ${distanceStr ? `<span class="pin-card-distance-tag">${streetAddress ? '• ' : ''}${distanceStr}</span>` : ''}
+                              <i data-lucide="map-pin" style="width: 10px; height: 10px; flex-shrink: 0;"></i>
+                              <span class="pin-card-address-text">${Utils.escapeHtml(streetAddress)}</span>
                             </div>`
                           : ''
                       }
                       ${
-                        (pin.priority || (pin.day_group && pin.day_group > 0) || (distanceStr && !streetAddress))
-                          ? `<div class="badges-row">${this.renderTileBadgesHtml(pin, { weather: null, distanceStr })}</div>`
+                        (pin.priority || (pin.day_group && pin.day_group > 0))
+                          ? `<div class="badges-row">${this.renderTileBadgesHtml(pin, { weather: null, distanceStr: null })}</div>`
                           : ''
                       }
                       ${this.renderActionsHtml(pin, false)}
@@ -4103,6 +4158,7 @@
   // ==========================================================================
   document.addEventListener('DOMContentLoaded', async () => {
     ThemeManager.init();
+    DistanceUnitManager.init();
     MapController.init();
     OfflineManager.init();
     SwipeNavigationManager.init();
@@ -4171,6 +4227,7 @@
     Utils,
     ToastManager,
     ThemeManager,
+    DistanceUnitManager,
     ApiClient,
     MapController,
     FilterManager,
@@ -4181,10 +4238,12 @@
     RouteOptimizer
   };
 
-  // Theme
+  // Theme & Units
   window.setTheme = (theme) => ThemeManager.set(theme);
   window.toggleTheme = () => ThemeManager.toggle();
   window.toggleThemeMenu = () => ThemeManager.toggleMenu();
+  window.setDistanceUnit = (unit) => DistanceUnitManager.set(unit, true);
+  window.DistanceUnitManager = DistanceUnitManager;
   window.toggleMobileMoreMenu = (e) => {
     if (e && e.stopPropagation) e.stopPropagation();
     const menu = document.getElementById('mobile-more-menu');

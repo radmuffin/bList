@@ -295,16 +295,44 @@
   }
 
   /**
-   * Formats distance in km to human-readable string (meters / miles & km).
+   * Formats distance in km to human-readable string with a single configurable unit (mi or km).
    */
-  function formatDistance(dKm) {
+  function formatDistance(dKm, unit) {
     if (typeof dKm !== 'number' || isNaN(dKm) || dKm < 0) return '0 m away';
-    if (dKm < 1) {
-      return `${Math.round(dKm * 1000)} m away`;
-    } else {
+
+    let activeUnit = unit;
+    if (!activeUnit) {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          activeUnit = localStorage.getItem('blist_distance_unit') || 'mi';
+        }
+      } catch (_) {
+        activeUnit = 'mi';
+      }
+    }
+    if (activeUnit !== 'km' && activeUnit !== 'mi' && activeUnit !== 'both') {
+      activeUnit = 'mi';
+    }
+
+    if (activeUnit === 'both') {
+      if (dKm < 1) return `${Math.round(dKm * 1000)} m away`;
       const mi = (dKm * 0.621371).toFixed(1);
       return `${mi} mi away (${dKm.toFixed(1)} km)`;
     }
+
+    if (activeUnit === 'km') {
+      if (dKm < 1) {
+        return `${Math.round(dKm * 1000)} m away`;
+      }
+      return `${dKm.toFixed(1)} km away`;
+    }
+
+    // Default: 'mi' (Miles)
+    const dMi = dKm * 0.621371;
+    if (dMi < 0.1) {
+      return '< 0.1 mi away';
+    }
+    return `${dMi.toFixed(1)} mi away`;
   }
 
   /**
