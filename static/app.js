@@ -1722,10 +1722,6 @@
                   <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
                     <div class="pin-card-header-overlay" onclick="event.stopPropagation()">
                       <div class="pin-card-header-top">
-                        <div class="banner-category-chip">
-                          <span class="banner-chip-emoji">${catEmoji}</span>
-                          <span class="banner-chip-text">${Utils.escapeHtml(displayCategory)}</span>
-                        </div>
                         <div class="pin-card-header-actions">
                           <span class="pin-card-weather-chip ${weatherCached ? '' : 'hidden'}" id="card-weather-badge-${pin.id}">
                             ${weatherCached ? `${weatherCached.icon} ${weatherCached.tempF}°F` : ''}
