@@ -89,21 +89,23 @@ Maps device user tokens to lists for multi-device sync, row-level access control
 
 ## ⚡ Agent Testing & Concurrency Protocol (CRITICAL)
 
-To maximize agent throughput, prevent local CPU/RAM starvation, and eliminate test flakiness during concurrent multi-agent or subagent execution:
+To maximize agent throughput, prevent local CPU/RAM starvation, and eliminate test flakiness during concurrent execution:
 
 > [!IMPORTANT]
 > **Agents MUST NOT run the full heavy test suite (e.g. `npm run test:e2e` across all browsers) locally.**
-> Follow this two-step verification rule:
+> Follow this verification and autonomous delivery rule:
 >
 > 1. **Step 1: Rapid Local Affected Check (<5s)**
 >    Run `npm run test:affected` locally. This inspects your diff and runs only the specific Rust modules, frontend unit tests, or single Playwright spec directly modified.
-> 2. **Step 2: Offload Full Test Suite to Parallel CI**
->    Push your branch and trigger the GitHub Actions parallel workflow:
->    ```bash
->    npm run test:branch-ci
->    # or: gh workflow run test-branch.yml -f branch=$(git branch --show-current)
->    ```
->    GitHub Actions executes backend unit tests, formatting/clippy checks, frontend unit tests, and the multi-browser Playwright matrix (**Desktop Chrome**, **Mobile Pixel**, **Mobile Safari**) in parallel on dedicated runners without consuming local machine resources.
+> 2. **Step 2: Autonomous Commit & Push to `main` (DEFAULT)**
+>    **At the end of a task, commit and push directly to `origin/main` by default**, unless the user explicitly requested not to push.
+>    Do not pause, hesitate, or ask for extra confirmation before pushing completed work.
+>    For feature branch work, offload to CI via `npm run test:branch-ci`.
+> 3. **Step 3: Active CI Surveillance & Monitoring**
+>    After pushing changes to `main`, agents **MUST actively monitor the GitHub Actions CI run** (`gh run list --limit 1` / `gh run watch`) until completion (`conclusion: success`).
+>    Never conclude an interaction or declare victory until CI passes cleanly green. If CI fails, immediately diagnose (`gh run view <id> --log-failed`), resolve the regression, and push a fix autonomously.
+> 4. **Project Directives**:
+>    Always adhere to `.agents/skills/blist-directives/SKILL.md` for UI minimalism, typography, zero-tech-debt standards, and mobile viewport requirements.
 
 ---
 

@@ -2118,6 +2118,25 @@
     return null;
   }
 
+  /**
+   * Calculates dynamic font size for card titles so short titles take up
+   * more whitespace in the tile while longer titles scale smoothly and wrap
+   * without truncation.
+   *
+   * @param {string} title
+   * @returns {string} font-size in px (e.g. '19px', '16.5px', '15px', '13.5px', '12.5px')
+   */
+  function getAutoTitleFontSize(title) {
+    if (!title || typeof title !== 'string') return '14px';
+    const len = title.trim().length;
+    if (len === 0) return '14px';
+    if (len <= 8) return '19px';
+    if (len <= 14) return '16.5px';
+    if (len <= 24) return '15px';
+    if (len <= 38) return '13.5px';
+    return '12.5px';
+  }
+
   return {
     APP_INFO,
     getAppInfo,
@@ -2149,6 +2168,7 @@
     detectSwipeGesture,
     generateAvatarSvg,
     inferPlaceCategory,
+    getAutoTitleFontSize,
     AVATAR_PRESETS,
     AVATAR_COLORS,
     getRandomInspiration,

@@ -185,6 +185,18 @@
       return `${(dKm * 0.621371).toFixed(1)} mi away (${dKm.toFixed(1)} km)`;
     },
 
+    getAutoTitleFontSize(title) {
+      if (typeof H.getAutoTitleFontSize === 'function') return H.getAutoTitleFontSize(title);
+      if (!title || typeof title !== 'string') return '14px';
+      const len = title.trim().length;
+      if (len === 0) return '14px';
+      if (len <= 8) return '19px';
+      if (len <= 14) return '16.5px';
+      if (len <= 24) return '15px';
+      if (len <= 38) return '13.5px';
+      return '12.5px';
+    },
+
     getListNameForPin(pin) {
       if (!pin || !pin.list_id) return null;
       const found = State.lists.find((l) => l.id === pin.list_id);
@@ -1349,7 +1361,7 @@
         html += `<span class="pin-badge badge-day">📅 Day ${pin.day_group}</span>`;
       }
       if (distanceStr && !pin.address) {
-        html += `<span class="pin-badge badge-distance">📍 ${distanceStr} away</span>`;
+        html += `<span class="pin-badge badge-distance">📍 ${distanceStr}</span>`;
       }
       if (weather) {
         html += `<span class="pin-badge badge-weather">${weather.icon} ${weather.tempF}°F</span>`;
@@ -1660,6 +1672,8 @@
                 <div class="banner-watermark-symbol">${catEmoji}</div>
               </div>`;
 
+          const titleFontSize = Utils.getAutoTitleFontSize(pin.title);
+
           return `
                   <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
                     <div class="pin-card-header-overlay" onclick="event.stopPropagation()">
@@ -1679,13 +1693,13 @@
                     </div>
                     ${heroBannerHtml}
                     <div class="pin-card-body">
-                      <div class="pin-card-title">${Utils.escapeHtml(pin.title)}</div>
+                      <div class="pin-card-title" style="--title-font-size: ${titleFontSize}; font-size: ${titleFontSize};" title="${Utils.escapeHtml(pin.title)}">${Utils.escapeHtml(pin.title)}</div>
                       ${
                         (streetAddress || distanceStr)
                           ? `<div class="pin-card-address">
                               <i data-lucide="${streetAddress ? 'map-pin' : 'navigation-2'}" style="width: 10px; height: 10px; flex-shrink: 0;"></i>
                               ${streetAddress ? `<span class="pin-card-address-text">${Utils.escapeHtml(streetAddress)}</span>` : ''}
-                              ${distanceStr ? `<span class="pin-card-distance-tag">${streetAddress ? '• ' : ''}${distanceStr} away</span>` : ''}
+                              ${distanceStr ? `<span class="pin-card-distance-tag">${streetAddress ? '• ' : ''}${distanceStr}</span>` : ''}
                             </div>`
                           : ''
                       }
@@ -1700,6 +1714,20 @@
                 `;
         })
         .join('');
+
+      this.fitCardTitles(container);
+    },
+
+    fitCardTitles(container) {
+      const target = container || document.getElementById('pin-list');
+      if (!target) return;
+      const titles = target.querySelectorAll('.pin-card-title');
+      titles.forEach((el) => {
+        const defaultSize = el.style.getPropertyValue('--title-font-size');
+        if (defaultSize) {
+          el.style.fontSize = defaultSize;
+        }
+      });
     },
 
     updateCounts() {
@@ -4102,6 +4130,14 @@
       if (window.location.hash === '#about') {
         ModalManager.openAboutModal();
       }
+    });
+
+    let resizeFitTimer = null;
+    window.addEventListener('resize', () => {
+      if (resizeFitTimer) clearTimeout(resizeFitTimer);
+      resizeFitTimer = setTimeout(() => {
+        UIManager.fitCardTitles();
+      }, 100);
     });
 
     setupGlobalClickHandlers();
