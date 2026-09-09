@@ -1366,7 +1366,7 @@ body {
 .pin-card-header-top {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 4px;
   width: 100%;
 }
@@ -1374,8 +1374,14 @@ body {
 .pin-card-header-sub {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 4px;
   max-width: 100%;
+}
+
+.pin-card-header-sub:empty,
+.pin-card-header-sub:has(> .hidden:only-child) {
+  display: none !important;
 }
 
 .pin-card-distance-badge {
@@ -1413,6 +1419,7 @@ body {
   align-items: center;
   gap: 3.5px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .pin-card-weather-chip {

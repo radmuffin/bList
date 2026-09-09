@@ -1722,26 +1722,26 @@
                   <div class="pin-card ${pin.visited ? 'visited-card' : ''}" onclick="handlePinCardClick(${pin.id})" id="card-pin-${pin.id}">
                     <div class="pin-card-header-overlay" onclick="event.stopPropagation()">
                       <div class="pin-card-header-top">
+                        ${
+                          distanceStr
+                            ? `<span class="pin-card-distance-badge">
+                                <i data-lucide="navigation-2"></i>
+                                <span>${distanceStr}</span>
+                              </span>`
+                            : '<span></span>'
+                        }
                         <div class="pin-card-header-actions">
-                          <span class="pin-card-weather-chip ${weatherCached ? '' : 'hidden'}" id="card-weather-badge-${pin.id}">
-                            ${weatherCached ? `${weatherCached.icon} ${weatherCached.tempF}°F` : ''}
-                          </span>
                           <button type="button" class="btn-card-status-pill ${pin.visited ? 'is-visited' : ''}" onclick="toggleVisited(${pin.id})" title="${pin.visited ? 'Mark as to visit' : 'Mark as visited'}">
                             <i data-lucide="${pin.visited ? 'check-circle-2' : 'circle'}"></i>
                             <span>${pin.visited ? 'Visited' : 'Bucket List'}</span>
                           </button>
                         </div>
                       </div>
-                      ${
-                        distanceStr
-                          ? `<div class="pin-card-header-sub">
-                              <span class="pin-card-distance-badge">
-                                <i data-lucide="navigation-2"></i>
-                                <span>${distanceStr}</span>
-                              </span>
-                            </div>`
-                          : ''
-                      }
+                      <div class="pin-card-header-sub">
+                        <span class="pin-card-weather-chip ${weatherCached ? '' : 'hidden'}" id="card-weather-badge-${pin.id}">
+                          ${weatherCached ? `${weatherCached.icon} ${weatherCached.tempF}°F` : ''}
+                        </span>
+                      </div>
                     </div>
                     ${heroBannerHtml}
                     <div class="pin-card-body">
