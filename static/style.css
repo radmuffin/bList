@@ -797,11 +797,11 @@ body {
 }
 
 .sidebar-header {
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 /* Multi-List Selector */
@@ -857,30 +857,36 @@ body {
 
 /* Trip Progress Card */
 .trip-progress-card {
-  background: var(--bg-input);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  width: 100%;
 }
 
 .trip-progress-info {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.2;
 }
 
 .trip-progress-label {
   font-weight: 700;
   color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .trip-progress-stats {
   font-weight: 600;
+  font-size: 11px;
   color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .progress-bar-track {
@@ -4059,8 +4065,10 @@ label {
 
 /* Trip Progress Card - 100% List Completed Celebration Style */
 .trip-progress-card.trip-completed {
-  border-color: rgba(245, 158, 11, 0.5);
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(239, 68, 68, 0.08) 100%);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(239, 68, 68, 0.08) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
 }
 
 .trip-progress-card.trip-completed .progress-bar-fill {
@@ -4075,50 +4083,56 @@ label {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex-shrink: 0;
+}
+
+.sidebar-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sidebar-footer-brand {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-subtle);
+  letter-spacing: 0.2px;
 }
 
 .sidebar-footer-actions {
   display: flex;
-  gap: 6px;
-  width: 100%;
+  align-items: center;
+  gap: 4px;
 }
 
 .btn-sidebar-footer-action {
-  flex: 1;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 7px 8px;
-  font-size: 11.5px;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
   font-weight: 600;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  background: var(--bg-surface);
+  background: var(--bg-input);
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .btn-sidebar-footer-action svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
 }
 
 .btn-sidebar-footer-action:hover {
   color: var(--primary);
-  border-color: var(--border-focus);
+  border-color: var(--primary);
   background-color: var(--primary-light);
-}
-
-.sidebar-footer-brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10.5px;
-  color: var(--text-subtle);
-  letter-spacing: 0.2px;
 }
 
 /* Loading Card */
@@ -4546,18 +4560,6 @@ label {
     font-size: 12.5px;
   }
 
-  .sidebar-header .trip-progress-card {
-    padding: 5px 8px;
-    gap: 4px;
-  }
-
-  .sidebar-header .trip-progress-info {
-    font-size: 10px;
-  }
-
-  .sidebar-header .progress-bar-track {
-    height: 4px;
-  }
 
   .sidebar-header .search-and-sort-row {
     gap: 6px;
@@ -4617,22 +4619,37 @@ label {
   }
 
   .sidebar-footer {
-    padding: 8px 12px;
-    gap: 4px;
-  }
-
-  .sidebar-footer-actions {
+    padding: 8px 12px max(8px, env(safe-area-inset-bottom, 8px));
     gap: 6px;
   }
 
-  .btn-sidebar-footer-action {
-    padding: 5px 8px;
+  .sidebar-footer .trip-progress-info {
     font-size: 11px;
+  }
+
+  .sidebar-footer .trip-progress-stats {
+    font-size: 10.5px;
+  }
+
+  .sidebar-footer .progress-bar-track {
+    height: 5px;
+  }
+
+  .sidebar-footer-bottom {
+    gap: 6px;
+  }
+
+  .sidebar-footer-actions {
+    gap: 3px;
+  }
+
+  .btn-sidebar-footer-action {
+    padding: 3px 6px;
+    font-size: 10.5px;
   }
 
   .sidebar-footer-brand {
     font-size: 10px;
-    margin-top: 2px;
   }
 
   .drawer-mobile-title-wrap {

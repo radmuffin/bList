@@ -57,7 +57,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <link rel="stylesheet" href="style.css?v=0.1.6">
+  <link rel="stylesheet" href="style.css?v=0.1.7">
 </head>
 <body>
   <div class="app-layout">
@@ -310,16 +310,6 @@
             </div>
           </div>
 
-          <!-- Trip / Bucket List Progress Tracker -->
-          <div class="trip-progress-card" id="trip-progress-card">
-            <div class="trip-progress-info">
-              <span class="trip-progress-label" id="trip-progress-label">Bucket List Progress</span>
-              <span class="trip-progress-stats" id="trip-progress-stats">0 / 0 visited (0%)</span>
-            </div>
-            <div class="progress-bar-track">
-              <div class="progress-bar-fill" id="trip-progress-bar" style="width: 0%;"></div>
-            </div>
-          </div>
 
           <!-- Search & Sort Row -->
           <div class="search-and-sort-row">
@@ -394,22 +384,36 @@
 
         <!-- Sidebar Footer -->
         <div class="sidebar-footer">
-          <div class="sidebar-footer-actions">
-            <button type="button" class="btn-sidebar-footer-action" onclick="openSyncModal()" title="Link / Sync Devices">
-              <i data-lucide="smartphone"></i>
-              <span>Sync</span>
-            </button>
-            <button type="button" class="btn-sidebar-footer-action" onclick="exportData('geojson')" title="Export GeoJSON">
-              <i data-lucide="download"></i>
-              <span>Export</span>
-            </button>
-            <button type="button" class="btn-sidebar-footer-action" onclick="openAboutModal()" title="About bList">
-              <i data-lucide="info"></i>
-              <span>About</span>
-            </button>
+          <!-- Trip / Bucket List Progress Tracker -->
+          <div class="trip-progress-card" id="trip-progress-card">
+            <div class="trip-progress-info">
+              <span class="trip-progress-label" id="trip-progress-label">Bucket List Progress</span>
+              <span class="trip-progress-stats" id="trip-progress-stats">0 / 0 visited (0%)</span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="trip-progress-bar" style="width: 0%;"></div>
+            </div>
           </div>
-          <div class="sidebar-footer-brand">
-            <span>bList &bull; <span id="sidebar-version-tag">v0.1.0</span></span>
+
+          <!-- Footer Utilities & Version -->
+          <div class="sidebar-footer-bottom">
+            <div class="sidebar-footer-brand">
+              <span>bList &bull; <span id="sidebar-version-tag">v0.1.0</span></span>
+            </div>
+            <div class="sidebar-footer-actions">
+              <button type="button" class="btn-sidebar-footer-action" onclick="openSyncModal()" title="Link / Sync Devices" aria-label="Sync Devices">
+                <i data-lucide="smartphone"></i>
+                <span>Sync</span>
+              </button>
+              <button type="button" class="btn-sidebar-footer-action" onclick="exportData('geojson')" title="Export GeoJSON" aria-label="Export GeoJSON">
+                <i data-lucide="download"></i>
+                <span>Export</span>
+              </button>
+              <button type="button" class="btn-sidebar-footer-action" onclick="openAboutModal()" title="About bList" aria-label="About bList">
+                <i data-lucide="info"></i>
+                <span>About</span>
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -1438,7 +1442,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="helpers.js?v=0.1.6"></script>
-  <script src="app.js?v=0.1.6"></script>
+  <script src="helpers.js?v=0.1.7"></script>
+  <script src="app.js?v=0.1.7"></script>
 </body>
 </html>
