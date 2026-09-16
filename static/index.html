@@ -57,7 +57,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <link rel="stylesheet" href="style.css?v=0.1.7">
+  <link rel="stylesheet" href="style.css?v=0.1.8">
 </head>
 <body>
   <div class="app-layout">
@@ -81,21 +81,26 @@
             <input 
               type="url" 
               id="save-url-input" 
-              placeholder="Paste Google Maps, Instagram, Apple Maps, or article link..." 
+              placeholder="Paste place or travel link..." 
               required
               autocomplete="off"
             />
+            <button type="submit" id="save-link-btn" class="btn-inline-save" title="Save Place">
+              <i data-lucide="plus"></i>
+              <span>Save</span>
+            </button>
           </div>
-          <button type="submit" id="save-link-btn" class="btn btn-primary">
-            <i data-lucide="plus-circle" class="btn-icon"></i>
-            <span>Save Place</span>
-          </button>
         </form>
 
         <div class="header-actions">
-          <button class="btn-user-avatar desktop-only" id="user-profile-btn" onclick="openUserProfileModal()" title="Explorer Profile & Avatar" aria-label="Explorer Profile">
-            <div class="header-avatar-circle" id="header-avatar-circle">🧭</div>
-            <span class="header-user-name" id="header-user-name">Profile</span>
+          <button class="btn btn-surprise header-surprise-btn" id="surprise-btn-header" onclick="surpriseMe()" title="Pick a random unvisited place" aria-label="Surprise Me">
+            <i data-lucide="sparkles" class="btn-icon"></i>
+            <span class="btn-text desktop-only">Surprise</span>
+          </button>
+          <button class="btn btn-primary header-add-btn" id="btn-add-place" onclick="handleHeaderAddClick()" title="Add place" aria-label="Add Place">
+            <i data-lucide="plus" class="btn-icon"></i>
+            <span class="btn-text desktop-only">Add Place</span>
+            <span class="btn-text mobile-only">Add</span>
           </button>
 
           <!-- Theme Switcher Dropdown (Desktop) -->
@@ -130,29 +135,9 @@
             </div>
           </div>
 
-          <button class="btn btn-ghost desktop-only" id="sync-btn-header" onclick="openSyncModal()" title="Link phone or another device" aria-label="Sync Devices">
-            <i data-lucide="smartphone" class="btn-icon"></i>
-            <span class="btn-text">Sync</span>
-          </button>
-          <button class="btn btn-surprise header-surprise-btn" id="surprise-btn-header" onclick="surpriseMe()" title="Pick a random unvisited place" aria-label="Surprise Me">
-            <i data-lucide="sparkles" class="btn-icon"></i>
-            <span class="btn-text desktop-only">Surprise Me</span>
-          </button>
-          <button class="btn btn-primary header-add-btn" id="btn-add-place" onclick="handleHeaderAddClick()" title="Add place" aria-label="Add Place">
-            <i data-lucide="plus" class="btn-icon"></i>
-            <span class="btn-text">Add</span>
-          </button>
-          <button class="btn btn-ghost desktop-only" id="btn-import-header" onclick="openImportModal()" title="Import Takeout, KML, CSV" aria-label="Import Places">
-            <i data-lucide="upload-cloud" class="btn-icon"></i>
-            <span class="btn-text">Import</span>
-          </button>
-          <button class="btn btn-ghost desktop-only" onclick="exportData('geojson')" title="Export GeoJSON" aria-label="Export Places GeoJSON">
-            <i data-lucide="download" class="btn-icon"></i>
-            <span class="btn-text">Export</span>
-          </button>
-          <button class="btn btn-ghost desktop-only" id="btn-about" onclick="openAboutModal()" title="About bList" aria-label="About bList">
-            <i data-lucide="info" class="btn-icon"></i>
-            <span class="btn-text">About</span>
+          <button class="btn-user-avatar desktop-only" id="user-profile-btn" onclick="openUserProfileModal()" title="Explorer Profile & Avatar" aria-label="Explorer Profile">
+            <div class="header-avatar-circle" id="header-avatar-circle">🧭</div>
+            <span class="header-user-name" id="header-user-name">Profile</span>
           </button>
 
           <!-- Mobile Profile & More Options Menu -->
@@ -401,7 +386,7 @@
               <span>bList &bull; <span id="sidebar-version-tag">v0.1.0</span></span>
             </div>
             <div class="sidebar-footer-actions">
-              <button type="button" class="btn-sidebar-footer-action" onclick="openSyncModal()" title="Link / Sync Devices" aria-label="Sync Devices">
+              <button type="button" class="btn-sidebar-footer-action" id="sync-btn-header" onclick="openSyncModal()" title="Link / Sync Devices" aria-label="Sync Devices">
                 <i data-lucide="smartphone"></i>
                 <span>Sync</span>
               </button>
@@ -409,7 +394,7 @@
                 <i data-lucide="download"></i>
                 <span>Export</span>
               </button>
-              <button type="button" class="btn-sidebar-footer-action" onclick="openAboutModal()" title="About bList" aria-label="About bList">
+              <button type="button" class="btn-sidebar-footer-action" id="btn-about" onclick="openAboutModal()" title="About bList" aria-label="About bList">
                 <i data-lucide="info"></i>
                 <span>About</span>
               </button>
@@ -1442,7 +1427,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="helpers.js?v=0.1.7"></script>
-  <script src="app.js?v=0.1.7"></script>
+  <script src="helpers.js?v=0.1.8"></script>
+  <script src="app.js?v=0.1.8"></script>
 </body>
 </html>
