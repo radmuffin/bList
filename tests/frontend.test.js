@@ -305,6 +305,20 @@ describe('Frontend Unit Tests: Helpers Suite', () => {
       assert.strictEqual(result.isUrlCandidate, false);
     });
 
+    it('should parse geo: URIs shared in url or text parameter', () => {
+      const result1 = parseShareTargetPayload({
+        url: 'geo:37.7749,-122.4194?q=San+Francisco'
+      });
+      assert.strictEqual(result1.url, 'geo:37.7749,-122.4194?q=San+Francisco');
+      assert.strictEqual(result1.isUrlCandidate, true);
+
+      const result2 = parseShareTargetPayload({
+        text: 'Coordinates: geo:48.8584,2.2945'
+      });
+      assert.strictEqual(result2.url, 'geo:48.8584,2.2945');
+      assert.strictEqual(result2.isUrlCandidate, true);
+    });
+
     it('should handle null, undefined, empty, and non-object inputs safely', () => {
       const emptyResult = {
         url: '',

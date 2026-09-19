@@ -113,9 +113,8 @@ pub async fn ingest_link(
         .category
         .unwrap_or_else(|| match meta.source_type.as_str() {
             "instagram" | "tiktok" => "Social".to_string(),
-            "google_maps" | "apple_maps" | "tripadvisor" | "yelp" | "alltrails" => {
-                "Place".to_string()
-            }
+            "google_maps" | "apple_maps" | "openstreetmap" | "tripadvisor" | "yelp"
+            | "alltrails" | "plus_code" | "coordinates" => "Place".to_string(),
             _ => "General".to_string(),
         });
 

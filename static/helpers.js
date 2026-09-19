@@ -164,20 +164,20 @@
     rawUrl = String(rawUrl).trim();
 
     let extractedUrl = '';
-    if (isValidHttpUrl(rawUrl)) {
+    if (isValidHttpUrl(rawUrl) || rawUrl.toLowerCase().startsWith('geo:')) {
       extractedUrl = rawUrl;
     }
 
     // If no direct URL provided in url param, search in text param
     if (!extractedUrl && rawText) {
-      const urlMatch = rawText.match(/https?:\/\/[^\s]+/i);
+      const urlMatch = rawText.match(/https?:\/\/[^\s]+/i) || rawText.match(/geo:[^\s]+/i);
       if (urlMatch) {
         extractedUrl = urlMatch[0];
       }
     }
 
     // Also check title if it was passed purely as a URL
-    if (!extractedUrl && rawTitle && isValidHttpUrl(rawTitle)) {
+    if (!extractedUrl && rawTitle && (isValidHttpUrl(rawTitle) || rawTitle.toLowerCase().startsWith('geo:'))) {
       extractedUrl = rawTitle;
       rawTitle = '';
     }

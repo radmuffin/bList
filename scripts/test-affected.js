@@ -177,7 +177,9 @@ function runCommand(cmd, label) {
     return true;
   }
 
-  const result = spawnSync(cmd, { shell: true, stdio: 'inherit' });
+  const cargoBin = path.join(process.env.HOME || '', '.cargo', 'bin');
+  const envPath = process.env.PATH ? `${cargoBin}:${process.env.PATH}` : cargoBin;
+  const result = spawnSync(cmd, { shell: true, stdio: 'inherit', env: { ...process.env, PATH: envPath } });
   if (result.status !== 0) {
     console.error(`\n\x1b[31m✖ ${label} FAILED with exit code ${result.status}\x1b[0m\n`);
     return false;
