@@ -1,5 +1,5 @@
 // bList Service Worker - Offline Caching & PWA Support
-const CACHE_NAME = 'blist-app-v10';
+const CACHE_NAME = 'blist-app-v11';
 const TILE_CACHE_NAME = 'blist-tiles-v1';
 const MAX_TILE_CACHE_ITEMS = 300;
 
@@ -7,9 +7,9 @@ const MAX_TILE_CACHE_ITEMS = 300;
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
-  '/style.css?v=0.1.7',
-  '/helpers.js?v=0.1.7',
-  '/app.js?v=0.1.7',
+  '/style.css?v=0.1.8',
+  '/helpers.js?v=0.1.8',
+  '/app.js?v=0.1.8',
   '/style.css',
   '/helpers.js',
   '/app.js',

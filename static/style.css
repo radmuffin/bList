@@ -374,9 +374,8 @@ body {
 /* Omni Bar Input */
 .save-link-bar {
   flex: 1;
-  max-width: 600px;
+  max-width: 520px;
   display: flex;
-  gap: 8px;
 }
 
 .input-wrapper {
@@ -413,6 +412,46 @@ body {
   transition: all 0.18s ease;
 }
 
+.save-link-bar .input-wrapper input {
+  padding-right: 84px !important;
+}
+
+.btn-inline-save {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: var(--primary);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+  z-index: 5;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-inline-save:hover {
+  background-color: var(--primary-hover);
+  box-shadow: 0 3px 8px var(--primary-glow);
+  transform: translateY(-50%) translateY(-1px);
+}
+
+.btn-inline-save:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.btn-inline-save svg {
+  width: 14px;
+  height: 14px;
+}
+
 .input-wrapper input::placeholder {
   color: var(--text-muted);
 }
@@ -428,7 +467,7 @@ body {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .btn {
